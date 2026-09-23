@@ -21,65 +21,69 @@ export default async function AppointmentsPage({ searchParams }: Props) {
 
   const targetDateStr = params.date || todayDhakaStr;
 
-  // Active doctors in tenant
-  const doctors = await db
-    .select({
-      id: schema.users.id,
-      name: schema.users.name,
-    })
-    .from(schema.users)
-    .where(
-      and(
-        eq(schema.users.tenantId, tenant.id),
-        eq(schema.users.isDoctor, true),
-        eq(schema.users.status, "active")
-      )
-    );
-
   // Range in UTC for target date
   const [year, month, day] = targetDateStr.split("-").map(Number);
   const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
   const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
 
-  const aptRows = await db
-    .select({
-      id: schema.appointments.id,
-      appointmentCode: schema.appointments.appointmentCode,
-      startTime: schema.appointments.startTime,
-      endTime: schema.appointments.endTime,
-      status: schema.appointments.status,
-      isOverbooked: schema.appointments.isOverbooked,
-      notes: schema.appointments.notes,
-      patientId: schema.appointments.patientId,
-      patientName: schema.patients.name,
-      patientPhone: schema.patients.phone,
-      patientCard: schema.patients.cardNumber,
-      patientAllergies: schema.patients.allergyFlags,
-      patientConditions: schema.patients.medicalConditions,
-      doctorId: schema.appointments.doctorId,
-      doctorName: schema.users.name,
-      chairName: schema.chairs.name,
-      queueStatus: schema.queueEntries.status,
-    })
-    .from(schema.appointments)
-    .leftJoin(
-      schema.patients,
-      eq(schema.appointments.patientId, schema.patients.id)
-    )
-    .leftJoin(schema.users, eq(schema.appointments.doctorId, schema.users.id))
-    .leftJoin(schema.chairs, eq(schema.appointments.chairId, schema.chairs.id))
-    .leftJoin(
-      schema.queueEntries,
-      eq(schema.appointments.id, schema.queueEntries.appointmentId)
-    )
-    .where(
-      and(
-        eq(schema.appointments.tenantId, tenant.id),
-        sql`${schema.appointments.startTime} >= ${dayStart.toISOString()}`,
-        sql`${schema.appointments.startTime} <= ${dayEnd.toISOString()}`
+  // Fetch doctors and appointments concurrently
+  const [doctors, aptRows] = await Promise.all([
+    // Active doctors in tenant
+    db
+      .select({
+        id: schema.users.id,
+        name: schema.users.name,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenant.id),
+          eq(schema.users.isDoctor, true),
+          eq(schema.users.status, "active")
+        )
+      ),
+
+    // Appointments for target date
+    db
+      .select({
+        id: schema.appointments.id,
+        appointmentCode: schema.appointments.appointmentCode,
+        startTime: schema.appointments.startTime,
+        endTime: schema.appointments.endTime,
+        status: schema.appointments.status,
+        isOverbooked: schema.appointments.isOverbooked,
+        notes: schema.appointments.notes,
+        patientId: schema.appointments.patientId,
+        patientName: schema.patients.name,
+        patientPhone: schema.patients.phone,
+        patientCard: schema.patients.cardNumber,
+        patientAllergies: schema.patients.allergyFlags,
+        patientConditions: schema.patients.medicalConditions,
+        doctorId: schema.appointments.doctorId,
+        doctorName: schema.users.name,
+        chairName: schema.chairs.name,
+        queueStatus: schema.queueEntries.status,
+      })
+      .from(schema.appointments)
+      .leftJoin(
+        schema.patients,
+        eq(schema.appointments.patientId, schema.patients.id)
       )
-    )
-    .orderBy(schema.appointments.startTime);
+      .leftJoin(schema.users, eq(schema.appointments.doctorId, schema.users.id))
+      .leftJoin(schema.chairs, eq(schema.appointments.chairId, schema.chairs.id))
+      .leftJoin(
+        schema.queueEntries,
+        eq(schema.appointments.id, schema.queueEntries.appointmentId)
+      )
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          sql`${schema.appointments.startTime} >= ${dayStart.toISOString()}`,
+          sql`${schema.appointments.startTime} <= ${dayEnd.toISOString()}`
+        )
+      )
+      .orderBy(schema.appointments.startTime),
+  ]);
 
   // Fetch appointment services for these appointments
   const appointmentIds = aptRows.map((a) => a.id);

@@ -26,76 +26,79 @@ export default async function TenantDashboardPage() {
     day: "2-digit",
   }).format(new Date());
 
-  // 1. Fetch today's queue entries
-  const todayQueue = await db
-    .select({
-      id: schema.queueEntries.id,
-      status: schema.queueEntries.status,
-      serialNo: schema.queueEntries.serialNo,
-      patientName: schema.patients.name,
-      patientCard: schema.patients.cardNumber,
-      doctorName: schema.users.name,
-    })
-    .from(schema.queueEntries)
-    .innerJoin(
-      schema.patients,
-      eq(schema.queueEntries.patientId, schema.patients.id)
-    )
-    .innerJoin(
-      schema.users,
-      eq(schema.queueEntries.doctorId, schema.users.id)
-    )
-    .where(
-      and(
-        eq(schema.queueEntries.tenantId, tenant.id),
-        eq(schema.queueEntries.date, todayDhakaStr)
+  // Fetch dashboard metrics and appointments in parallel to eliminate sequential database waterfalls
+  const [todayQueue, todayAppointments, dues] = await Promise.all([
+    // 1. Fetch today's queue entries
+    db
+      .select({
+        id: schema.queueEntries.id,
+        status: schema.queueEntries.status,
+        serialNo: schema.queueEntries.serialNo,
+        patientName: schema.patients.name,
+        patientCard: schema.patients.cardNumber,
+        doctorName: schema.users.name,
+      })
+      .from(schema.queueEntries)
+      .innerJoin(
+        schema.patients,
+        eq(schema.queueEntries.patientId, schema.patients.id)
       )
-    );
+      .innerJoin(
+        schema.users,
+        eq(schema.queueEntries.doctorId, schema.users.id)
+      )
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenant.id),
+          eq(schema.queueEntries.date, todayDhakaStr)
+        )
+      ),
+
+    // 2. Fetch scheduled appointments
+    db
+      .select({
+        id: schema.appointments.id,
+        code: schema.appointments.appointmentCode,
+        startTime: schema.appointments.startTime,
+        status: schema.appointments.status,
+        patientId: schema.appointments.patientId,
+        patientName: schema.patients.name,
+        patientPhone: schema.patients.phone,
+        pendingName: schema.appointments.pendingPatientName,
+        doctorName: schema.users.name,
+      })
+      .from(schema.appointments)
+      .leftJoin(
+        schema.patients,
+        eq(schema.appointments.patientId, schema.patients.id)
+      )
+      .innerJoin(
+        schema.users,
+        eq(schema.appointments.doctorId, schema.users.id)
+      )
+      .where(eq(schema.appointments.tenantId, tenant.id))
+      .orderBy(desc(schema.appointments.startTime))
+      .limit(6),
+
+    // 3. Outstanding Dues sum
+    db
+      .select({
+        total: schema.invoices.totalBdt,
+        paid: schema.invoices.paidBdt,
+      })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          eq(schema.invoices.status, "due")
+        )
+      ),
+  ]);
 
   const waitingCount = todayQueue.filter((q) => q.status === "waiting").length;
   const inChairCount = todayQueue.filter((q) => q.status === "in_chair").length;
   const billingCount = todayQueue.filter((q) => q.status === "billing").length;
   const doneCount = todayQueue.filter((q) => q.status === "done").length;
-
-  // 2. Fetch today's scheduled appointments
-  const todayAppointments = await db
-    .select({
-      id: schema.appointments.id,
-      code: schema.appointments.appointmentCode,
-      startTime: schema.appointments.startTime,
-      status: schema.appointments.status,
-      patientId: schema.appointments.patientId,
-      patientName: schema.patients.name,
-      patientPhone: schema.patients.phone,
-      pendingName: schema.appointments.pendingPatientName,
-      doctorName: schema.users.name,
-    })
-    .from(schema.appointments)
-    .leftJoin(
-      schema.patients,
-      eq(schema.appointments.patientId, schema.patients.id)
-    )
-    .innerJoin(
-      schema.users,
-      eq(schema.appointments.doctorId, schema.users.id)
-    )
-    .where(eq(schema.appointments.tenantId, tenant.id))
-    .orderBy(desc(schema.appointments.startTime))
-    .limit(6);
-
-  // 3. Outstanding Dues sum
-  const dues = await db
-    .select({
-      total: schema.invoices.totalBdt,
-      paid: schema.invoices.paidBdt,
-    })
-    .from(schema.invoices)
-    .where(
-      and(
-        eq(schema.invoices.tenantId, tenant.id),
-        eq(schema.invoices.status, "due")
-      )
-    );
 
   const totalDueAmount = dues.reduce((acc, inv) => acc + (inv.total - inv.paid), 0);
 

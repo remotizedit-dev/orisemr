@@ -100,9 +100,9 @@ export function QueueBoard({
         );
         toast.success(`Patient checked in with Serial #${res.serialNo}`);
       }
-      router.refresh();
     } catch {
       toast.error("Failed to check in patient");
+      router.refresh();
     } finally {
       setProcessingId(null);
     }
@@ -114,7 +114,7 @@ export function QueueBoard({
     chairId?: string
   ) => {
     setProcessingId(itemId);
-    // Optimistic update
+    // Optimistic update - instant UI response
     setItems((prev) =>
       prev.map((i) =>
         i.id === itemId
@@ -130,7 +130,6 @@ export function QueueBoard({
         done: "Completed Visits",
       };
       toast.success(`Patient moved to ${labels[newStatus] || newStatus}`);
-      router.refresh();
     } catch {
       toast.error("Failed to update queue");
       router.refresh();

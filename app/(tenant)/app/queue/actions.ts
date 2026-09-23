@@ -58,7 +58,6 @@ export async function checkInPatientAction(appointmentId: string) {
   });
 
   revalidatePath("/app/queue");
-  revalidatePath("/app");
 
   return { success: true, serialNo: assignedSerial };
 }
@@ -99,7 +98,6 @@ export async function advanceQueueStatusAction(
     );
 
   revalidatePath("/app/queue");
-  revalidatePath("/app");
 
   return { success: true };
 }

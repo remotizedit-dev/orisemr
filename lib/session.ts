@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -18,8 +19,9 @@ export interface SessionContext {
 
 /**
  * Retrieves the current session and user from headers. Returns null if unauthenticated.
+ * Wrapped in React cache() to deduplicate execution across layout and page within the same request.
  */
-export async function getSession(): Promise<SessionContext | null> {
+export const getSession = cache(async (): Promise<SessionContext | null> => {
   const reqHeaders = await headers();
   const sessionResult = await auth.api.getSession({
     headers: reqHeaders,
@@ -29,38 +31,31 @@ export async function getSession(): Promise<SessionContext | null> {
     return null;
   }
 
-  // Fetch complete user profile from database
-  const [dbUser] = await db
-    .select()
+  // Fetch user profile and tenant in a single joined query to eliminate sequential network round trips
+  const [row] = await db
+    .select({
+      user: users,
+      tenant: tenants,
+    })
     .from(users)
+    .leftJoin(tenants, eq(users.tenantId, tenants.id))
     .where(eq(users.id, sessionResult.user.id))
     .limit(1);
 
-  if (!dbUser || dbUser.status !== "active") {
+  if (!row || !row.user || row.user.status !== "active") {
     return null;
   }
 
-  // If user belongs to a tenant, check tenant status
-  let tenant: typeof tenants.$inferSelect | null = null;
-  if (dbUser.tenantId) {
-    const [dbTenant] = await db
-      .select()
-      .from(tenants)
-      .where(eq(tenants.id, dbUser.tenantId))
-      .limit(1);
-
-    if (!dbTenant || dbTenant.status !== "active") {
-      return null;
-    }
-    tenant = dbTenant;
+  if (row.user.tenantId && (!row.tenant || row.tenant.status !== "active")) {
+    return null;
   }
 
   return {
-    user: dbUser,
+    user: row.user,
     session: sessionResult.session,
-    tenant,
+    tenant: row.tenant,
   };
-}
+});
 
 /**
  * Enforces authenticated session; redirects to /login if unauthenticated or disabled.

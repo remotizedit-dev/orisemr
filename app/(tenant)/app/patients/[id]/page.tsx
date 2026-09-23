@@ -41,65 +41,68 @@ export default async function PatientProfilePage({
     notFound();
   }
 
-  // 2. Fetch Prescriptions
-  const prescriptions = await db
-    .select({
-      id: schema.prescriptions.id,
-      rxCode: schema.prescriptions.rxCode,
-      diagnosis: schema.prescriptions.diagnosis,
-      createdAt: schema.prescriptions.createdAt,
-      doctorName: schema.users.name,
-    })
-    .from(schema.prescriptions)
-    .innerJoin(
-      schema.users,
-      eq(schema.prescriptions.doctorId, schema.users.id)
-    )
-    .where(
-      and(
-        eq(schema.prescriptions.tenantId, tenant.id),
-        eq(schema.prescriptions.patientId, id)
+  // Fetch patient clinical records, billing invoices, and appointment history in parallel
+  const [prescriptions, invoices, appointments] = await Promise.all([
+    // 2. Fetch Prescriptions
+    db
+      .select({
+        id: schema.prescriptions.id,
+        rxCode: schema.prescriptions.rxCode,
+        diagnosis: schema.prescriptions.diagnosis,
+        createdAt: schema.prescriptions.createdAt,
+        doctorName: schema.users.name,
+      })
+      .from(schema.prescriptions)
+      .innerJoin(
+        schema.users,
+        eq(schema.prescriptions.doctorId, schema.users.id)
       )
-    )
-    .orderBy(desc(schema.prescriptions.createdAt));
+      .where(
+        and(
+          eq(schema.prescriptions.tenantId, tenant.id),
+          eq(schema.prescriptions.patientId, id)
+        )
+      )
+      .orderBy(desc(schema.prescriptions.createdAt)),
 
-  // 3. Fetch Invoices
-  const invoices = await db
-    .select()
-    .from(schema.invoices)
-    .where(
-      and(
-        eq(schema.invoices.tenantId, tenant.id),
-        eq(schema.invoices.patientId, id)
+    // 3. Fetch Invoices
+    db
+      .select()
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          eq(schema.invoices.patientId, id)
+        )
       )
-    )
-    .orderBy(desc(schema.invoices.createdAt));
+      .orderBy(desc(schema.invoices.createdAt)),
+
+    // 4. Fetch Appointments
+    db
+      .select({
+        id: schema.appointments.id,
+        code: schema.appointments.appointmentCode,
+        startTime: schema.appointments.startTime,
+        status: schema.appointments.status,
+        doctorName: schema.users.name,
+      })
+      .from(schema.appointments)
+      .innerJoin(
+        schema.users,
+        eq(schema.appointments.doctorId, schema.users.id)
+      )
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.patientId, id)
+        )
+      )
+      .orderBy(desc(schema.appointments.startTime)),
+  ]);
 
   const totalOutstanding = invoices
     .filter((inv) => inv.status === "due" || inv.status === "partial")
     .reduce((acc, inv) => acc + (inv.totalBdt - inv.paidBdt), 0);
-
-  // 4. Fetch Appointments
-  const appointments = await db
-    .select({
-      id: schema.appointments.id,
-      code: schema.appointments.appointmentCode,
-      startTime: schema.appointments.startTime,
-      status: schema.appointments.status,
-      doctorName: schema.users.name,
-    })
-    .from(schema.appointments)
-    .innerJoin(
-      schema.users,
-      eq(schema.appointments.doctorId, schema.users.id)
-    )
-    .where(
-      and(
-        eq(schema.appointments.tenantId, tenant.id),
-        eq(schema.appointments.patientId, id)
-      )
-    )
-    .orderBy(desc(schema.appointments.startTime));
 
   return (
     <div className="space-y-6">
