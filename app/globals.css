@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-mono), monospace;
+  --font-bengali: var(--font-bengali), var(--font-inter), sans-serif;
+}
+
+:root {
+  --ink: #1C1C1E;
+  --paper: #FFFFFF;
+  --mist: #F4F4F5;
+  --ash: #6B7280;
+  --ash-light: #9CA3AF;
+  --line: #E4E4E7;
+  --signal: #2A5CAA;
+  --signal-hover: #224b8c;
+  --signal-tint: #E8EEF7;
+  --success: #30D158;
+  --success-bg: #E8F8EE;
+  --warning: #FF9F0A;
+  --warning-bg: #FFF7EB;
+  --danger: #FF453A;
+  --danger-bg: #FFEBEA;
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Liquid Glass & Elevation Layers                                            */
+/* -------------------------------------------------------------------------- */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(228, 228, 231, 0.7);
+  box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.05), 0 2px 8px -1px rgba(0, 0, 0, 0.03);
+}
+
+.glass-floating {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(228, 228, 231, 0.8);
+  box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.1), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+}
+
+.glass-dropdown {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+}
+
+/* -------------------------------------------------------------------------- */
+/* High-Density Flat Clinical Utilities                                       */
+/* -------------------------------------------------------------------------- */
+.clinical-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.clinical-input {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.clinical-input:focus {
+  outline: none;
+  border-color: var(--signal);
+  box-shadow: 0 0 0 2px var(--signal-tint);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Print CSS (@media print)                                                   */
+/* -------------------------------------------------------------------------- */
+@media print {
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  .no-print,
+  nav,
+  header,
+  aside,
+  button,
+  .glass-panel,
+  .glass-floating {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .page-break {
+    page-break-after: always;
+  }
+
+  @page {
+    margin: 10mm;
+    size: auto;
+  }
+}

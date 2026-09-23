@@ -1,0 +1,331 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { createClinicAction } from "../actions";
+import {
+  ArrowLeft,
+  Building2,
+  CheckCircle2,
+  CreditCard,
+  Layers,
+  Sparkles,
+  UserCheck,
+} from "lucide-react";
+
+export default function NewTenantPage() {
+  const [isDoctor, setIsDoctor] = useState(true);
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [shortCode, setShortCode] = useState("");
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setName(val);
+    if (!slug) {
+      // Auto-suggest slug
+      const generatedSlug = val
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      setSlug(generatedSlug);
+    }
+    if (!shortCode && val.length >= 2) {
+      // Auto-suggest shortCode
+      const acronym = val
+        .split(/\s+/)
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 4);
+      setShortCode(acronym);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <Link
+          href="/platform/tenants"
+          className="p-2 rounded-xl bg-white border border-[#E4E4E7] text-[#6B7280] hover:text-[#1C1C1E] transition"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#1C1C1E] tracking-tight">
+            Create New Clinic
+          </h1>
+          <p className="text-sm text-[#6B7280]">
+            Instantly provisions tenant database records, copies master catalog, and invites the clinic administrator.
+          </p>
+        </div>
+      </div>
+
+      <form action={createClinicAction} className="space-y-6">
+        {/* Section 1: Clinic Profile */}
+        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-[#E4E4E7]">
+            <Building2 className="w-4 h-4 text-[#2A5CAA]" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E]">
+              1. Chamber Details
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Clinic Name *
+              </label>
+              <input
+                type="text"
+                name="name"
+                required
+                value={name}
+                onChange={handleNameChange}
+                placeholder="e.g. Modern Dental Care"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Public URL Slug *
+              </label>
+              <div className="flex items-center rounded-lg border border-[#E4E4E7] bg-white overflow-hidden">
+                <span className="pl-3 text-xs text-[#6B7280] select-none font-mono">
+                  /book/
+                </span>
+                <input
+                  type="text"
+                  name="slug"
+                  required
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value.toLowerCase())}
+                  placeholder="modern-dental"
+                  className="w-full px-2 py-2.5 text-sm font-mono focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Short Code (2–6 chars) *
+              </label>
+              <input
+                type="text"
+                name="shortCode"
+                required
+                maxLength={6}
+                value={shortCode}
+                onChange={(e) => setShortCode(e.target.value.toUpperCase())}
+                placeholder="MDC"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm font-mono uppercase focus:outline-none focus:border-[#2A5CAA]"
+              />
+              <span className="text-[11px] text-[#6B7280] mt-0.5 block">
+                Used in codes: INV-{shortCode || "XXX"}-000001
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Phone Number
+              </label>
+              <input
+                type="text"
+                name="phone"
+                placeholder="01712-345678"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Clinic Email (Reply-To)
+              </label>
+              <input
+                type="email"
+                name="email"
+                placeholder="info@moderndental.com"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Chamber Address
+              </label>
+              <input
+                type="text"
+                name="address"
+                placeholder="House 12, Road 4, Dhanmondi, Dhaka"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: Clinic Admin */}
+        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-[#E4E4E7]">
+            <UserCheck className="w-4 h-4 text-[#2A5CAA]" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E]">
+              2. Clinic Administrator
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Admin Full Name *
+              </label>
+              <input
+                type="text"
+                name="adminName"
+                required
+                placeholder="Dr. Tanvir Ahmed"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Admin Login Email *
+              </label>
+              <input
+                type="email"
+                name="adminEmail"
+                required
+                placeholder="admin@moderndental.com"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Initial Password
+              </label>
+              <input
+                type="text"
+                name="adminPassword"
+                defaultValue="ClinicAdmin123!"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm font-mono focus:outline-none focus:border-[#2A5CAA]"
+              />
+            </div>
+
+            <div className="sm:col-span-2 pt-2">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="adminIsDoctor"
+                  checked={isDoctor}
+                  onChange={(e) => setIsDoctor(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#2A5CAA] focus:ring-0"
+                />
+                <span className="text-sm font-semibold text-[#1C1C1E]">
+                  This administrator is also a practising dentist (is_doctor = true)
+                </span>
+              </label>
+            </div>
+
+            {isDoctor && (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                    Doctor Title
+                  </label>
+                  <input
+                    type="text"
+                    name="adminDoctorTitle"
+                    defaultValue="Dr."
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                    Specialty / Degree
+                  </label>
+                  <input
+                    type="text"
+                    name="adminDoctorSpecialty"
+                    placeholder="BDS, FCPS (Oral Surgery)"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                    BMDC Registration Number
+                  </label>
+                  <input
+                    type="text"
+                    name="adminDoctorRegNo"
+                    placeholder="BMDC-A-12345"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Section 3: Subscription Plan */}
+        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-[#E4E4E7]">
+            <CreditCard className="w-4 h-4 text-[#2A5CAA]" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E]">
+              3. Subscription Plan
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Plan Name
+              </label>
+              <input
+                type="text"
+                name="planName"
+                defaultValue="Standard"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Price (BDT)
+              </label>
+              <input
+                type="number"
+                name="priceBdt"
+                defaultValue={2000}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                Billing Cycle
+              </label>
+              <select
+                name="billingCycle"
+                defaultValue="monthly"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Submission Button */}
+        <div className="pt-2">
+          <button
+            type="submit"
+            className="w-full py-3.5 px-6 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2A5CAA]/25 transition cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Create Clinic &amp; Clone Master Catalog</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
