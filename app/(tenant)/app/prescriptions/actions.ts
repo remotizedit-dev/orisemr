@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -143,8 +144,33 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
       });
     }
 
+    // 5. If patient was in chair in queue, advance them to billing
+    if (input.appointmentId) {
+      await tx
+        .update(schema.queueEntries)
+        .set({
+          status: "billing",
+          billingAt: new Date(),
+          updatedBy: user.id,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.appointmentId, input.appointmentId),
+            eq(schema.queueEntries.status, "in_chair")
+          )
+        );
+    }
+
     return { prescriptionId: prescription.id, rxCode };
   });
+
+  revalidatePath("/app/queue");
+  revalidatePath("/app/prescriptions");
+  revalidatePath("/app/billing");
+  revalidatePath(`/app/patients/${input.patientId}`);
+  revalidatePath("/app");
 
   return result;
 }

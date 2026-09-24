@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Mail,
@@ -44,6 +44,8 @@ interface Props {
 
 export default function DuesClient({ invoices, totalDuesSum }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const invoiceIdParam = searchParams.get("invoiceId");
   const [agingFilter, setAgingFilter] = useState<"all" | "recent" | "medium" | "old">("all");
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
 
@@ -53,6 +55,16 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bkash" | "nagad" | "card">("cash");
   const [transactionRef, setTransactionRef] = useState("");
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
+  useEffect(() => {
+    if (invoiceIdParam) {
+      const target = invoices.find((inv) => inv.id === invoiceIdParam);
+      if (target) {
+        setPaymentInvoice(target);
+        setPaymentAmount(target.dueBdt);
+      }
+    }
+  }, [invoiceIdParam, invoices]);
 
   const filteredInvoices = invoices.filter((inv) => {
     if (agingFilter === "recent") return inv.daysOverdue <= 7;

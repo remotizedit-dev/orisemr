@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
@@ -15,7 +15,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
   const { tenant } = await requireClinicStaff();
   const params = await searchParams;
 
-  // Active services in tenant
+  // Active services in tenant catalog
   const services = await db
     .select({
       id: schema.services.id,
@@ -31,7 +31,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     )
     .orderBy(schema.services.name);
 
-  // Preselected patient if any
+  let patientId = params.patientId;
   let preselectedPatient: {
     id: string;
     name: string;
@@ -39,7 +39,115 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     phone: string;
   } | null = null;
 
-  if (params.patientId) {
+  // 1. If appointmentId is provided, resolve patient and services from appointment
+  interface InitialInvoiceItem {
+    id: string;
+    serviceId?: string;
+    description: string;
+    toothCodes: string[];
+    quantity: number;
+    unitPriceBdt: number;
+  }
+
+  let initialLineItems: InitialInvoiceItem[] = [];
+  let prescriptionInfo: {
+    rxCode: string;
+    diagnosis?: string | null;
+    toothCodes?: string[];
+  } | null = null;
+
+  if (params.appointmentId) {
+    const [apt] = await db
+      .select({
+        id: schema.appointments.id,
+        patientId: schema.appointments.patientId,
+      })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.id, params.appointmentId)
+        )
+      )
+      .limit(1);
+
+    if (apt?.patientId) {
+      if (!patientId) patientId = apt.patientId;
+    }
+
+    // Fetch booked services for this appointment
+    const bookedServices = await db
+      .select({
+        id: schema.appointmentServices.id,
+        serviceId: schema.appointmentServices.serviceId,
+        serviceNameSnapshot: schema.appointmentServices.serviceNameSnapshot,
+        priceBdtSnapshot: schema.appointmentServices.priceBdtSnapshot,
+        toothCodes: schema.appointmentServices.toothCodes,
+      })
+      .from(schema.appointmentServices)
+      .where(
+        and(
+          eq(schema.appointmentServices.tenantId, tenant.id),
+          eq(schema.appointmentServices.appointmentId, params.appointmentId)
+        )
+      );
+
+    if (bookedServices.length > 0) {
+      initialLineItems = bookedServices.map((bs, idx) => ({
+        id: `line-${idx + 1}`,
+        serviceId: bs.serviceId,
+        description: bs.serviceNameSnapshot,
+        toothCodes: bs.toothCodes || [],
+        quantity: 1,
+        unitPriceBdt: bs.priceBdtSnapshot,
+      }));
+    }
+
+    // Check for prescription issued for this appointment
+    const [rx] = await db
+      .select({
+        id: schema.prescriptions.id,
+        rxCode: schema.prescriptions.rxCode,
+        diagnosis: schema.prescriptions.diagnosis,
+        toothCodes: schema.prescriptions.toothCodes,
+      })
+      .from(schema.prescriptions)
+      .where(
+        and(
+          eq(schema.prescriptions.tenantId, tenant.id),
+          eq(schema.prescriptions.appointmentId, params.appointmentId)
+        )
+      )
+      .limit(1);
+
+    if (rx) {
+      prescriptionInfo = {
+        rxCode: rx.rxCode,
+        diagnosis: rx.diagnosis,
+        toothCodes: rx.toothCodes || [],
+      };
+
+      // If no explicit appointment services were booked, but doctor wrote prescription
+      if (initialLineItems.length === 0) {
+        const defaultService = services[0];
+        initialLineItems = [
+          {
+            id: "line-1",
+            serviceId: defaultService?.id,
+            description: rx.diagnosis
+              ? `Dental Treatment & Care (${rx.diagnosis})`
+              : (defaultService?.name || "Dental Consultation & Treatment"),
+            toothCodes: rx.toothCodes || [],
+            quantity: 1,
+            unitPriceBdt: defaultService?.priceBdt || 500,
+          },
+        ];
+      }
+    }
+  }
+
+  // 2. Fetch preselected patient info
+  if (patientId) {
     const [p] = await db
       .select({
         id: schema.patients.id,
@@ -51,7 +159,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .where(
         and(
           eq(schema.patients.tenantId, tenant.id),
-          eq(schema.patients.id, params.patientId)
+          eq(schema.patients.id, patientId)
         )
       )
       .limit(1);
@@ -59,11 +167,69 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     if (p) preselectedPatient = p;
   }
 
+  // 3. Fetch patient's previous unpaid dues
+  interface UnpaidInvoice {
+    id: string;
+    invoiceCode: string;
+    totalBdt: number;
+    paidBdt: number;
+    dueBdt: number;
+    createdAt: string;
+  }
+
+  let patientDues: {
+    totalDueBdt: number;
+    unpaidInvoices: UnpaidInvoice[];
+  } = {
+    totalDueBdt: 0,
+    unpaidInvoices: [],
+  };
+
+  if (patientId) {
+    const pastInvoices = await db
+      .select({
+        id: schema.invoices.id,
+        invoiceCode: schema.invoices.invoiceCode,
+        totalBdt: schema.invoices.totalBdt,
+        paidBdt: schema.invoices.paidBdt,
+        status: schema.invoices.status,
+        createdAt: schema.invoices.createdAt,
+      })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          eq(schema.invoices.patientId, patientId),
+          inArray(schema.invoices.status, ["due", "partial"])
+        )
+      )
+      .orderBy(desc(schema.invoices.createdAt));
+
+    const unpaid = pastInvoices
+      .filter((inv) => inv.totalBdt > inv.paidBdt)
+      .map((inv) => ({
+        id: inv.id,
+        invoiceCode: inv.invoiceCode || "DRAFT",
+        totalBdt: inv.totalBdt,
+        paidBdt: inv.paidBdt,
+        dueBdt: inv.totalBdt - inv.paidBdt,
+        createdAt: inv.createdAt.toISOString(),
+      }));
+
+    patientDues = {
+      totalDueBdt: unpaid.reduce((sum, it) => sum + it.dueBdt, 0),
+      unpaidInvoices: unpaid,
+    };
+  }
+
   return (
     <NewInvoiceClient
       services={services}
       preselectedPatient={preselectedPatient}
       appointmentId={params.appointmentId}
+      initialItems={initialLineItems.length > 0 ? initialLineItems : undefined}
+      patientDues={patientDues}
+      prescriptionInfo={prescriptionInfo}
     />
   );
 }

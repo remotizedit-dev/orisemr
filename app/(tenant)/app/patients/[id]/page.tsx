@@ -308,18 +308,36 @@ export default async function PatientProfilePage({
         {/* Right Column (1 col): Invoices & Outstanding Due Balance */}
         <div className="space-y-6">
           <div className="glass-panel p-5 rounded-2xl border border-[#E4E4E7] space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E] flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-[#2A5CAA]" />
-              <span>Billing Summary</span>
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E] flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#2A5CAA]" />
+                <span>Billing Summary</span>
+              </h2>
+              <Link
+                href={`/app/billing/new?patientId=${patient.id}`}
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] hover:bg-[#2A5CAA] hover:text-white px-2.5 py-1 rounded-lg transition-colors"
+              >
+                + New Invoice
+              </Link>
+            </div>
 
-            <div className="p-3.5 rounded-xl bg-[#FFF7EB] border border-[#FF9F0A]/30">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-wider font-semibold block">
-                Total Outstanding Due:
-              </span>
-              <span className="text-2xl font-black text-[#1C1C1E] block mt-0.5">
-                {formatBdt(totalOutstanding)}
-              </span>
+            <div className="p-3.5 rounded-xl bg-[#FFF7EB] border border-[#FF9F0A]/30 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-[#6B7280] uppercase tracking-wider font-semibold block">
+                  Total Outstanding Due:
+                </span>
+                <span className={`text-2xl font-black block mt-0.5 ${totalOutstanding > 0 ? "text-[#C0392B]" : "text-[#1C1C1E]"}`}>
+                  {formatBdt(totalOutstanding)}
+                </span>
+              </div>
+              {totalOutstanding > 0 && (
+                <Link
+                  href={`/app/billing/dues?search=${encodeURIComponent(patient.phone || patient.name)}`}
+                  className="px-3 py-1.5 bg-[#C0392B] hover:bg-[#A93226] text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+                >
+                  Settle Due →
+                </Link>
+              )}
             </div>
 
             <div className="divide-y divide-[#E4E4E7] text-xs">
@@ -328,30 +346,62 @@ export default async function PatientProfilePage({
                   No invoices generated yet.
                 </div>
               ) : (
-                invoices.map((inv) => (
-                  <div key={inv.id} className="py-2.5 flex items-center justify-between">
-                    <div>
-                      <span className="font-mono font-bold text-[#1C1C1E]">
-                        {inv.invoiceCode || "DRAFT"}
-                      </span>
-                      <span className="text-[11px] text-[#6B7280] block">
-                        {formatDhakaDate(inv.createdAt, "dd MMM yyyy")}
-                      </span>
+                invoices.map((inv) => {
+                  const dueBdt = inv.totalBdt - inv.paidBdt;
+                  const isUnpaid = inv.status === "due" || inv.status === "partial" || dueBdt > 0;
+                  return (
+                    <div key={inv.id} className="py-3 flex items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-[#1C1C1E]">
+                            {inv.invoiceCode || "DRAFT"}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              inv.status === "paid"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : inv.status === "partial"
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : "bg-rose-50 text-rose-700 border border-rose-200"
+                            }`}
+                          >
+                            {inv.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-[#6B7280] block mt-0.5">
+                          {formatDhakaDate(inv.createdAt, "dd MMM yyyy")}
+                        </span>
+                        {isUnpaid && (
+                          <span className="text-[11px] text-[#C0392B] font-semibold block">
+                            Due: {formatBdt(dueBdt)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right flex flex-col items-end gap-1">
+                        <span className="font-bold text-[#1C1C1E]">
+                          {formatBdt(inv.totalBdt)}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {isUnpaid && (
+                            <Link
+                              href={`/app/billing/dues?invoiceId=${inv.id}`}
+                              className="text-[11px] font-bold text-[#C0392B] hover:underline bg-rose-50 px-2 py-0.5 rounded border border-rose-200"
+                            >
+                              Pay Due
+                            </Link>
+                          )}
+                          <Link
+                            href={`/print/invoice/${inv.id}`}
+                            target="_blank"
+                            className="text-[11px] text-[#2A5CAA] hover:underline"
+                          >
+                            Print →
+                          </Link>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="font-bold text-[#1C1C1E]">
-                        {formatBdt(inv.totalBdt)}
-                      </span>
-                      <Link
-                        href={`/print/invoice/${inv.id}`}
-                        target="_blank"
-                        className="text-[11px] text-[#2A5CAA] hover:underline block"
-                      >
-                        Print →
-                      </Link>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

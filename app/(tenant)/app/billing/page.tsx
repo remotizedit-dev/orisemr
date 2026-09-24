@@ -76,12 +76,19 @@ export default async function BillingPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Link
             href="/app/billing/dues"
-            className="px-4 py-2.5 rounded-xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F4F4F5] text-xs font-semibold shadow-xs transition"
+            className="px-4 py-2.5 rounded-2xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F4F4F5] text-sm font-bold shadow-2xs transition"
           >
             Review Outstanding Dues →
+          </Link>
+          <Link
+            href="/app/billing/new"
+            className="px-5 py-2.5 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold shadow-md transition flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4.5 h-4.5" />
+            <span>Create New Invoice</span>
           </Link>
         </div>
       </div>
@@ -191,14 +198,26 @@ export default async function BillingPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <Link
-                          href={`/print/invoice/${inv.id}`}
-                          target="_blank"
-                          className="text-xs font-semibold text-[#2A5CAA] hover:underline flex items-center justify-end gap-1"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>Print</span>
-                        </Link>
+                        <div className="flex items-center justify-end gap-2.5">
+                          {due > 0 && (
+                            <Link
+                              href={`/app/billing/dues?invoiceId=${inv.id}`}
+                              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition"
+                              title="Collect payment on remaining due"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              <span>Pay Due</span>
+                            </Link>
+                          )}
+                          <Link
+                            href={`/print/invoice/${inv.id}`}
+                            target="_blank"
+                            className="text-xs font-bold text-[#2A5CAA] hover:underline flex items-center gap-1"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Print</span>
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   );

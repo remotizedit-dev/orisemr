@@ -201,11 +201,32 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
       });
     }
 
+    // 5. If linked to an appointment, mark queue entry as done
+    if (input.appointmentId) {
+      await tx
+        .update(schema.queueEntries)
+        .set({
+          status: "done",
+          doneAt: new Date(),
+          updatedBy: user.id,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.appointmentId, input.appointmentId)
+          )
+        );
+    }
+
     return created.id;
   });
 
   revalidatePath("/app/billing");
   revalidatePath("/app/billing/dues");
+  revalidatePath("/app/queue");
+  revalidatePath("/app/patients");
+  revalidatePath(`/app/patients/${input.patientId}`);
   revalidatePath("/app");
 
   return { success: true, invoiceId: createdInvoiceId };

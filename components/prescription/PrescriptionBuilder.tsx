@@ -14,6 +14,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  CreditCard,
   FileText,
   Loader2,
   Plus,
@@ -332,10 +333,18 @@ export function PrescriptionBuilder({
 
             <div className="space-y-3 pt-1">
               <Link
+                href={`/app/billing/new?patientId=${patient.id}${appointmentId ? `&appointmentId=${appointmentId}` : ""}`}
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+              >
+                <CreditCard className="w-4.5 h-4.5" />
+                <span>Proceed to Billing &amp; Collect Payment →</span>
+              </Link>
+
+              <Link
                 href={`/print/prescription/${savedPrescription.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="w-full py-3.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
               >
                 <Printer className="w-4.5 h-4.5" />
                 <span>Open &amp; Print Prescription ↗</span>

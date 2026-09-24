@@ -665,11 +665,11 @@ export function QueueBoard({
                     {/* Action: Collect Payment & Invoice */}
                     <div className="space-y-2 pt-2 border-t border-[#E4E4E7]">
                       <Link
-                        href={`/app/billing?patientId=${item.patientId}`}
-                        className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 shadow-xs transition"
+                        href={`/app/billing/new?patientId=${item.patientId}&appointmentId=${item.appointmentId}`}
+                        className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
                       >
-                        <CreditCard className="w-4 h-4" />
-                        <span>Collect Payment &amp; Invoice</span>
+                        <CreditCard className="w-4.5 h-4.5" />
+                        <span>Collect Payment &amp; Invoice →</span>
                       </Link>
 
                       <button
