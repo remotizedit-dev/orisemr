@@ -61,7 +61,7 @@ export default async function PrintInvoicePage({
 
   return (
     <div className="bg-white text-black min-h-screen p-8 max-w-3xl mx-auto font-sans text-xs">
-      <AutoPrintTrigger />
+      <AutoPrintTrigger patientId={patient?.id} />
 
       {/* Header */}
       <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">

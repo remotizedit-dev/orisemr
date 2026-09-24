@@ -436,6 +436,145 @@ export async function deleteDoctorAction(doctorId: string) {
 }
 
 // -----------------------------------------------------------------------------
+// Staff & Receptionists Management
+// -----------------------------------------------------------------------------
+
+export interface AddStaffInput {
+  name: string;
+  email: string;
+  password?: string;
+  phone?: string;
+}
+
+export async function addStaffAction(input: AddStaffInput) {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "manage_staff")) {
+    throw new Error("Only Chamber Admins may add staff");
+  }
+
+  const cleanEmail = input.email.trim().toLowerCase();
+  if (!cleanEmail || !input.name.trim()) {
+    throw new Error("Staff name and valid email are required");
+  }
+
+  const [existingUser] = await db
+    .select({ id: schema.users.id, tenantId: schema.users.tenantId })
+    .from(schema.users)
+    .where(eq(schema.users.email, cleanEmail))
+    .limit(1);
+
+  if (existingUser) {
+    if (existingUser.tenantId === tenant.id) {
+      await db
+        .update(schema.users)
+        .set({
+          name: input.name.trim(),
+          role: "RECEPTIONIST",
+          isDoctor: false,
+          status: "active",
+          phone: input.phone?.trim() || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.users.id, existingUser.id));
+
+      revalidatePath("/app/settings/staff");
+      return { success: true, staffId: existingUser.id };
+    }
+    throw new Error("A user with this email already exists on the platform");
+  }
+
+  const authRes = await auth.api.signUpEmail({
+    body: {
+      name: input.name.trim(),
+      email: cleanEmail,
+      password: input.password || "Staff12345!",
+    },
+  });
+
+  if (!authRes?.user) {
+    throw new Error("Failed to create staff account");
+  }
+
+  await db
+    .update(schema.users)
+    .set({
+      tenantId: tenant.id,
+      role: "RECEPTIONIST",
+      isDoctor: false,
+      status: "active",
+      phone: input.phone?.trim() || null,
+      emailVerified: true,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.users.id, authRes.user.id));
+
+  revalidatePath("/app/settings/staff");
+  return { success: true, staffId: authRes.user.id };
+}
+
+export interface UpdateStaffInput {
+  id: string;
+  name: string;
+  phone?: string;
+  status?: "active" | "disabled";
+}
+
+export async function updateStaffAction(input: UpdateStaffInput) {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "manage_staff")) {
+    throw new Error("Only Chamber Admins may modify staff details");
+  }
+
+  await db
+    .update(schema.users)
+    .set({
+      name: input.name.trim(),
+      phone: input.phone?.trim() || null,
+      status: input.status || "active",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.id, input.id)
+      )
+    );
+
+  revalidatePath("/app/settings/staff");
+  return { success: true };
+}
+
+export async function deleteStaffAction(staffId: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "manage_staff")) {
+    throw new Error("Only Chamber Admins may remove staff");
+  }
+
+  if (staffId === user.id) {
+    throw new Error("You cannot remove your own account");
+  }
+
+  await db
+    .update(schema.users)
+    .set({
+      status: "disabled",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.id, staffId)
+      )
+    );
+
+  revalidatePath("/app/settings/staff");
+  return { success: true };
+}
+
+// -----------------------------------------------------------------------------
 // Procedures & Services Catalog
 // -----------------------------------------------------------------------------
 export async function createServiceItemAction(input: {

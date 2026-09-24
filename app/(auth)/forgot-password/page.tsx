@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 import { Stethoscope, Mail, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
@@ -18,12 +19,25 @@ export default function ForgotPasswordPage() {
     }
 
     setIsLoading(true);
-    // Simulate or call Better Auth forgot password
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error } = await authClient.forgetPassword({
+        email: email.trim().toLowerCase(),
+        redirectTo: "/reset-password",
+      });
+
+      if (error) {
+        toast.error(error.message || "Failed to send reset email");
+        setIsLoading(false);
+        return;
+      }
+
       setIsSubmitted(true);
-      toast.success("Password reset link queued");
-    }, 800);
+      toast.success("Password reset link sent to your email!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send reset link");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -166,12 +166,20 @@ export default function NewTenantPage() {
 
         {/* Section 2: Clinic Admin */}
         <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-[#E4E4E7]">
-            <UserCheck className="w-4 h-4 text-[#2A5CAA]" />
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E]">
-              2. Clinic Administrator
-            </h2>
+          <div className="flex items-center justify-between pb-2 border-b border-[#E4E4E7]">
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-[#2A5CAA]" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E]">
+                2. Clinic Administrator (Single Primary Account)
+              </h2>
+            </div>
+            <span className="text-[10px] font-semibold text-[#007AFF] bg-[#007AFF]/10 px-2 py-0.5 rounded-full">
+              Must change password on first login
+            </span>
           </div>
+          <p className="text-xs text-[#6B7280]">
+            Only the primary Clinic Administrator account is created at tenant provisioning. Upon first sign-in, this admin will be prompted to update their password, after which they can configure chairs, add doctors, and invite staff users.
+          </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

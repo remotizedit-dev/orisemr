@@ -7,6 +7,7 @@ import { Stethoscope } from "lucide-react";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { SearchTrigger } from "@/components/palette/SearchTrigger";
 import { TenantSidebarNav } from "@/components/layout/TenantSidebarNav";
+import { FirstLoginPasswordModal } from "@/components/auth/FirstLoginPasswordModal";
 
 export default async function TenantAppLayout({
   children,
@@ -14,9 +15,13 @@ export default async function TenantAppLayout({
   children: React.ReactNode;
 }) {
   const { user, tenant } = await requireClinicStaff();
+  const mustChangePassword = Boolean((user.preferences as Record<string, unknown>)?.mustChangePassword);
 
   return (
     <div className="min-h-screen bg-[#F4F4F5] flex">
+      {/* First-login mandatory password change modal */}
+      <FirstLoginPasswordModal mustChange={mustChangePassword} userName={user.name} />
+
       {/* Global Barcode Hardware Scanner Listener */}
       <ScanListener tenantId={tenant.id} tenantShortCode={tenant.shortCode} />
       <CommandPalette tenantId={tenant.id} tenantShortCode={tenant.shortCode} />

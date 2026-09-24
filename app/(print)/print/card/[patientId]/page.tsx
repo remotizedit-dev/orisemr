@@ -30,7 +30,7 @@ export default async function PrintCardPage({
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <AutoPrintTrigger />
+      <AutoPrintTrigger patientId={patient.id} />
 
       {/* CR80 Card Dimensions: 85.6mm x 54mm (approx 324px x 204px at 96dpi, or exact in print) */}
       <div className="w-[325px] h-[204px] bg-white border border-gray-300 rounded-xl p-4 shadow-lg flex flex-col justify-between text-black select-none print:shadow-none print:border-black">

@@ -10,6 +10,8 @@ import {
   type CandidateDoctor,
 } from "@/lib/scheduling/slot-engine";
 import { generateRecordCode } from "@/lib/barcode/codes";
+import { sendEmail, renderAppointmentConfirmationHtml } from "@/lib/email/mailer";
+import { formatDhakaDate } from "@/lib/utils";
 
 export interface GetStaffSlotsInput {
   dateStr: string; // YYYY-MM-DD
@@ -283,6 +285,50 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     return created.id;
   });
 
+  // Dispatch confirmation email asynchronously if patient email is available
+  try {
+    const [patient] = await db
+      .select({ name: schema.patients.name, email: schema.patients.email })
+      .from(schema.patients)
+      .where(eq(schema.patients.id, input.patientId))
+      .limit(1);
+
+    if (patient?.email) {
+      const [assignedDoctor] = await db
+        .select({ name: schema.users.name, title: schema.users.doctorTitle })
+        .from(schema.users)
+        .where(eq(schema.users.id, input.doctorId))
+        .limit(1);
+
+      const [aptRecord] = await db
+        .select({ appointmentCode: schema.appointments.appointmentCode })
+        .from(schema.appointments)
+        .where(eq(schema.appointments.id, newAppointmentId))
+        .limit(1);
+
+      const docName = assignedDoctor
+        ? `${assignedDoctor.title || "Dr."} ${assignedDoctor.name}`
+        : "Dental Surgeon";
+
+      await sendEmail({
+        to: patient.email.trim(),
+        subject: `Appointment Confirmed - ${tenant.name} (${aptRecord?.appointmentCode})`,
+        html: renderAppointmentConfirmationHtml({
+          patientName: patient.name,
+          doctorName: docName,
+          clinicName: tenant.name,
+          clinicAddress: tenant.address || undefined,
+          clinicPhone: tenant.phone || undefined,
+          displayTime: `${input.dateStr} from ${formatDhakaDate(start, "hh:mm a")} to ${formatDhakaDate(end, "hh:mm a")}`,
+          appointmentCode: aptRecord?.appointmentCode || "APT",
+          isConfirmed: true,
+        }),
+      });
+    }
+  } catch (err) {
+    console.warn("Notice: could not send staff appointment confirmation email:", err);
+  }
+
   revalidatePath("/app/appointments");
   revalidatePath("/app/queue");
   revalidatePath("/app");
@@ -348,6 +394,55 @@ export async function updateAppointmentStatusAction(
         );
     }
   });
+
+  if (newStatus === "confirmed") {
+    try {
+      const [apt] = await db
+        .select({
+          code: schema.appointments.appointmentCode,
+          startTime: schema.appointments.startTime,
+          patientName: schema.patients.name,
+          patientEmail: schema.patients.email,
+          docName: schema.users.name,
+          docTitle: schema.users.doctorTitle,
+        })
+        .from(schema.appointments)
+        .innerJoin(
+          schema.patients,
+          eq(schema.appointments.patientId, schema.patients.id)
+        )
+        .innerJoin(
+          schema.users,
+          eq(schema.appointments.doctorId, schema.users.id)
+        )
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.id, appointmentId)
+          )
+        )
+        .limit(1);
+
+      if (apt?.patientEmail) {
+        await sendEmail({
+          to: apt.patientEmail.trim(),
+          subject: `Appointment Confirmed - ${tenant.name} (${apt.code})`,
+          html: renderAppointmentConfirmationHtml({
+            patientName: apt.patientName,
+            doctorName: `${apt.docTitle || "Dr."} ${apt.docName}`,
+            clinicName: tenant.name,
+            clinicAddress: tenant.address || undefined,
+            clinicPhone: tenant.phone || undefined,
+            displayTime: formatDhakaDate(apt.startTime, "dd MMM yyyy 'at' hh:mm a"),
+            appointmentCode: apt.code,
+            isConfirmed: true,
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn("Notice: could not send status confirmation email:", e);
+    }
+  }
 
   revalidatePath("/app/appointments");
   revalidatePath("/app/queue");

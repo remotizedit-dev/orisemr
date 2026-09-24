@@ -13,6 +13,9 @@ if (env.SMTP_HOST && env.SMTP_USER) {
       user: env.SMTP_USER,
       pass: env.SMTP_PASSWORD,
     },
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 }
 
@@ -96,6 +99,59 @@ export function renderAppointmentReminderHtml(data: {
       <p>Please arrive 10 minutes prior to your scheduled time. If you need to reschedule or have questions, please reach out to our clinic.</p>
       
       <p style="margin-top: 30px; font-size: 12px; color: #8E8E93;">Warm regards,<br/>${data.clinicName}</p>
+    </div>
+  `;
+}
+
+export function renderPasswordResetHtml(data: {
+  userName: string;
+  resetUrl: string;
+}) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1C1C1E; line-height: 1.6; border: 1px solid #E4E4E7; border-radius: 12px;">
+      <h2 style="color: #2A5CAA; border-bottom: 2px solid #E4E4E7; padding-bottom: 12px;">Oris Dental EMR</h2>
+      <p>Hello <strong>${data.userName}</strong>,</p>
+      <p>We received a request to reset your Oris EMR account password. Click the button below to set a new password:</p>
+      
+      <div style="margin: 24px 0; text-align: center;">
+        <a href="${data.resetUrl}" style="background-color: #2A5CAA; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+          Reset Your Password
+        </a>
+      </div>
+
+      <p style="font-size: 13px; color: #6B7280;">This password reset link is valid for 1 hour. If you did not request this, you can safely ignore this email.</p>
+      <p style="font-size: 11px; color: #8E8E93; word-break: break-all; margin-top: 16px;">Direct link: ${data.resetUrl}</p>
+    </div>
+  `;
+}
+
+export function renderAppointmentConfirmationHtml(data: {
+  patientName: string;
+  doctorName: string;
+  clinicName: string;
+  clinicAddress?: string;
+  clinicPhone?: string;
+  displayTime: string;
+  appointmentCode: string;
+  isConfirmed: boolean;
+}) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1C1C1E; line-height: 1.6; border: 1px solid #E4E4E7; border-radius: 12px;">
+      <h2 style="color: #2A5CAA; border-bottom: 2px solid #E4E4E7; padding-bottom: 12px;">${data.clinicName}</h2>
+      <p>Dear <strong>${data.patientName}</strong>,</p>
+      <p>${data.isConfirmed ? "Your dental appointment has been <strong>confirmed</strong>!" : "We have received your appointment booking request!"}</p>
+      
+      <div style="background-color: #EBF2FC; border-left: 4px solid #2A5CAA; padding: 16px; margin: 20px 0; border-radius: 6px;">
+        <p style="margin: 4px 0;"><strong>Date & Time:</strong> ${data.displayTime}</p>
+        <p style="margin: 4px 0;"><strong>Dentist:</strong> ${data.doctorName}</p>
+        <p style="margin: 4px 0;"><strong>Appointment Reference:</strong> <span style="font-family: monospace; font-size: 14px; font-weight: bold; color: #2A5CAA;">${data.appointmentCode}</span></p>
+        ${data.clinicAddress ? `<p style="margin: 4px 0;"><strong>Location:</strong> ${data.clinicAddress}</p>` : ""}
+        ${data.clinicPhone ? `<p style="margin: 4px 0;"><strong>Chamber Phone:</strong> ${data.clinicPhone}</p>` : ""}
+      </div>
+
+      <p>Please arrive 10 minutes prior to your scheduled time with any previous dental records or X-rays.</p>
+      
+      <p style="margin-top: 30px; font-size: 12px; color: #8E8E93;">Warm regards,<br/>${data.clinicName}<br/>Powered by Oris EMR</p>
     </div>
   `;
 }

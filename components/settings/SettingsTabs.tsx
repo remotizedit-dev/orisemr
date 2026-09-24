@@ -9,6 +9,7 @@ import {
   Stethoscope,
   CreditCard,
   UserCheck,
+  Users,
   Pill,
 } from "lucide-react";
 
@@ -18,6 +19,7 @@ export default function SettingsTabs() {
   const tabs = [
     { href: "/app/settings", label: "General & Booking", icon: Building2, exact: true },
     { href: "/app/settings/doctors", label: "Doctors & Rosters", icon: UserCheck },
+    { href: "/app/settings/staff", label: "Staff & Front-Desk", icon: Users },
     { href: "/app/settings/hours", label: "Working Hours & Shifts", icon: Clock },
     { href: "/app/settings/chairs", label: "Chairs & Operatories", icon: Armchair },
     { href: "/app/settings/services", label: "Procedures & Pricing", icon: Stethoscope },

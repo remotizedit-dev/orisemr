@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { ToothSelector } from "./ToothSelector";
 import { checkMedicineAllergy, type AllergyCheckResult } from "@/lib/clinical-flags";
 import { savePrescriptionAction } from "@/app/(tenant)/app/prescriptions/actions";
+import Link from "next/link";
 import {
   AlertCircle,
   AlertTriangle,
+  Armchair,
   ArrowRight,
   Check,
   ChevronDown,
@@ -18,6 +20,7 @@ import {
   Printer,
   Search,
   Trash2,
+  User,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -116,6 +119,12 @@ export function PrescriptionBuilder({
   // Medicine search
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<typeof catalogMedicines>([]);
+
+  // Post-save modal state
+  const [savedPrescription, setSavedPrescription] = useState<{
+    id: string;
+    rxCode: string;
+  } | null>(null);
 
   // Allergy block modal state
   const [blockingItem, setBlockingItem] = useState<{
@@ -239,7 +248,7 @@ export function PrescriptionBuilder({
       });
 
       toast.success(`Prescription ${res.rxCode} saved successfully!`);
-      router.push(`/print/prescription/${res.prescriptionId}`);
+      setSavedPrescription({ id: res.prescriptionId, rxCode: res.rxCode });
     } catch (e: any) {
       toast.error(e?.message || "Failed to save prescription");
     } finally {
@@ -300,6 +309,68 @@ export function PrescriptionBuilder({
               >
                 Override &amp; Prescribe Anyway
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prescription Saved Success Modal */}
+      {savedPrescription && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-[#E4E4E7] shadow-2xl space-y-5 animate-in zoom-in-95">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 rounded-full bg-[#30D158]/15 text-[#30D158] flex items-center justify-center mx-auto mb-2">
+                <Check className="w-7 h-7 stroke-[3]" />
+              </div>
+              <h3 className="text-lg font-extrabold text-[#1C1C1E]">
+                Prescription Issued Successfully!
+              </h3>
+              <p className="text-xs text-[#6B7280]">
+                Prescription <span className="font-mono font-bold text-[#2A5CAA]">{savedPrescription.rxCode}</span> for <strong>{patient.name}</strong> has been saved.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              <Link
+                href={`/print/prescription/${savedPrescription.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Open &amp; Print Prescription ↗</span>
+              </Link>
+
+              <Link
+                href="/app/queue"
+                className="w-full py-2.5 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-xs flex items-center justify-center gap-2 transition"
+              >
+                <Armchair className="w-4 h-4 text-[#2A5CAA]" />
+                <span>Return to In-Chair Queue</span>
+              </Link>
+
+              <Link
+                href={`/app/patients/${patient.id}`}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-xs flex items-center justify-center gap-2 transition"
+              >
+                <User className="w-4 h-4 text-[#2A5CAA]" />
+                <span>Return to Patient Profile</span>
+              </Link>
+
+              <Link
+                href="/app/prescriptions"
+                className="w-full py-2.5 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-xs flex items-center justify-center gap-2 transition"
+              >
+                <FileText className="w-4 h-4 text-[#2A5CAA]" />
+                <span>View All Prescriptions</span>
+              </Link>
+
+              <Link
+                href="/app"
+                className="w-full py-2 px-4 rounded-xl text-center text-[#6B7280] hover:text-[#1C1C1E] font-semibold text-xs block transition"
+              >
+                Go to Clinic Dashboard
+              </Link>
             </div>
           </div>
         </div>

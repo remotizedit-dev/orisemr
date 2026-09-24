@@ -55,7 +55,7 @@ export default async function PrintPrescriptionPage({
 
   return (
     <div className="bg-white text-black min-h-screen p-8 max-w-4xl mx-auto font-sans leading-normal">
-      <AutoPrintTrigger />
+      <AutoPrintTrigger patientId={patient?.id} />
 
       {/* Clinic Header / Letterhead */}
       {tenant.rxPrintLetterhead && (

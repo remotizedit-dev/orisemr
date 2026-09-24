@@ -9,6 +9,7 @@ import {
 } from "@/lib/scheduling/slot-engine";
 import { generateRecordCode } from "@/lib/barcode/codes";
 import { normalizeBdPhone } from "@/lib/utils";
+import { sendEmail, renderAppointmentConfirmationHtml } from "@/lib/email/mailer";
 
 export async function getPublicAvailableSlots(
   tenantId: string,
@@ -263,6 +264,40 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
 
     return { appointmentCode, isAutoConfirmed };
   });
+
+  // Send email confirmation if an email is provided
+  if (input.email) {
+    try {
+      const [assignedDoctor] = await db
+        .select({ name: schema.users.name, title: schema.users.doctorTitle })
+        .from(schema.users)
+        .where(eq(schema.users.id, input.doctorId))
+        .limit(1);
+
+      const docName = assignedDoctor
+        ? `${assignedDoctor.title || "Dr."} ${assignedDoctor.name}`
+        : "Dental Surgeon";
+
+      await sendEmail({
+        to: input.email.trim(),
+        subject: result.isAutoConfirmed
+          ? `Appointment Confirmed - ${tenant.name} (${result.appointmentCode})`
+          : `Appointment Request Received - ${tenant.name} (${result.appointmentCode})`,
+        html: renderAppointmentConfirmationHtml({
+          patientName: input.name || "Patient",
+          doctorName: docName,
+          clinicName: tenant.name,
+          clinicAddress: tenant.address || undefined,
+          clinicPhone: tenant.phone || undefined,
+          displayTime: `${input.date} at ${input.time}`,
+          appointmentCode: result.appointmentCode,
+          isConfirmed: result.isAutoConfirmed,
+        }),
+      });
+    } catch (e) {
+      console.warn("Notice: could not send booking confirmation email:", e);
+    }
+  }
 
   return result;
 }

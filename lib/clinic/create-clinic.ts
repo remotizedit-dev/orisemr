@@ -288,6 +288,9 @@ export async function createClinicWithMasterCatalog(input: CreateClinicInput) {
             doctorRegNo: input.adminDoctorRegNo,
             status: "active",
             emailVerified: true,
+            preferences: {
+              mustChangePassword: true,
+            },
           })
           .where(eq(schema.users.id, adminUserId));
       }
