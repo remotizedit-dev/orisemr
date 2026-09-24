@@ -102,6 +102,9 @@ export default function NewPatientPage() {
         medicalNotes,
       });
       toast.success("Patient registered successfully!");
+      if (res?.emailDispatched) {
+        toast.info("Welcome details and card registration email are being sent in the background.");
+      }
       if (res?.patientId) {
         router.push(`/app/patients/${res.patientId}`);
       }
@@ -207,13 +210,13 @@ export default function NewPatientPage() {
 
             <div>
               <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                Email Address
+                Email Address (Optional)
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="patient@example.com"
+                placeholder="patient@example.com (for card & appointment emails)"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
               />
             </div>

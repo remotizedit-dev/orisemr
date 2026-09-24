@@ -17,21 +17,69 @@ export interface SessionContext {
   tenant: typeof tenants.$inferSelect | null;
 }
 
+interface CachedSessionEntry {
+  context: SessionContext;
+  cachedAt: number;
+}
+
+const globalForSession = globalThis as unknown as {
+  sessionMemoryCache: Map<string, CachedSessionEntry> | undefined;
+};
+
+const sessionMemoryCache =
+  globalForSession.sessionMemoryCache ?? new Map<string, CachedSessionEntry>();
+globalForSession.sessionMemoryCache = sessionMemoryCache;
+
+const SESSION_CACHE_TTL_MS = 45 * 1000; // 45 seconds in-memory TTL
+
+function extractSessionToken(cookieHeader: string | null): string | null {
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/better-auth\.session_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1].trim()) : null;
+}
+
+export function invalidateSession(token?: string) {
+  if (token) {
+    sessionMemoryCache.delete(token);
+  } else {
+    sessionMemoryCache.clear();
+  }
+}
+
 /**
  * Retrieves the current session and user from headers. Returns null if unauthenticated.
- * Wrapped in React cache() to deduplicate execution across layout and page within the same request.
+ * Uses an in-memory session cache (45s TTL) to eliminate redundant round-trips to the remote database
+ * on every page navigation, wrapped in React cache() for request-level deduplication.
  */
 export const getSession = cache(async (): Promise<SessionContext | null> => {
   const reqHeaders = await headers();
+  const cookieHeader = reqHeaders.get("cookie");
+  const token = extractSessionToken(cookieHeader);
+
+  // 1. Fast-path: Return cached session if still valid (0ms database time)
+  if (token && sessionMemoryCache.has(token)) {
+    const cached = sessionMemoryCache.get(token)!;
+    const now = Date.now();
+    if (
+      now - cached.cachedAt < SESSION_CACHE_TTL_MS &&
+      new Date(cached.context.session.expiresAt).getTime() > now
+    ) {
+      return cached.context;
+    }
+    sessionMemoryCache.delete(token);
+  }
+
+  // 2. Query better-auth for session validation
   const sessionResult = await auth.api.getSession({
     headers: reqHeaders,
   });
 
   if (!sessionResult || !sessionResult.user) {
+    if (token) sessionMemoryCache.delete(token);
     return null;
   }
 
-  // Fetch user profile and tenant in a single joined query to eliminate sequential network round trips
+  // 3. Fetch user profile and tenant in a single joined query to eliminate sequential network round trips
   const [row] = await db
     .select({
       user: users,
@@ -43,18 +91,39 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
     .limit(1);
 
   if (!row || !row.user || row.user.status !== "active") {
+    if (token) sessionMemoryCache.delete(token);
     return null;
   }
 
   if (row.user.tenantId && (!row.tenant || row.tenant.status !== "active")) {
+    if (token) sessionMemoryCache.delete(token);
     return null;
   }
 
-  return {
+  const context: SessionContext = {
     user: row.user,
     session: sessionResult.session,
     tenant: row.tenant,
   };
+
+  // 4. Save to in-memory cache for subsequent instant page transitions
+  if (token) {
+    sessionMemoryCache.set(token, {
+      context,
+      cachedAt: Date.now(),
+    });
+
+    if (sessionMemoryCache.size > 2000) {
+      const now = Date.now();
+      for (const [k, v] of sessionMemoryCache.entries()) {
+        if (now - v.cachedAt > SESSION_CACHE_TTL_MS) {
+          sessionMemoryCache.delete(k);
+        }
+      }
+    }
+  }
+
+  return context;
 });
 
 /**

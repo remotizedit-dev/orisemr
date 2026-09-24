@@ -21,25 +21,22 @@ export default function SignOutButton({
 }: SignOutButtonProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     if (isSigningOut) return;
     setIsSigningOut(true);
 
+    // 1. Instantly clear Better Auth session cookies from browser
+    const pastDate = "Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = `better-auth.session_token=; path=/; expires=${pastDate}; SameSite=Lax;`;
+    document.cookie = `better-auth.session_data=; path=/; expires=${pastDate}; SameSite=Lax;`;
+
+    // 2. Dispatch server-side session invalidation in background without blocking
     try {
-      await signOut({
-        fetchOptions: {
-          onSuccess: () => {
-            window.location.href = "/login";
-          },
-          onError: () => {
-            // Even on error, force redirect to login
-            window.location.href = "/login";
-          },
-        },
-      });
-    } catch {
-      window.location.href = "/login";
-    }
+      signOut().catch(() => {});
+    } catch {}
+
+    // 3. Immediately redirect to login in < 20ms
+    window.location.replace("/login");
   };
 
   const defaultClasses =

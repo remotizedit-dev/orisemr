@@ -8,6 +8,8 @@ import { requireClinicStaff } from "@/lib/session";
 import { generateAutoCardNumber } from "@/lib/barcode/codes";
 import { normalizeBdPhone } from "@/lib/utils";
 
+import { sendEmailInBackground, renderPatientWelcomeHtml } from "@/lib/email/mailer";
+
 export async function checkDuplicatePhoneAction(phone: string) {
   const { tenant } = await requireClinicStaff();
   const normalized = normalizeBdPhone(phone);
@@ -118,5 +120,25 @@ export async function registerPatientAction(input: RegisterPatientInput) {
       createdBy: user.id,
     })
     .returning();
-  return { success: true, patientId: patient.id };
+
+  // If patient provided an email address, trigger welcome email asynchronously in the background
+  if (patient.email) {
+    sendEmailInBackground({
+      to: patient.email,
+      subject: `Welcome to ${tenant.name} - Registration Card #${patient.cardNumber}`,
+      html: renderPatientWelcomeHtml({
+        patientName: patient.name,
+        cardNumber: patient.cardNumber,
+        clinicName: tenant.name,
+        clinicPhone: tenant.phone || undefined,
+        clinicAddress: tenant.address || undefined,
+      }),
+    });
+  }
+
+  return {
+    success: true,
+    patientId: patient.id,
+    emailDispatched: Boolean(patient.email),
+  };
 }

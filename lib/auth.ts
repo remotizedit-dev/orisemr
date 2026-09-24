@@ -4,7 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { env } from "@/lib/env";
 
-import { sendEmail, renderPasswordResetHtml } from "@/lib/email/mailer";
+import { sendEmailInBackground, renderPasswordResetHtml } from "@/lib/email/mailer";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -22,18 +22,15 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: true,
     sendResetPassword: async ({ user, url }) => {
-      try {
-        await sendEmail({
-          to: user.email,
-          subject: "Reset Your Oris EMR Password",
-          html: renderPasswordResetHtml({
-            userName: user.name,
-            resetUrl: url,
-          }),
-        });
-      } catch (err) {
-        console.error("Failed to send password reset email:", err);
-      }
+      // Dispatched in background without blocking the auth endpoint response
+      sendEmailInBackground({
+        to: user.email,
+        subject: "Reset Your Oris EMR Password",
+        html: renderPasswordResetHtml({
+          userName: user.name,
+          resetUrl: url,
+        }),
+      });
     },
   },
   user: {

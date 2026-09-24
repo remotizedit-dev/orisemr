@@ -39,10 +39,10 @@ export default function LoginPage() {
       toast.success("Login successful. Preparing your workspace...");
       setIsRedirecting(true);
 
-      // Redirect to root which evaluates role-based destination (/app or /platform)
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 400);
+      // Direct zero-delay navigation to target portal without intermediate redirect hops
+      const targetUrl =
+        (response.data?.user as any)?.role === "SUPER_ADMIN" ? "/platform" : "/app";
+      window.location.replace(targetUrl);
     } catch (err: any) {
       toast.error(err?.message || "An unexpected error occurred during login");
       setIsLoading(false);

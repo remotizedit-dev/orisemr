@@ -55,6 +55,46 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   return info;
 }
 
+/**
+ * Fires email sending completely in the background without blocking server actions or user requests.
+ */
+export function sendEmailInBackground(options: SendEmailOptions) {
+  setImmediate(async () => {
+    try {
+      await sendEmail(options);
+    } catch (err) {
+      console.error("[BACKGROUND EMAIL DISPATCH FAILED]:", err);
+    }
+  });
+}
+
+export function renderPatientWelcomeHtml(data: {
+  patientName: string;
+  cardNumber: string;
+  clinicName: string;
+  clinicPhone?: string;
+  clinicAddress?: string;
+}) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1C1C1E; line-height: 1.6; border: 1px solid #E4E4E7; border-radius: 12px;">
+      <h2 style="color: #2A5CAA; border-bottom: 2px solid #E4E4E7; padding-bottom: 12px;">${data.clinicName}</h2>
+      <p>Dear <strong>${data.patientName}</strong>,</p>
+      <p>Welcome to <strong>${data.clinicName}</strong>! Your patient profile has been successfully registered in our clinical management system.</p>
+      
+      <div style="background-color: #EBF2FC; border-left: 4px solid #2A5CAA; padding: 16px; margin: 20px 0; border-radius: 6px;">
+        <p style="margin: 4px 0; font-size: 13px; color: #4B5563; text-transform: uppercase; font-weight: bold;">Your Clinic Card Number / ID</p>
+        <p style="margin: 4px 0; font-family: monospace; font-size: 22px; font-weight: bold; color: #2A5CAA;">${data.cardNumber}</p>
+        ${data.clinicAddress ? `<p style="margin: 8px 0 2px 0;"><strong>Chamber Address:</strong> ${data.clinicAddress}</p>` : ""}
+        ${data.clinicPhone ? `<p style="margin: 2px 0;"><strong>Appointments & Contact:</strong> ${data.clinicPhone}</p>` : ""}
+      </div>
+
+      <p style="font-size: 14px; color: #4B5563;">Please keep this card number handy for quick check-in, prescription tracking, and barcode scanning whenever you visit our clinic.</p>
+      
+      <p style="margin-top: 30px; font-size: 12px; color: #8E8E93;">Warm regards,<br/>${data.clinicName}<br/>Powered by Oris Dental EMR</p>
+    </div>
+  `;
+}
+
 export function renderDueReminderHtml(data: {
   patientName: string;
   invoiceCode: string;

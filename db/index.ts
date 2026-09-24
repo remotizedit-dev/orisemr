@@ -17,6 +17,7 @@ const connectionString =
 // Connection pool singleton for serverless Next.js runtime & Node scripts
 const globalForDb = globalThis as unknown as {
   conn: Pool | undefined;
+  keepAlive: NodeJS.Timeout | undefined;
 };
 
 export const pool =
@@ -29,6 +30,16 @@ export const pool =
   });
 
 globalForDb.conn = pool;
+
+// Keep Neon serverless compute warm and prevent 5-minute cold suspension latency
+if (!globalForDb.keepAlive && typeof setInterval !== "undefined") {
+  globalForDb.keepAlive = setInterval(() => {
+    pool.query("SELECT 1").catch(() => {});
+  }, 120000); // Ping every 2 minutes
+  if (globalForDb.keepAlive.unref) {
+    globalForDb.keepAlive.unref();
+  }
+}
 
 export const db = drizzle(pool, { schema, casing: "snake_case" });
 
