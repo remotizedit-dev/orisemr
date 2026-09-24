@@ -202,3 +202,22 @@ export function renderAppointmentConfirmationHtml(data: {
     </div>
   `;
 }
+
+export function renderBroadcastAnnouncementHtml(data: {
+  recipientName: string;
+  title: string;
+  message: string;
+}) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1C1C1E; line-height: 1.6; border: 1px solid #E4E4E7; border-radius: 12px;">
+      <h2 style="color: #2A5CAA; border-bottom: 2px solid #E4E4E7; padding-bottom: 12px;">Oris Platform Notification</h2>
+      <p>Hello <strong>${data.recipientName}</strong>,</p>
+      <div style="background-color: #F4F4F5; border-left: 4px solid #2A5CAA; padding: 16px; margin: 20px 0; border-radius: 6px;">
+        <h3 style="margin: 0 0 8px 0; color: #1C1C1E; font-size: 16px;">${data.title}</h3>
+        <p style="margin: 0; color: #4B5563; white-space: pre-wrap; font-size: 14px;">${data.message}</p>
+      </div>
+      <p style="font-size: 13px; color: #6B7280;">This message was broadcast by the Oris System Administration team to your clinic.</p>
+      <p style="margin-top: 30px; font-size: 12px; color: #8E8E93;">Warm regards,<br/>Oris Platform Administration</p>
+    </div>
+  `;
+}

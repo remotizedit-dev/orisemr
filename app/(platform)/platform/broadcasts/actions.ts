@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/session";
+import {
+  sendEmailInBackground,
+  renderBroadcastAnnouncementHtml,
+} from "@/lib/email/mailer";
 
 export interface SendBroadcastInput {
   title: string;
@@ -98,13 +102,26 @@ export async function sendBroadcastAction(input: SendBroadcastInput) {
       }
     }
 
-    // 5. Send Emails via Email Queue
+    // 5. Send Emails to Target Users / Tenant Admins
     if (input.sendEmail) {
       for (const u of targetUsers) {
         if (!u.email) continue;
+
+        // Dispatch email directly in background
+        sendEmailInBackground({
+          to: u.email.trim(),
+          subject: `[Oris Platform Announcement] ${input.title.trim()}`,
+          html: renderBroadcastAnnouncementHtml({
+            recipientName: u.name,
+            title: input.title.trim(),
+            message: input.body.trim(),
+          }),
+        });
+
+        // Record in email queue audit table
         await tx.insert(schema.emailQueue).values({
           tenantId: u.tenantId || null,
-          toEmail: u.email,
+          toEmail: u.email.trim(),
           subject: `[Oris Platform Announcement] ${input.title.trim()}`,
           templateKey: "platform_broadcast",
           payload: {
@@ -112,6 +129,8 @@ export async function sendBroadcastAction(input: SendBroadcastInput) {
             message: input.body.trim(),
             recipientName: u.name,
           },
+          status: "sent",
+          sentAt: new Date(),
           dedupeKey: `broadcast_${broadcast.id}_${u.id}`,
         });
       }

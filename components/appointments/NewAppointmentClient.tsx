@@ -55,6 +55,7 @@ interface PatientMatch {
   id: string;
   name: string;
   phone: string;
+  email?: string | null;
   cardNumber: string;
 }
 
@@ -72,6 +73,7 @@ export default function NewAppointmentClient({
   const [patientQuery, setPatientQuery] = useState(initialPatientName || "");
   const [patientResults, setPatientResults] = useState<PatientMatch[]>([]);
   const [isSearchingPatient, setIsSearchingPatient] = useState(false);
+  const [patientEmail, setPatientEmail] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<PatientMatch | null>(
     initialPatientId
       ? {
@@ -230,6 +232,7 @@ export default function NewAppointmentClient({
         startTime,
         endTime,
         serviceIds: selectedServices,
+        patientEmail: patientEmail.trim() || undefined,
         isOverbooked,
         notes,
       });
@@ -240,6 +243,9 @@ export default function NewAppointmentClient({
       }
 
       toast.success("Appointment successfully scheduled!");
+      if (patientEmail.trim()) {
+        toast.info(`Confirmation email sent to ${patientEmail.trim()}`);
+      }
       router.push(`/app/appointments?date=${selectedDate}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to book appointment");
@@ -290,25 +296,41 @@ export default function NewAppointmentClient({
             </div>
 
             {selectedPatient ? (
-              <div className="p-3 rounded-xl bg-[#EBF2FC] border border-[#2A5CAA]/20 flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-sm text-[#1C1C1E] block">
-                    {selectedPatient.name}
-                  </span>
-                  <div className="flex items-center gap-2 text-xs text-[#6B7280]">
-                    <span className="font-mono">{selectedPatient.cardNumber}</span>
-                    {selectedPatient.phone && <span>• {selectedPatient.phone}</span>}
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-[#EBF2FC] border border-[#2A5CAA]/20 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-sm text-[#1C1C1E] block">
+                      {selectedPatient.name}
+                    </span>
+                    <div className="flex items-center gap-2 text-xs text-[#6B7280]">
+                      <span className="font-mono">{selectedPatient.cardNumber}</span>
+                      {selectedPatient.phone && <span>• {selectedPatient.phone}</span>}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => {
+                      setSelectedPatient(null);
+                      setPatientQuery("");
+                      setPatientEmail("");
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold text-[#FF453A] hover:bg-white rounded-lg transition cursor-pointer"
+                  >
+                    Change
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelectedPatient(null);
-                    setPatientQuery("");
-                  }}
-                  className="px-2.5 py-1 text-xs font-semibold text-[#FF453A] hover:bg-white rounded-lg transition"
-                >
-                  Change
-                </button>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#4B5563] mb-1">
+                    Patient Email Address (Optional — send booking confirmation email)
+                  </label>
+                  <input
+                    type="email"
+                    value={patientEmail}
+                    onChange={(e) => setPatientEmail(e.target.value)}
+                    placeholder="patient@example.com (over call or in-clinic confirmation)"
+                    className="w-full px-3 py-2 text-xs bg-white border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
+                  />
+                </div>
               </div>
             ) : (
               <div className="relative">
@@ -333,6 +355,7 @@ export default function NewAppointmentClient({
                         onClick={() => {
                           setSelectedPatient(p);
                           setPatientQuery(p.name);
+                          setPatientEmail(p.email || "");
                           setPatientResults([]);
                         }}
                         className="w-full p-2.5 text-left hover:bg-[#F4F4F5] transition flex items-center justify-between"

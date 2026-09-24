@@ -10,7 +10,10 @@ import {
   type CandidateDoctor,
 } from "@/lib/scheduling/slot-engine";
 import { generateRecordCode } from "@/lib/barcode/codes";
-import { sendEmail, renderAppointmentConfirmationHtml } from "@/lib/email/mailer";
+import {
+  sendEmailInBackground,
+  renderAppointmentConfirmationHtml,
+} from "@/lib/email/mailer";
 import { formatDhakaDate } from "@/lib/utils";
 
 export interface GetStaffSlotsInput {
@@ -144,6 +147,7 @@ export interface CreateStaffAppointmentInput {
   startTime: string; // ISO string
   endTime: string; // ISO string
   serviceIds: string[];
+  patientEmail?: string;
   isOverbooked?: boolean;
   notes?: string;
 }
@@ -313,20 +317,34 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       });
     }
 
+    // If new or updated patient email is provided, persist it to patient profile
+    if (input.patientEmail && input.patientEmail.trim() !== patient?.email) {
+      await tx
+        .update(schema.patients)
+        .set({ email: input.patientEmail.trim() })
+        .where(
+          and(
+            eq(schema.patients.tenantId, tenant.id),
+            eq(schema.patients.id, input.patientId)
+          )
+        );
+    }
+
     return { newAppointmentId: created.id, appointmentCode };
   });
 
-  // Dispatch confirmation email asynchronously (fire-and-forget without blocking HTTP response)
-  if (patient?.email) {
+  // Dispatch confirmation email asynchronously in background
+  const targetEmail = input.patientEmail?.trim() || patient?.email?.trim();
+  if (targetEmail) {
     const docName = assignedDoctor
       ? `${assignedDoctor.title || "Dr."} ${assignedDoctor.name}`
       : "Dental Surgeon";
 
-    void sendEmail({
-      to: patient.email.trim(),
+    sendEmailInBackground({
+      to: targetEmail,
       subject: `Appointment Confirmed - ${tenant.name} (${appointmentCode})`,
       html: renderAppointmentConfirmationHtml({
-        patientName: patient.name,
+        patientName: patient?.name || "Patient",
         doctorName: docName,
         clinicName: tenant.name,
         clinicAddress: tenant.address || undefined,
@@ -335,8 +353,6 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
         appointmentCode: appointmentCode || "APT",
         isConfirmed: true,
       }),
-    }).catch((err) => {
-      console.warn("Notice: background staff appointment confirmation email error:", err);
     });
   }
 
@@ -437,7 +453,7 @@ export async function updateAppointmentStatusAction(
         .limit(1);
 
       if (apt?.patientEmail) {
-        void sendEmail({
+        sendEmailInBackground({
           to: apt.patientEmail.trim(),
           subject: `Appointment Confirmed - ${tenant.name} (${apt.code})`,
           html: renderAppointmentConfirmationHtml({
@@ -450,8 +466,6 @@ export async function updateAppointmentStatusAction(
             appointmentCode: apt.code,
             isConfirmed: true,
           }),
-        }).catch((err) => {
-          console.warn("Notice: background status confirmation email error:", err);
         });
       }
     } catch (e) {
@@ -529,6 +543,7 @@ export async function searchPatientsForBookingAction(query: string) {
       id: schema.patients.id,
       name: schema.patients.name,
       phone: schema.patients.phone,
+      email: schema.patients.email,
       cardNumber: schema.patients.cardNumber,
       gender: schema.patients.gender,
       bloodGroup: schema.patients.bloodGroup,

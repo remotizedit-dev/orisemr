@@ -9,7 +9,10 @@ import {
 } from "@/lib/scheduling/slot-engine";
 import { generateRecordCode } from "@/lib/barcode/codes";
 import { normalizeBdPhone } from "@/lib/utils";
-import { sendEmail, renderAppointmentConfirmationHtml } from "@/lib/email/mailer";
+import {
+  sendEmailInBackground,
+  renderAppointmentConfirmationHtml,
+} from "@/lib/email/mailer";
 
 export async function getPublicAvailableSlots(
   tenantId: string,
@@ -278,7 +281,7 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
         ? `${assignedDoctor.title || "Dr."} ${assignedDoctor.name}`
         : "Dental Surgeon";
 
-      void sendEmail({
+      sendEmailInBackground({
         to: input.email.trim(),
         subject: result.isAutoConfirmed
           ? `Appointment Confirmed - ${tenant.name} (${result.appointmentCode})`
@@ -293,8 +296,6 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
           appointmentCode: result.appointmentCode,
           isConfirmed: result.isAutoConfirmed,
         }),
-      }).catch((e) => {
-        console.warn("Notice: background booking confirmation email error:", e);
       });
     } catch (e) {
       console.warn("Notice: could not prepare booking confirmation email:", e);

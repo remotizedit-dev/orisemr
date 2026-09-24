@@ -9,6 +9,7 @@ import { SearchTrigger } from "@/components/palette/SearchTrigger";
 import { TenantSidebarNav } from "@/components/layout/TenantSidebarNav";
 import { TenantMobileNav } from "@/components/layout/TenantMobileNav";
 import { FirstLoginPasswordModal } from "@/components/auth/FirstLoginPasswordModal";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export default async function TenantAppLayout({
   children,
@@ -101,13 +102,14 @@ export default async function TenantAppLayout({
             </div>
           </div>
 
-          {/* Right Header: Scan Modal, Public Link, User Pill & Prominent Log Out */}
+          {/* Right Header: Scan Modal, Notifications, Public Link, User Pill & Prominent Log Out */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <ScanModal
               tenantId={tenant.id}
               tenantShortCode={tenant.shortCode}
               triggerButton={true}
             />
+            <NotificationBell />
             <Link
               href={`/book/${tenant.slug}`}
               target="_blank"
