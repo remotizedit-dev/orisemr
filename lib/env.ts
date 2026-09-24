@@ -22,7 +22,17 @@ const envSchema = z.object({
   // Mailcow / SMTP (Optional in dev, queued in DB)
   SMTP_HOST: z.string().optional().default(""),
   SMTP_PORT: z.coerce.number().default(587),
-  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_SECURE: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((val) => {
+      if (typeof val === "boolean") return val;
+      if (typeof val === "string") {
+        return val.toLowerCase() === "true" || val === "1";
+      }
+      return false;
+    })
+    .default(false),
   SMTP_USER: z.string().optional().default(""),
   SMTP_PASSWORD: z.string().optional().default(""),
   SMTP_FROM_EMAIL: z.string().email().default("noreply@orisemr.com"),

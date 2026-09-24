@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
     try {
-      const { error } = await authClient.forgetPassword({
+      const { error } = await authClient.requestPasswordReset({
         email: email.trim().toLowerCase(),
         redirectTo: "/reset-password",
       });

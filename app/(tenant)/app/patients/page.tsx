@@ -56,9 +56,9 @@ export default async function PatientsListPage() {
 
         <Link
           href="/app/patients/new"
-          className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition"
+          className="px-5 py-3 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-sm flex items-center gap-2 shadow-md transition cursor-pointer"
         >
-          <UserPlus className="w-4 h-4" />
+          <UserPlus className="w-4.5 h-4.5" />
           <span>Register New Patient</span>
         </Link>
       </div>

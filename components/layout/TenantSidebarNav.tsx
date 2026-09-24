@@ -61,7 +61,7 @@ export function TenantSidebarNav({ userRole }: TenantSidebarNavProps) {
   ];
 
   return (
-    <nav className="p-3 space-y-1">
+    <nav className="p-3.5 space-y-1.5">
       {navItems.map((item) => {
         if (item.adminOnly && userRole !== "TENANT_ADMIN") return null;
 
@@ -75,15 +75,15 @@ export function TenantSidebarNav({ userRole }: TenantSidebarNavProps) {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+            className={`flex items-center justify-between px-3.5 py-3 rounded-2xl text-sm font-bold transition ${
               isActive
-                ? "bg-[#2A5CAA] text-white shadow-xs"
-                : "text-[#6B7280] hover:text-[#1C1C1E] hover:bg-[#F4F4F5]"
+                ? "bg-[#2A5CAA] text-white shadow-sm"
+                : "text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#F4F4F5]"
             }`}
           >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-3.5 min-w-0">
               <Icon
-                className={`w-4 h-4 shrink-0 ${
+                className={`w-5 h-5 shrink-0 ${
                   isActive ? "text-white" : "text-[#6B7280]"
                 }`}
               />
@@ -92,7 +92,7 @@ export function TenantSidebarNav({ userRole }: TenantSidebarNavProps) {
 
             {item.isLiveQueue && (
               <span
-                className={`w-2 h-2 rounded-full shrink-0 ${
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                   isActive ? "bg-white animate-pulse" : "bg-[#30D158] animate-pulse"
                 }`}
                 title="Live Queue Active"

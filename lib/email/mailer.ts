@@ -5,10 +5,11 @@ import { formatBdt } from "@/lib/utils";
 let transporter: nodemailer.Transporter | null = null;
 
 if (env.SMTP_HOST && env.SMTP_USER) {
+  const isDirectTls = env.SMTP_PORT === 465 || env.SMTP_SECURE === true;
   transporter = nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE,
+    secure: isDirectTls,
     auth: {
       user: env.SMTP_USER,
       pass: env.SMTP_PASSWORD,

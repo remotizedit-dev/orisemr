@@ -26,6 +26,7 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,7 +99,7 @@ export function QueueBoard({
               : i
           )
         );
-        toast.success(`Patient checked in with Serial #${res.serialNo}`);
+        toast.success(`Patient checked in! Assigned Serial #${res.serialNo}`);
       }
     } catch {
       toast.error("Failed to check in patient");
@@ -114,7 +115,7 @@ export function QueueBoard({
     chairId?: string
   ) => {
     setProcessingId(itemId);
-    // Optimistic update - instant UI response
+    // Optimistic update
     setItems((prev) =>
       prev.map((i) =>
         i.id === itemId
@@ -125,13 +126,13 @@ export function QueueBoard({
     try {
       await advanceQueueStatusAction(itemId, newStatus, chairId);
       const labels: Record<string, string> = {
-        in_chair: "In Chair (Treatment Active)",
-        billing: "Pending Billing",
+        in_chair: "In Dental Chair",
+        billing: "Pending Front-Desk Billing",
         done: "Completed Visits",
       };
       toast.success(`Patient moved to ${labels[newStatus] || newStatus}`);
     } catch {
-      toast.error("Failed to update queue");
+      toast.error("Failed to update patient queue status");
       router.refresh();
     } finally {
       setProcessingId(null);
@@ -147,10 +148,10 @@ export function QueueBoard({
         toast.success(`Called Serial #${res.serialNo} to the dental chair!`);
         router.refresh();
       } else {
-        toast.info(res?.message || "No patients currently waiting");
+        toast.info(res?.message || "No patients currently waiting in lounge");
       }
     } catch {
-      toast.error("Could not call next patient");
+      toast.error("Failed to call next patient");
     } finally {
       setIsCallingNext(false);
     }
@@ -162,20 +163,35 @@ export function QueueBoard({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Top Filter & Call Next Toolbar */}
-      <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7] flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Top Header & Fast Queue Controls */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 glass-panel p-5 rounded-3xl border border-[#E4E4E7] shadow-sm">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#EBF2FC] text-[#2A5CAA] flex items-center justify-center font-bold">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-[#1C1C1E] tracking-tight">
+                Live Chamber Queue
+              </h1>
+              <p className="text-sm font-medium text-[#4B5563]">
+                Manage today&apos;s active patients from booking to chairside treatment and checkout.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Doctor Filters, Chair Selector & Call Next Button */}
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-xs font-semibold text-[#6B7280]">
-            Dentist Filter:
-          </span>
-          <div className="flex flex-wrap items-center gap-1.5">
+          {/* Doctor Filter Chips */}
+          <div className="flex items-center gap-1.5 p-1 bg-[#F4F4F5] rounded-2xl border border-[#E4E4E7]">
             <button
               onClick={() => setSelectedDoctorFilter("all")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${
                 selectedDoctorFilter === "all"
                   ? "bg-[#2A5CAA] text-white shadow-xs"
-                  : "bg-white text-[#1C1C1E] border border-[#E4E4E7] hover:bg-[#F4F4F5]"
+                  : "text-[#4B5563] hover:text-[#1C1C1E] hover:bg-white"
               }`}
             >
               All Dentists
@@ -184,10 +200,10 @@ export function QueueBoard({
               <button
                 key={d.id}
                 onClick={() => setSelectedDoctorFilter(d.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                className={`px-3.5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${
                   selectedDoctorFilter === d.id
                     ? "bg-[#2A5CAA] text-white shadow-xs"
-                    : "bg-white text-[#1C1C1E] border border-[#E4E4E7] hover:bg-[#F4F4F5]"
+                    : "text-[#4B5563] hover:text-[#1C1C1E] hover:bg-white"
                 }`}
               >
                 {d.name} {d.id === currentUserId && "(You)"}
@@ -195,14 +211,14 @@ export function QueueBoard({
             ))}
           </div>
 
-          {/* Chair Selector if multiple chairs exist */}
+          {/* Chair Selector */}
           {chairs.length > 0 && (
-            <div className="flex items-center gap-1.5 pl-3 border-l border-[#E4E4E7]">
-              <Armchair className="w-3.5 h-3.5 text-[#6B7280]" />
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-[#E4E4E7] rounded-2xl shadow-xs">
+              <Armchair className="w-4 h-4 text-[#2A5CAA]" />
               <select
                 value={selectedChairId}
                 onChange={(e) => setSelectedChairId(e.target.value)}
-                className="bg-white border border-[#E4E4E7] text-xs font-semibold text-[#1C1C1E] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#2A5CAA]"
+                className="bg-transparent text-sm font-bold text-[#1C1C1E] focus:outline-none cursor-pointer pr-2"
               >
                 {chairs.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -212,150 +228,153 @@ export function QueueBoard({
               </select>
             </div>
           )}
-        </div>
 
-        <div className="flex items-center gap-2">
-          {/* Workflow Guide Toggle */}
-          <button
-            type="button"
-            onClick={() => setShowGuide(!showGuide)}
-            className="px-3 py-2 rounded-xl bg-white border border-[#E4E4E7] text-xs font-semibold text-[#6B7280] hover:text-[#1C1C1E] hover:bg-[#F4F4F5] flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-[#2A5CAA]" />
-            <span>How Queue Works</span>
-            {showGuide ? (
-              <ChevronUp className="w-3 h-3 text-[#6B7280]" />
-            ) : (
-              <ChevronDown className="w-3 h-3 text-[#6B7280]" />
-            )}
-          </button>
-
-          {/* Call Next Button */}
+          {/* Call Next Button - Large & High Visibility */}
           <button
             type="button"
             onClick={handleCallNext}
             disabled={isCallingNext || getColumnItems("waiting").length === 0}
-            className="px-4 py-2 rounded-xl bg-[#30D158] hover:bg-[#28b84d] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition disabled:opacity-50 cursor-pointer"
+            className="px-5 py-3 rounded-2xl bg-[#30D158] hover:bg-[#28b84d] text-white font-black text-sm flex items-center gap-2 shadow-md hover:shadow-lg transition disabled:opacity-50 cursor-pointer"
           >
             {isCallingNext ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Play className="w-3.5 h-3.5 fill-current" />
+              <Play className="w-4 h-4 fill-current" />
             )}
             <span>Call Next Waiting Patient</span>
+          </button>
+
+          {/* Workflow Guide Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowGuide(!showGuide)}
+            className="p-2.5 rounded-2xl bg-white border border-[#E4E4E7] text-[#6B7280] hover:text-[#1C1C1E] hover:bg-[#F4F4F5] transition cursor-pointer"
+            title="How Queue Works"
+          >
+            <HelpCircle className="w-5 h-5 text-[#2A5CAA]" />
           </button>
         </div>
       </div>
 
       {/* Explanatory Patient Journey Banner */}
       {showGuide && (
-        <div className="glass-panel p-4 rounded-2xl border border-[#2A5CAA]/20 bg-[#E8EEF7]/40 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-2 mb-2 text-[#2A5CAA] font-bold text-xs">
+        <div className="glass-panel p-5 rounded-3xl border border-[#2A5CAA]/20 bg-[#E8EEF7]/40 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2 mb-3 text-[#2A5CAA] font-bold text-sm">
             <Info className="w-4 h-4" />
-            <span>Dental Chamber 5-Stage Patient Flow:</span>
+            <span>Dental Chamber 5-Stage Patient Workflow:</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-[11px]">
-            <div className="p-2.5 rounded-xl bg-white border border-[#E4E4E7]">
-              <span className="font-bold text-[#6B7280] block mb-1">1. Booked Today</span>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+            <div className="p-3 rounded-2xl bg-white border border-[#E4E4E7]">
+              <span className="font-bold text-[#4B5563] block mb-1">1. Booked Today</span>
               <p className="text-[#6B7280]">
-                Patients with scheduled appointments. When the patient arrives at the chamber, click <strong>"Check In"</strong>.
+                Patients with appointments today. When they walk in, click <strong>&quot;Check In&quot;</strong> to give them a Serial #.
               </p>
             </div>
-            <div className="p-2.5 rounded-xl bg-white border border-[#FF9F0A]/30">
-              <span className="font-bold text-[#FF9F0A] block mb-1">2. Waiting in Chamber</span>
+            <div className="p-3 rounded-2xl bg-white border border-[#FF9F0A]/30">
+              <span className="font-bold text-[#FF9F0A] block mb-1">2. Waiting Lounge</span>
               <p className="text-[#6B7280]">
-                Patient is seated in waiting lounge with a daily Serial #. The doctor clicks <strong>"Call Next"</strong> or <strong>"To Chair"</strong>.
+                Patient is seated with a Serial number. Click <strong>&quot;Call to Chair&quot;</strong> or <strong>&quot;Call Next&quot;</strong>.
               </p>
             </div>
-            <div className="p-2.5 rounded-xl bg-white border border-[#2A5CAA]/30">
+            <div className="p-3 rounded-2xl bg-white border border-[#2A5CAA]/30">
               <span className="font-bold text-[#2A5CAA] block mb-1">3. In Dental Chair</span>
               <p className="text-[#6B7280]">
-                Actively receiving treatment in chair. Dentist writes prescription, then clicks <strong>"Finish Treatment"</strong>.
+                Treatment is underway. Doctor writes prescription and clicks <strong>&quot;Finish Treatment&quot;</strong>.
               </p>
             </div>
-            <div className="p-2.5 rounded-xl bg-white border border-[#FF453A]/30">
-              <span className="font-bold text-[#FF453A] block mb-1">4. Pending Billing</span>
+            <div className="p-3 rounded-2xl bg-white border border-[#FF453A]/30">
+              <span className="font-bold text-[#FF453A] block mb-1">4. Front-Desk Billing</span>
               <p className="text-[#6B7280]">
-                Patient proceeds to front desk. Receptionist records Cash / bKash / Card payment and prints invoice.
+                Patient arrives at receptionist counter. Collect cash / card / bKash and print invoice.
               </p>
             </div>
-            <div className="p-2.5 rounded-xl bg-white border border-[#30D158]/30">
-              <span className="font-bold text-[#30D158] block mb-1">5. Completed (Done)</span>
+            <div className="p-3 rounded-2xl bg-white border border-[#30D158]/30">
+              <span className="font-bold text-[#30D158] block mb-1">5. Completed Visits</span>
               <p className="text-[#6B7280]">
-                Visit finalized, dues settled, and appointment safely closed for the day.
+                Treatment finished, payments recorded, and patient record safely archived for the day.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* 5-Column Kanban Board with Horizontal Scroll Protection */}
-      <div className="overflow-x-auto pb-4">
-        <div className="grid grid-cols-5 gap-4 min-w-[1100px] items-start">
-          {/* Column 1: Booked */}
-          <div className="bg-[#F4F4F5] rounded-2xl p-3 border border-[#E4E4E7] space-y-3">
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs font-bold uppercase text-[#6B7280] tracking-wider">
-                1. Booked ({getColumnItems("booked").length})
+      {/* 5-Column Kanban Board - Big Cards & Big Serial Numbers */}
+      <div className="overflow-x-auto pb-6">
+        <div className="flex gap-5 min-w-[1550px] items-start">
+          {/* ================================================================ */}
+          {/* Column 1: Booked Today                                           */}
+          {/* ================================================================ */}
+          <div className="w-[310px] shrink-0 bg-[#F4F4F5] rounded-3xl p-4 border border-[#E4E4E7] space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-slate-300 text-slate-800 font-bold text-xs flex items-center justify-center font-mono">
+                  1
+                </span>
+                <span className="text-sm font-extrabold uppercase text-[#4B5563] tracking-wide">
+                  Booked Today
+                </span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-white text-slate-700 font-black text-xs border border-[#E4E4E7]">
+                {getColumnItems("booked").length}
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {getColumnItems("booked").length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#6B7280] bg-white/50 rounded-xl border border-dashed border-[#E4E4E7]">
-                  No upcoming bookings
+                <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/60 rounded-2xl border border-dashed border-[#E4E4E7]">
+                  No upcoming bookings for today
                 </div>
               ) : (
                 getColumnItems("booked").map((item) => (
                   <div
                     key={item.id}
-                    className="clinical-card p-3 rounded-xl shadow-xs border border-[#E4E4E7] space-y-2 hover:border-[#2A5CAA]/40 transition bg-white"
+                    className="p-4 rounded-2xl shadow-sm border-2 border-[#E4E4E7] space-y-3 hover:border-[#2A5CAA]/50 hover:shadow-md transition bg-white"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/app/patients/${item.patientId}`}
-                          className="font-bold text-xs text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline truncate block"
-                          title="View patient history"
-                        >
-                          {item.patientName}
-                        </Link>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[10px] text-[#2A5CAA] bg-[#E8EEF7] px-1.5 py-0.2 rounded font-bold">
-                            {item.patientCard}
-                          </span>
-                          <span className="text-[10px] text-[#6B7280] font-mono">
-                            {item.startTime}
-                          </span>
-                        </div>
+                    {/* Top Row: Time + Patient Card */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] px-2.5 py-1 rounded-lg font-mono">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{item.startTime}</span>
                       </div>
-                      {item.allergyFlags.length > 0 && (
-                        <span
-                          className="text-[#FF453A] shrink-0"
-                          title={`Allergies: ${item.allergyFlags.join(", ")}`}
-                        >
-                          <AlertCircle className="w-4 h-4 fill-[#FFEBEA]" />
-                        </span>
-                      )}
+                      <span className="font-mono text-xs font-bold text-[#6B7280] bg-[#F4F4F5] px-2 py-0.5 rounded">
+                        Card: {item.patientCard}
+                      </span>
                     </div>
 
-                    <div className="text-[11px] text-[#6B7280] flex items-center gap-1.5">
-                      <Stethoscope className="w-3 h-3 text-[#2A5CAA] shrink-0" />
-                      <span className="truncate">{item.doctorName}</span>
+                    {/* Patient Name - Big & Legible */}
+                    <div>
+                      <Link
+                        href={`/app/patients/${item.patientId}`}
+                        className="font-black text-lg text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline line-clamp-1 block leading-tight"
+                        title="View patient history"
+                      >
+                        {item.patientName}
+                      </Link>
+                      <div className="flex items-center gap-1 text-sm font-semibold text-[#4B5563] mt-1 font-mono">
+                        <Phone className="w-3.5 h-3.5 text-[#8E8E93]" />
+                        <span>{item.patientPhone}</span>
+                      </div>
                     </div>
 
+                    {/* Dentist */}
+                    <div className="text-xs font-semibold text-[#4B5563] flex items-center gap-1.5 pt-1 border-t border-[#E4E4E7]/60">
+                      <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
+                      <span className="truncate">Dentist: {item.doctorName}</span>
+                    </div>
+
+                    {/* Check In Action Button */}
                     <button
                       type="button"
                       onClick={() => handleCheckIn(item.appointmentId)}
                       disabled={processingId === item.appointmentId}
-                      className="w-full py-1.5 px-3 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition shadow-xs disabled:opacity-50 cursor-pointer"
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold flex items-center justify-center gap-2 transition shadow-xs disabled:opacity-50 cursor-pointer"
                     >
                       {processingId === item.appointmentId ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <>
                           <span>Check In Patient</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-4 h-4" />
                         </>
                       )}
                     </button>
@@ -365,62 +384,98 @@ export function QueueBoard({
             </div>
           </div>
 
-          {/* Column 2: Waiting in Chamber */}
-          <div className="bg-[#FFF7EB]/40 rounded-2xl p-3 border border-[#FF9F0A]/30 space-y-3">
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs font-bold uppercase text-[#FF9F0A] tracking-wider">
-                2. Waiting ({getColumnItems("waiting").length})
+          {/* ================================================================ */}
+          {/* Column 2: Waiting in Chamber (Big Serial Numbers)                */}
+          {/* ================================================================ */}
+          <div className="w-[310px] shrink-0 bg-[#FFF7EB]/60 rounded-3xl p-4 border border-[#FF9F0A]/40 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-amber-400 text-white font-bold text-xs flex items-center justify-center font-mono">
+                  2
+                </span>
+                <span className="text-sm font-extrabold uppercase text-[#D97706] tracking-wide">
+                  Waiting Lounge
+                </span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#FF9F0A] text-white font-black text-xs shadow-2xs">
+                {getColumnItems("waiting").length}
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {getColumnItems("waiting").length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#6B7280] bg-white/50 rounded-xl border border-dashed border-[#FF9F0A]/30">
-                  Lounge empty
+                <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#FF9F0A]/30">
+                  Lounge is currently empty
                 </div>
               ) : (
                 getColumnItems("waiting").map((item) => (
                   <div
                     key={item.id}
-                    className="clinical-card p-3 rounded-xl shadow-xs border border-[#E4E4E7] space-y-2.5 bg-white"
+                    className="p-4 rounded-2xl shadow-sm border-2 border-amber-300/80 space-y-3.5 bg-white hover:shadow-md transition"
                   >
-                    <div className="flex items-start gap-2.5">
-                      <span className="w-7 h-7 rounded-lg bg-[#FFF7EB] text-[#FF9F0A] font-extrabold text-xs flex items-center justify-center font-mono border border-[#FF9F0A]/40 shrink-0">
-                        #{item.serialNo || "?"}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/app/patients/${item.patientId}`}
-                          className="font-bold text-xs text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline truncate block"
-                          title="View patient history"
+                    {/* Header: BIG SERIAL NUMBER BADGE + Patient Card */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white font-black text-2xl flex items-center justify-center font-mono shadow-md border border-amber-500">
+                          #{item.serialNo || "?"}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-wider text-amber-700 block">
+                            Daily Serial
+                          </span>
+                          <span className="font-mono text-xs font-bold text-[#6B7280]">
+                            {item.patientCard}
+                          </span>
+                        </div>
+                      </div>
+
+                      {item.allergyFlags.length > 0 && (
+                        <span
+                          className="px-2.5 py-1 rounded-lg bg-[#FFEBEA] text-[#FF453A] font-extrabold text-xs uppercase border border-[#FF453A]/30"
+                          title={`Allergies: ${item.allergyFlags.join(", ")}`}
                         >
-                          {item.patientName}
-                        </Link>
-                        <span className="text-[10px] text-[#6B7280] block font-mono">
-                          {item.patientPhone}
+                          Allergy
                         </span>
+                      )}
+                    </div>
+
+                    {/* Patient Name - Big & Bold */}
+                    <div>
+                      <Link
+                        href={`/app/patients/${item.patientId}`}
+                        className="font-black text-lg text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline line-clamp-1 block leading-tight"
+                        title="View patient history"
+                      >
+                        {item.patientName}
+                      </Link>
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-[#4B5563] mt-1 font-mono">
+                        <Phone className="w-3.5 h-3.5 text-[#8E8E93]" />
+                        <span>{item.patientPhone}</span>
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-[#6B7280] truncate">
-                      Dentist: <span className="font-semibold text-[#1C1C1E]">{item.doctorName}</span>
+                    {/* Assigned Dentist */}
+                    <div className="text-xs font-semibold text-[#4B5563] flex items-center gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
+                      <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
+                      <span className="truncate">Dentist: {item.doctorName}</span>
                     </div>
 
+                    {/* Send to Chair Action */}
                     <button
                       type="button"
                       onClick={() =>
                         handleAdvance(item.id, "in_chair", selectedChairId || undefined)
                       }
                       disabled={processingId === item.id}
-                      className="w-full py-1.5 px-3 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition shadow-xs disabled:opacity-50 cursor-pointer"
+                      className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 transition shadow-sm disabled:opacity-50 cursor-pointer"
                     >
                       {processingId === item.id ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <>
-                          <Armchair className="w-3 h-3" />
-                          <span>Send to Chair</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <Armchair className="w-4 h-4" />
+                          <span>Send to Chair Now</span>
+                          <ArrowRight className="w-4 h-4" />
                         </>
                       )}
                     </button>
@@ -430,18 +485,28 @@ export function QueueBoard({
             </div>
           </div>
 
-          {/* Column 3: In Chair */}
-          <div className="bg-[#E8EEF7]/40 rounded-2xl p-3 border border-[#2A5CAA]/30 space-y-3">
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs font-bold uppercase text-[#2A5CAA] tracking-wider">
-                3. In Chair ({getColumnItems("in_chair").length})
+          {/* ================================================================ */}
+          {/* Column 3: In Dental Chair (Active Treatment)                     */}
+          {/* ================================================================ */}
+          <div className="w-[310px] shrink-0 bg-[#E8EEF7]/50 rounded-3xl p-4 border border-[#2A5CAA]/40 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[#2A5CAA] text-white font-bold text-xs flex items-center justify-center font-mono">
+                  3
+                </span>
+                <span className="text-sm font-extrabold uppercase text-[#2A5CAA] tracking-wide">
+                  In Dental Chair
+                </span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#2A5CAA] text-white font-black text-xs shadow-2xs animate-pulse">
+                {getColumnItems("in_chair").length}
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {getColumnItems("in_chair").length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#6B7280] bg-white/50 rounded-xl border border-dashed border-[#2A5CAA]/30">
-                  All chairs vacant
+                <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#2A5CAA]/30">
+                  All dental chairs vacant
                 </div>
               ) : (
                 getColumnItems("in_chair").map((item) => {
@@ -449,43 +514,63 @@ export function QueueBoard({
                   return (
                     <div
                       key={item.id}
-                      className="clinical-card p-3 rounded-xl shadow-xs border border-[#2A5CAA]/30 space-y-2.5 bg-white"
+                      className="p-4 rounded-2xl shadow-sm border-2 border-[#2A5CAA]/50 space-y-3.5 bg-white hover:shadow-md transition"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-6 h-6 rounded-lg bg-[#E8EEF7] text-[#2A5CAA] font-extrabold text-xs flex items-center justify-center font-mono">
+                      {/* Big Serial Badge & Active Chair Tag */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-[#2A5CAA] to-[#1E4282] text-white font-black text-2xl flex items-center justify-center font-mono shadow-md border border-[#2A5CAA]">
                             #{item.serialNo || "?"}
-                          </span>
-                          {chairName && (
-                            <span className="text-[10px] font-semibold text-[#2A5CAA] bg-[#E8EEF7] px-1.5 py-0.5 rounded">
-                              {chairName}
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold uppercase tracking-wider text-[#2A5CAA] block">
+                              Active in Chair
                             </span>
-                          )}
+                            <span className="font-mono text-xs font-bold text-[#6B7280]">
+                              {item.patientCard}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8EEF7] text-[#2A5CAA] animate-pulse">
-                          Active
-                        </span>
+
+                        {chairName ? (
+                          <span className="px-2.5 py-1 rounded-lg bg-[#EBF2FC] text-[#2A5CAA] font-bold text-xs border border-[#2A5CAA]/30">
+                            {chairName}
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs">
+                            Active
+                          </span>
+                        )}
                       </div>
 
+                      {/* Patient Name - Big 18px */}
                       <div>
                         <Link
                           href={`/app/patients/${item.patientId}`}
-                          className="font-bold text-xs text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline truncate block"
+                          className="font-black text-lg text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline line-clamp-1 block leading-tight"
                           title="View patient history"
                         >
                           {item.patientName}
                         </Link>
-                        <span className="text-[11px] text-[#6B7280] truncate block">
-                          Dr. {item.doctorName}
-                        </span>
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-[#4B5563] mt-1 font-mono">
+                          <Phone className="w-3.5 h-3.5 text-[#8E8E93]" />
+                          <span>{item.patientPhone}</span>
+                        </div>
                       </div>
 
-                      <div className="space-y-1.5 pt-1 border-t border-[#E4E4E7]">
+                      {/* Dentist */}
+                      <div className="text-xs font-semibold text-[#4B5563] flex items-center gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
+                        <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
+                        <span className="truncate">Dentist: {item.doctorName}</span>
+                      </div>
+
+                      {/* Two Action Buttons: Write RX & Finish Treatment */}
+                      <div className="space-y-2 pt-1 border-t border-[#E4E4E7]">
                         <Link
                           href={`/app/prescriptions/new?patientId=${item.patientId}&appointmentId=${item.appointmentId}`}
-                          className="w-full py-1.5 px-3 rounded-lg bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
+                          className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-[#E8EEF7] text-[#2A5CAA] border-2 border-[#2A5CAA]/30 hover:border-[#2A5CAA] text-sm font-bold flex items-center justify-center gap-2 transition"
                         >
-                          <FileText className="w-3 h-3 text-[#2A5CAA]" />
+                          <FileText className="w-4 h-4 text-[#2A5CAA]" />
                           <span>Write Prescription</span>
                         </Link>
 
@@ -493,14 +578,14 @@ export function QueueBoard({
                           type="button"
                           onClick={() => handleAdvance(item.id, "billing")}
                           disabled={processingId === item.id}
-                          className="w-full py-1.5 px-3 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
+                          className="w-full py-2.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-xs"
                         >
                           {processingId === item.id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <>
-                              <span>Finish Treatment</span>
-                              <ArrowRight className="w-3 h-3" />
+                              <span>Finish Treatment → Bill</span>
+                              <ArrowRight className="w-4 h-4" />
                             </>
                           )}
                         </button>
@@ -512,59 +597,93 @@ export function QueueBoard({
             </div>
           </div>
 
-          {/* Column 4: Billing */}
-          <div className="bg-[#FFEBEA]/30 rounded-2xl p-3 border border-[#FF453A]/20 space-y-3">
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs font-bold uppercase text-[#FF453A] tracking-wider">
-                4. Billing ({getColumnItems("billing").length})
+          {/* ================================================================ */}
+          {/* Column 4: Front-Desk Billing                                     */}
+          {/* ================================================================ */}
+          <div className="w-[310px] shrink-0 bg-[#FFEBEA]/40 rounded-3xl p-4 border border-[#FF453A]/30 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[#FF453A] text-white font-bold text-xs flex items-center justify-center font-mono">
+                  4
+                </span>
+                <span className="text-sm font-extrabold uppercase text-[#DC2626] tracking-wide">
+                  Pending Billing
+                </span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#FF453A] text-white font-black text-xs shadow-2xs">
+                {getColumnItems("billing").length}
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {getColumnItems("billing").length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#6B7280] bg-white/50 rounded-xl border border-dashed border-[#FF453A]/30">
-                  No bills pending
+                <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#FF453A]/30">
+                  No bills awaiting checkout
                 </div>
               ) : (
                 getColumnItems("billing").map((item) => (
                   <div
                     key={item.id}
-                    className="clinical-card p-3 rounded-xl shadow-xs border border-[#E4E4E7] space-y-2 bg-white"
+                    className="p-4 rounded-2xl shadow-sm border-2 border-rose-300 space-y-3.5 bg-white hover:shadow-md transition"
                   >
+                    {/* Header: BIG SERIAL NUMBER + Payment Flag */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 text-white font-black text-2xl flex items-center justify-center font-mono shadow-md border border-rose-500">
+                          #{item.serialNo || "?"}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-wider text-rose-700 block">
+                            Billing Counter
+                          </span>
+                          <span className="font-mono text-xs font-bold text-[#6B7280]">
+                            {item.patientCard}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 font-bold text-xs uppercase">
+                        Unpaid
+                      </span>
+                    </div>
+
+                    {/* Patient Name - Big & Readable */}
                     <div>
                       <Link
                         href={`/app/patients/${item.patientId}`}
-                        className="font-bold text-xs text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline truncate block"
+                        className="font-black text-lg text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline line-clamp-1 block leading-tight"
                         title="View patient history"
                       >
                         {item.patientName}
                       </Link>
-                      <span className="text-[10px] text-[#FF453A] font-bold block mt-0.5">
-                        Awaiting Front Desk Payment
-                      </span>
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-[#4B5563] mt-1 font-mono">
+                        <Phone className="w-3.5 h-3.5 text-[#8E8E93]" />
+                        <span>{item.patientPhone}</span>
+                      </div>
                     </div>
 
-                    <div className="space-y-1.5 pt-1">
+                    {/* Action: Collect Payment & Invoice */}
+                    <div className="space-y-2 pt-2 border-t border-[#E4E4E7]">
                       <Link
                         href={`/app/billing?patientId=${item.patientId}`}
-                        className="w-full py-1.5 px-3 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
+                        className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 shadow-xs transition"
                       >
-                        <CreditCard className="w-3 h-3" />
-                        <span>Collect Payment</span>
+                        <CreditCard className="w-4 h-4" />
+                        <span>Collect Payment &amp; Invoice</span>
                       </Link>
 
                       <button
                         type="button"
                         onClick={() => handleAdvance(item.id, "done")}
                         disabled={processingId === item.id}
-                        className="w-full py-1.5 px-3 rounded-lg bg-[#F4F4F5] hover:bg-[#E8F8EE] text-[#1C1C1E] hover:text-[#30D158] text-[11px] font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
+                        className="w-full py-2 px-3 rounded-xl bg-[#F4F4F5] hover:bg-emerald-50 text-[#4B5563] hover:text-emerald-700 text-xs font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
                       >
                         {processingId === item.id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <>
-                            <CheckCircle2 className="w-3 h-3 text-[#30D158]" />
-                            <span>Mark Completed</span>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Mark Completed Without Bill</span>
                           </>
                         )}
                       </button>
@@ -575,38 +694,53 @@ export function QueueBoard({
             </div>
           </div>
 
-          {/* Column 5: Done */}
-          <div className="bg-[#E8F8EE]/30 rounded-2xl p-3 border border-[#30D158]/30 space-y-3">
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs font-bold uppercase text-[#30D158] tracking-wider">
-                5. Done ({getColumnItems("done").length})
+          {/* ================================================================ */}
+          {/* Column 5: Completed Visits                                       */}
+          {/* ================================================================ */}
+          <div className="w-[310px] shrink-0 bg-[#E8F8EE]/50 rounded-3xl p-4 border border-[#30D158]/40 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center font-mono">
+                  5
+                </span>
+                <span className="text-sm font-extrabold uppercase text-emerald-800 tracking-wide">
+                  Completed Today
+                </span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-black text-xs shadow-2xs">
+                {getColumnItems("done").length}
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {getColumnItems("done").length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#6B7280] bg-white/50 rounded-xl border border-dashed border-[#30D158]/30">
-                  0 visits completed
+                <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#30D158]/30">
+                  0 visits finalized today
                 </div>
               ) : (
                 getColumnItems("done").map((item) => (
                   <div
                     key={item.id}
-                    className="clinical-card p-2.5 rounded-xl shadow-xs border border-[#E4E4E7] bg-white opacity-90 text-xs space-y-1"
+                    className="p-3.5 rounded-2xl shadow-xs border border-emerald-200/80 bg-white space-y-2 opacity-95"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <Link
-                        href={`/app/patients/${item.patientId}`}
-                        className="font-bold text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline truncate"
-                        title="View patient history"
-                      >
-                        {item.patientName}
-                      </Link>
-                      <CheckCircle2 className="w-4 h-4 text-[#30D158] shrink-0" />
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center font-mono">
+                          #{item.serialNo || "✓"}
+                        </span>
+                        <Link
+                          href={`/app/patients/${item.patientId}`}
+                          className="font-bold text-base text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline truncate"
+                          title="View patient history"
+                        >
+                          {item.patientName}
+                        </Link>
+                      </div>
+                      <CheckCircle2 className="w-5 h-5 text-[#30D158] shrink-0" />
                     </div>
-                    <span className="text-[10px] text-[#6B7280] block truncate">
+                    <div className="text-xs font-medium text-[#6B7280] truncate pl-10">
                       Treated by {item.doctorName}
-                    </span>
+                    </div>
                   </div>
                 ))
               )}

@@ -317,59 +317,59 @@ export function PrescriptionBuilder({
       {/* Prescription Saved Success Modal */}
       {savedPrescription && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-[#E4E4E7] shadow-2xl space-y-5 animate-in zoom-in-95">
-            <div className="text-center space-y-2">
-              <div className="w-14 h-14 rounded-full bg-[#30D158]/15 text-[#30D158] flex items-center justify-center mx-auto mb-2">
-                <Check className="w-7 h-7 stroke-[3]" />
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 border border-[#E4E4E7] shadow-2xl space-y-6 animate-in zoom-in-95">
+            <div className="text-center space-y-2.5">
+              <div className="w-16 h-16 rounded-full bg-[#30D158]/15 text-[#30D158] flex items-center justify-center mx-auto mb-2">
+                <Check className="w-8 h-8 stroke-[3]" />
               </div>
-              <h3 className="text-lg font-extrabold text-[#1C1C1E]">
+              <h3 className="text-xl font-black text-[#1C1C1E]">
                 Prescription Issued Successfully!
               </h3>
-              <p className="text-xs text-[#6B7280]">
-                Prescription <span className="font-mono font-bold text-[#2A5CAA]">{savedPrescription.rxCode}</span> for <strong>{patient.name}</strong> has been saved.
+              <p className="text-sm text-[#4B5563] leading-relaxed">
+                Prescription <span className="font-mono font-bold text-[#2A5CAA] bg-[#E8EEF7] px-2 py-0.5 rounded">{savedPrescription.rxCode}</span> for <strong>{patient.name}</strong> has been saved.
               </p>
             </div>
 
-            <div className="space-y-2.5 pt-2">
+            <div className="space-y-3 pt-1">
               <Link
                 href={`/print/prescription/${savedPrescription.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition"
+                className="w-full py-3.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
               >
-                <Printer className="w-4 h-4" />
+                <Printer className="w-4.5 h-4.5" />
                 <span>Open &amp; Print Prescription ↗</span>
               </Link>
 
               <Link
                 href="/app/queue"
-                className="w-full py-2.5 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-xs flex items-center justify-center gap-2 transition"
+                className="w-full py-3 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer"
               >
-                <Armchair className="w-4 h-4 text-[#2A5CAA]" />
+                <Armchair className="w-4.5 h-4.5 text-[#2A5CAA]" />
                 <span>Return to In-Chair Queue</span>
               </Link>
 
               <Link
                 href={`/app/patients/${patient.id}`}
-                className="w-full py-2.5 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-xs flex items-center justify-center gap-2 transition"
+                className="w-full py-3 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer"
               >
-                <User className="w-4 h-4 text-[#2A5CAA]" />
+                <User className="w-4.5 h-4.5 text-[#2A5CAA]" />
                 <span>Return to Patient Profile</span>
               </Link>
 
               <Link
                 href="/app/prescriptions"
-                className="w-full py-2.5 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-xs flex items-center justify-center gap-2 transition"
+                className="w-full py-3 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer"
               >
-                <FileText className="w-4 h-4 text-[#2A5CAA]" />
+                <FileText className="w-4.5 h-4.5 text-[#2A5CAA]" />
                 <span>View All Prescriptions</span>
               </Link>
 
               <Link
                 href="/app"
-                className="w-full py-2 px-4 rounded-xl text-center text-[#6B7280] hover:text-[#1C1C1E] font-semibold text-xs block transition"
+                className="w-full py-2.5 px-4 rounded-xl text-center text-[#4B5563] hover:text-[#1C1C1E] font-bold text-sm block transition cursor-pointer"
               >
-                Go to Clinic Dashboard
+                ← Go to Clinic Dashboard
               </Link>
             </div>
           </div>
@@ -383,20 +383,20 @@ export function PrescriptionBuilder({
         {/* ==================================================================== */}
         <div className="lg:col-span-3 space-y-4">
           {/* Patient Card */}
-          <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7] space-y-3">
+          <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] space-y-3.5 shadow-2xs">
             <div>
-              <span className="text-xs font-bold uppercase text-[#6B7280] tracking-wider block">
+              <span className="text-xs font-extrabold uppercase text-[#6B7280] tracking-wider block">
                 Patient Header
               </span>
-              <h2 className="text-base font-extrabold text-[#1C1C1E]">
+              <h2 className="text-lg font-black text-[#1C1C1E] mt-0.5">
                 {patient.name}
               </h2>
-              <span className="font-mono text-xs text-[#2A5CAA] bg-[#E8EEF7] px-2 py-0.5 rounded font-semibold inline-block mt-0.5">
-                {patient.cardNumber}
+              <span className="font-mono text-sm text-[#2A5CAA] bg-[#E8EEF7] px-2.5 py-1 rounded-lg font-bold inline-block mt-1">
+                Card: {patient.cardNumber}
               </span>
             </div>
 
-            <div className="text-xs text-[#6B7280]">
+            <div className="text-sm font-semibold text-[#4B5563]">
               <span>
                 {patient.approxAge ? `${patient.approxAge} yrs` : "Age —"} •{" "}
                 {patient.gender}
@@ -405,17 +405,17 @@ export function PrescriptionBuilder({
 
             {/* Allergy Chips in Red */}
             <div>
-              <span className="text-[11px] font-bold text-[#FF453A] uppercase tracking-wider block mb-1">
+              <span className="text-xs font-bold text-[#FF453A] uppercase tracking-wider block mb-1.5">
                 Allergies:
               </span>
               {patient.allergyFlags.length === 0 ? (
-                <span className="text-xs text-[#6B7280]">No known allergies</span>
+                <span className="text-sm text-[#6B7280] italic">No known allergies</span>
               ) : (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {patient.allergyFlags.map((flag) => (
                     <span
                       key={flag}
-                      className="px-2 py-0.5 rounded-full bg-[#FFEBEA] border border-[#FF453A]/40 text-[#FF453A] text-xs font-bold"
+                      className="px-2.5 py-1 rounded-lg bg-[#FFEBEA] border border-[#FF453A]/40 text-[#FF453A] text-xs font-bold"
                     >
                       {flag}
                     </span>
@@ -426,17 +426,17 @@ export function PrescriptionBuilder({
 
             {/* Condition Chips in Amber */}
             <div>
-              <span className="text-[11px] font-bold text-[#FF9F0A] uppercase tracking-wider block mb-1">
+              <span className="text-xs font-bold text-[#FF9F0A] uppercase tracking-wider block mb-1.5">
                 Medical Conditions:
               </span>
               {patient.medicalConditions.length === 0 ? (
-                <span className="text-xs text-[#6B7280]">No conditions noted</span>
+                <span className="text-sm text-[#6B7280] italic">No conditions noted</span>
               ) : (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {patient.medicalConditions.map((cond) => (
                     <span
                       key={cond}
-                      className="px-2 py-0.5 rounded-full bg-[#FFF7EB] border border-[#FF9F0A]/40 text-[#FF9F0A] text-xs font-bold"
+                      className="px-2.5 py-1 rounded-lg bg-[#FFF7EB] border border-[#FF9F0A]/40 text-[#FF9F0A] text-xs font-bold"
                     >
                       {cond}
                     </span>
@@ -451,8 +451,8 @@ export function PrescriptionBuilder({
         {/* Middle Column (4 cols): Clinical Notes, Quick-Text Chips & Teeth    */}
         {/* ==================================================================== */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7] space-y-4">
-            <h2 className="text-xs font-bold uppercase text-[#6B7280] tracking-wider">
+          <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] space-y-4 shadow-2xs">
+            <h2 className="text-sm font-extrabold uppercase text-[#4B5563] tracking-wider">
               Clinical Findings
             </h2>
 
@@ -461,17 +461,17 @@ export function PrescriptionBuilder({
 
             {/* Chief Complaint */}
             <div>
-              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                Chief Complaint
+              <label className="block text-sm font-bold text-[#1C1C1E] mb-1.5">
+                Chief Complaint (C/C)
               </label>
               <textarea
                 rows={2}
                 value={chiefComplaint}
                 onChange={(e) => setChiefComplaint(e.target.value)}
                 placeholder="e.g. Severe toothache on lower right side..."
-                className="w-full p-2.5 rounded-lg border border-[#E4E4E7] bg-white text-xs focus:outline-none focus:border-[#2A5CAA]"
+                className="w-full p-3 rounded-xl border border-[#E4E4E7] bg-white text-sm sm:text-base focus:outline-none focus:border-[#2A5CAA] shadow-2xs"
               />
-              <div className="flex flex-wrap gap-1 mt-1.5">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {quickTexts
                   .filter((q) => q.kind === "chief_complaint")
                   .slice(0, 6)
@@ -480,7 +480,7 @@ export function PrescriptionBuilder({
                       key={q.id}
                       type="button"
                       onClick={() => appendQuickText(setChiefComplaint, q.text)}
-                      className="px-2 py-0.5 rounded bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[11px] text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-semibold text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
                     >
                       + {q.text}
                     </button>
@@ -490,7 +490,7 @@ export function PrescriptionBuilder({
 
             {/* On Examination */}
             <div>
-              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+              <label className="block text-sm font-bold text-[#1C1C1E] mb-1.5">
                 On Examination (O/E)
               </label>
               <textarea
@@ -498,9 +498,9 @@ export function PrescriptionBuilder({
                 value={examination}
                 onChange={(e) => setExamination(e.target.value)}
                 placeholder="e.g. Deep caries, tender on percussion..."
-                className="w-full p-2.5 rounded-lg border border-[#E4E4E7] bg-white text-xs focus:outline-none focus:border-[#2A5CAA]"
+                className="w-full p-3 rounded-xl border border-[#E4E4E7] bg-white text-sm sm:text-base focus:outline-none focus:border-[#2A5CAA] shadow-2xs"
               />
-              <div className="flex flex-wrap gap-1 mt-1.5">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {quickTexts
                   .filter((q) => q.kind === "examination")
                   .slice(0, 6)
@@ -509,7 +509,7 @@ export function PrescriptionBuilder({
                       key={q.id}
                       type="button"
                       onClick={() => appendQuickText(setExamination, q.text)}
-                      className="px-2 py-0.5 rounded bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[11px] text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-semibold text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
                     >
                       + {q.text}
                     </button>
@@ -519,7 +519,7 @@ export function PrescriptionBuilder({
 
             {/* Diagnosis */}
             <div>
-              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+              <label className="block text-sm font-bold text-[#1C1C1E] mb-1.5">
                 Diagnosis
               </label>
               <textarea
@@ -527,9 +527,9 @@ export function PrescriptionBuilder({
                 value={diagnosis}
                 onChange={(e) => setDiagnosis(e.target.value)}
                 placeholder="e.g. Irreversible pulpitis #46"
-                className="w-full p-2.5 rounded-lg border border-[#E4E4E7] bg-white text-xs focus:outline-none focus:border-[#2A5CAA]"
+                className="w-full p-3 rounded-xl border border-[#E4E4E7] bg-white text-sm sm:text-base focus:outline-none focus:border-[#2A5CAA] shadow-2xs"
               />
-              <div className="flex flex-wrap gap-1 mt-1.5">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {quickTexts
                   .filter((q) => q.kind === "diagnosis")
                   .slice(0, 6)
@@ -538,7 +538,7 @@ export function PrescriptionBuilder({
                       key={q.id}
                       type="button"
                       onClick={() => appendQuickText(setDiagnosis, q.text)}
-                      className="px-2 py-0.5 rounded bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[11px] text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-semibold text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
                     >
                       + {q.text}
                     </button>
@@ -548,7 +548,7 @@ export function PrescriptionBuilder({
 
             {/* Investigations */}
             <div>
-              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+              <label className="block text-sm font-bold text-[#1C1C1E] mb-1.5">
                 Investigations Advised
               </label>
               <input
@@ -556,9 +556,9 @@ export function PrescriptionBuilder({
                 value={investigations}
                 onChange={(e) => setInvestigations(e.target.value)}
                 placeholder="e.g. IOPA X-ray, OPG"
-                className="w-full p-2.5 rounded-lg border border-[#E4E4E7] bg-white text-xs focus:outline-none focus:border-[#2A5CAA]"
+                className="w-full p-3 rounded-xl border border-[#E4E4E7] bg-white text-sm sm:text-base focus:outline-none focus:border-[#2A5CAA] shadow-2xs"
               />
-              <div className="flex flex-wrap gap-1 mt-1.5">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {quickTexts
                   .filter((q) => q.kind === "investigation")
                   .slice(0, 5)
@@ -567,7 +567,7 @@ export function PrescriptionBuilder({
                       key={q.id}
                       type="button"
                       onClick={() => appendQuickText(setInvestigations, q.text)}
-                      className="px-2 py-0.5 rounded bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[11px] text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-semibold text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
                     >
                       + {q.text}
                     </button>
@@ -581,51 +581,51 @@ export function PrescriptionBuilder({
         {/* Right Column (5 cols): Fast Rx Items, Bangla Chips & Advice Bullets */}
         {/* ==================================================================== */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="glass-panel p-5 rounded-2xl border border-[#E4E4E7] space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E4E4E7]">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E] flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#2A5CAA]" />
+          <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between pb-2.5 border-b border-[#E4E4E7]">
+              <h2 className="text-base font-black uppercase tracking-wider text-[#1C1C1E] flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#2A5CAA]" />
                 <span>Prescription (Rx)</span>
               </h2>
-              <span className="text-xs text-[#6B7280]">
+              <span className="text-xs font-bold bg-[#E8EEF7] text-[#2A5CAA] px-3 py-1 rounded-full font-mono">
                 {selectedItems.length} items
               </span>
             </div>
 
             {/* Search Medicine Input */}
             <div className="relative">
-              <div className="flex items-center rounded-xl border border-[#2A5CAA] bg-white px-3 py-2 shadow-xs">
-                <Search className="w-4 h-4 text-[#2A5CAA] mr-2" />
+              <div className="flex items-center rounded-2xl border-2 border-[#2A5CAA]/40 focus-within:border-[#2A5CAA] bg-white px-3.5 py-2.5 shadow-2xs transition">
+                <Search className="w-5 h-5 text-[#2A5CAA] mr-2 shrink-0" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => handleSearchMedicine(e.target.value)}
                   placeholder="Type medicine name (e.g. Napa, Moxacil, Rolac)..."
-                  className="w-full bg-transparent text-sm focus:outline-none placeholder:text-[#6B7280]"
+                  className="w-full bg-transparent text-base focus:outline-none placeholder:text-sm placeholder:text-[#6B7280] font-medium"
                 />
               </div>
 
               {/* Search Autocomplete Dropdown */}
               {searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-30 glass-dropdown rounded-xl border border-[#E4E4E7] shadow-xl overflow-hidden divide-y divide-[#E4E4E7]">
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-30 glass-dropdown rounded-2xl border border-[#E4E4E7] shadow-xl overflow-hidden divide-y divide-[#E4E4E7] max-h-72 overflow-y-auto">
                   {searchResults.map((m) => (
                     <button
                       key={m.id}
                       type="button"
                       onClick={() => addMedicine(m)}
-                      className="w-full px-4 py-2.5 text-left hover:bg-[#E8EEF7] flex items-center justify-between transition cursor-pointer"
+                      className="w-full px-4 py-3 text-left hover:bg-[#E8EEF7] flex items-center justify-between transition cursor-pointer"
                     >
                       <div>
-                        <span className="font-bold text-sm text-[#1C1C1E]">
+                        <span className="font-black text-base text-[#1C1C1E] block">
                           {m.brandName ? `${m.brandName} ${m.strength || ""}` : m.genericName}
                         </span>
                         {m.brandName && (
-                          <span className="block text-xs text-[#6B7280]">
+                          <span className="block text-xs font-semibold text-[#6B7280]">
                             {m.genericName}
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] font-mono capitalize px-2 py-0.5 rounded bg-[#F4F4F5] text-[#6B7280]">
+                      <span className="text-xs font-mono font-bold capitalize px-2.5 py-1 rounded-lg bg-[#F4F4F5] text-[#4B5563] shrink-0">
                         {m.form}
                       </span>
                     </button>
@@ -639,15 +639,15 @@ export function PrescriptionBuilder({
               {selectedItems.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="clinical-card p-3.5 rounded-xl border border-[#E4E4E7] space-y-2.5 bg-white shadow-xs"
+                  className="clinical-card p-4 rounded-2xl border border-[#E4E4E7] space-y-3 bg-white shadow-xs"
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="font-bold text-sm text-[#1C1C1E]">
+                      <span className="font-black text-base text-[#1C1C1E] block">
                         {idx + 1}. {item.brandName ? `${item.brandName} ${item.strength || ""}` : item.genericName}
                       </span>
                       {item.brandName && (
-                        <span className="text-xs text-[#6B7280] block">
+                        <span className="text-xs font-semibold text-[#6B7280] block mt-0.5">
                           ({item.genericName})
                         </span>
                       )}
@@ -657,24 +657,25 @@ export function PrescriptionBuilder({
                       onClick={() =>
                         setSelectedItems(selectedItems.filter((i) => i.id !== item.id))
                       }
-                      className="text-[#6B7280] hover:text-[#FF453A] p-1 transition"
+                      className="text-[#6B7280] hover:text-[#FF453A] p-1.5 transition rounded-lg hover:bg-rose-50 cursor-pointer"
+                      title="Remove medicine"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4.5 h-4.5" />
                     </button>
                   </div>
 
                   {item.allergyNotice && (
-                    <div className="p-2 rounded-lg bg-[#FFEBEA] border border-[#FF453A]/30 text-xs text-[#FF453A] flex items-center gap-2 font-semibold">
+                    <div className="p-2.5 rounded-xl bg-[#FFEBEA] border border-[#FF453A]/30 text-xs text-[#FF453A] flex items-center gap-2 font-bold">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>{item.allergyNotice.message}</span>
                     </div>
                   )}
 
                   {/* One-Click Bangla Chips */}
-                  <div className="space-y-2 pt-1 border-t border-[#E4E4E7]">
+                  <div className="space-y-2.5 pt-1.5 border-t border-[#E4E4E7]">
                     {/* Dosage Patterns */}
-                    <div className="flex flex-wrap gap-1 items-center">
-                      <span className="text-[10px] uppercase font-bold text-[#6B7280] mr-1">
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-xs uppercase font-black text-[#4B5563] mr-1">
                         মাত্রা:
                       </span>
                       {dosagePatterns.slice(0, 6).map((dp) => (
@@ -688,9 +689,9 @@ export function PrescriptionBuilder({
                               )
                             );
                           }}
-                          className={`px-2 py-0.5 rounded text-xs font-medium transition cursor-pointer ${
+                          className={`px-3 py-1.5 rounded-xl text-sm font-bold transition cursor-pointer ${
                             item.dosageTextBn === dp.labelBn
-                              ? "bg-[#2A5CAA] text-white"
+                              ? "bg-[#2A5CAA] text-white shadow-xs"
                               : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7]"
                           }`}
                         >
@@ -700,8 +701,8 @@ export function PrescriptionBuilder({
                     </div>
 
                     {/* Meal Timings */}
-                    <div className="flex flex-wrap gap-1 items-center">
-                      <span className="text-[10px] uppercase font-bold text-[#6B7280] mr-1">
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-xs uppercase font-black text-[#4B5563] mr-1">
                         নিয়ম:
                       </span>
                       {mealTimings.slice(0, 4).map((mt) => (
@@ -715,9 +716,9 @@ export function PrescriptionBuilder({
                               )
                             );
                           }}
-                          className={`px-2 py-0.5 rounded text-xs font-medium transition cursor-pointer ${
+                          className={`px-3 py-1.5 rounded-xl text-sm font-bold transition cursor-pointer ${
                             item.mealTimingTextBn === mt.labelBn
-                              ? "bg-[#2A5CAA] text-white"
+                              ? "bg-[#2A5CAA] text-white shadow-xs"
                               : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7]"
                           }`}
                         >
@@ -727,8 +728,8 @@ export function PrescriptionBuilder({
                     </div>
 
                     {/* Duration Options */}
-                    <div className="flex flex-wrap gap-1 items-center">
-                      <span className="text-[10px] uppercase font-bold text-[#6B7280] mr-1">
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-xs uppercase font-black text-[#4B5563] mr-1">
                         সময়:
                       </span>
                       {durationOptions.slice(0, 5).map((dr) => (
@@ -742,9 +743,9 @@ export function PrescriptionBuilder({
                               )
                             );
                           }}
-                          className={`px-2 py-0.5 rounded text-xs font-medium transition cursor-pointer ${
+                          className={`px-3 py-1.5 rounded-xl text-sm font-bold transition cursor-pointer ${
                             item.durationTextBn === dr.labelBn
-                              ? "bg-[#2A5CAA] text-white"
+                              ? "bg-[#2A5CAA] text-white shadow-xs"
                               : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7]"
                           }`}
                         >
@@ -758,17 +759,17 @@ export function PrescriptionBuilder({
             </div>
 
             {/* Bangla Advice Templates (Grouped) */}
-            <div className="space-y-3 pt-3 border-t border-[#E4E4E7]">
-              <span className="text-xs font-bold uppercase text-[#6B7280] tracking-wider block">
+            <div className="space-y-3 pt-3.5 border-t border-[#E4E4E7]">
+              <span className="text-xs font-black uppercase text-[#4B5563] tracking-wider block">
                 পরামর্শ (Bangla Advice)
               </span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {adviceGroups.map((group) => (
                   <button
                     key={group}
                     type="button"
                     onClick={() => toggleAdviceGroup(group)}
-                    className="px-2.5 py-1 rounded-lg bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-semibold text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-bold text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer shadow-2xs"
                   >
                     + {group}
                   </button>
@@ -776,16 +777,16 @@ export function PrescriptionBuilder({
               </div>
 
               {selectedAdvice.length > 0 && (
-                <div className="p-3 rounded-xl bg-[#F4F4F5] space-y-1.5 text-xs text-[#1C1C1E]">
+                <div className="p-3.5 rounded-2xl bg-[#F4F4F5] space-y-2 text-sm text-[#1C1C1E] font-medium">
                   {selectedAdvice.map((line, idx) => (
                     <div key={idx} className="flex items-start justify-between gap-2">
                       <span>• {line}</span>
                       <button
                         type="button"
                         onClick={() => toggleAdviceLine(line)}
-                        className="text-[#6B7280] hover:text-[#FF453A]"
+                        className="text-[#6B7280] hover:text-[#FF453A] cursor-pointer p-0.5"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   ))}
@@ -794,11 +795,11 @@ export function PrescriptionBuilder({
             </div>
 
             {/* Next Visit Date Quick Picks */}
-            <div className="pt-3 border-t border-[#E4E4E7] space-y-2">
-              <span className="text-xs font-bold text-[#1C1C1E] block">
+            <div className="pt-3.5 border-t border-[#E4E4E7] space-y-2.5">
+              <span className="text-sm font-bold text-[#1C1C1E] block">
                 Next Follow-up Visit:
               </span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {["+3 days", "+7 days", "+14 days", "+1 month"].map((dur) => (
                   <button
                     key={dur}
@@ -811,7 +812,7 @@ export function PrescriptionBuilder({
                       if (dur === "+1 month") d.setMonth(d.getMonth() + 1);
                       setNextVisitDate(d.toISOString().split("T")[0]);
                     }}
-                    className="px-2.5 py-1 rounded bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-semibold text-[#1C1C1E] cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-bold text-[#1C1C1E] hover:text-[#2A5CAA] cursor-pointer transition"
                   >
                     {dur}
                   </button>
@@ -821,7 +822,7 @@ export function PrescriptionBuilder({
                 type="date"
                 value={nextVisitDate}
                 onChange={(e) => setNextVisitDate(e.target.value)}
-                className="w-full p-2 rounded-lg border border-[#E4E4E7] bg-white text-xs font-mono"
+                className="w-full p-3 rounded-xl border border-[#E4E4E7] bg-white text-sm font-mono font-bold focus:outline-none focus:border-[#2A5CAA]"
               />
             </div>
 
@@ -831,16 +832,16 @@ export function PrescriptionBuilder({
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                className="w-full py-3.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2A5CAA]/25 transition disabled:opacity-50 cursor-pointer"
+                className="w-full py-4 px-5 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-black text-base flex items-center justify-center gap-2.5 shadow-xl shadow-[#2A5CAA]/25 transition disabled:opacity-50 cursor-pointer"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                     <span>Saving Prescription...</span>
                   </>
                 ) : (
                   <>
-                    <Printer className="w-4 h-4" />
+                    <Printer className="w-5 h-5" />
                     <span>Save &amp; Print Prescription</span>
                   </>
                 )}
