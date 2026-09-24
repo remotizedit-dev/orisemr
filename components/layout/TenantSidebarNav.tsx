@@ -75,6 +75,7 @@ export function TenantSidebarNav({ userRole }: TenantSidebarNavProps) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch={true}
             className={`flex items-center justify-between px-3.5 py-3 rounded-2xl text-sm font-bold transition ${
               isActive
                 ? "bg-[#2A5CAA] text-white shadow-sm"

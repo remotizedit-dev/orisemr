@@ -568,6 +568,7 @@ export function QueueBoard({
                       <div className="space-y-2 pt-1 border-t border-[#E4E4E7]">
                         <Link
                           href={`/app/prescriptions/new?patientId=${item.patientId}&appointmentId=${item.appointmentId}`}
+                          prefetch={true}
                           className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-[#E8EEF7] text-[#2A5CAA] border-2 border-[#2A5CAA]/30 hover:border-[#2A5CAA] text-sm font-bold flex items-center justify-center gap-2 transition"
                         >
                           <FileText className="w-4 h-4 text-[#2A5CAA]" />
