@@ -25,26 +25,29 @@ export interface CreateClinicInput {
 }
 
 /**
- * Creates a clinic atomically in a single transaction:
+ * Creates a clinic atomically in a single transaction with high-performance batch inserts:
  * - Inserts tenant row
- * - Clones all active master catalogs (services with category mapping, medicines, presets)
- * - Seeds default tenant features and counters
+ * - Clones all active master catalogs (services with category mapping, medicines, presets) using bulk batch queries
+ * - Seeds default tenant features and counters in batch
  * - Creates default "Chair 1"
- * - Creates clinic Admin user
+ * - Creates clinic Admin user via Better Auth
  * - Creates initial platform subscription
  */
 export async function createClinicWithMasterCatalog(input: CreateClinicInput) {
+  const cleanEmail = input.adminEmail.toLowerCase().trim();
+
+  // 1. Atomically provision tenant, cloned catalogs, and subscription in high-speed batches
   const result = await db.transaction(async (tx) => {
     // 1. Create tenant
     const [tenant] = await tx
       .insert(schema.tenants)
       .values({
-        name: input.name,
+        name: input.name.trim(),
         slug: input.slug.toLowerCase().trim(),
         shortCode: input.shortCode.toUpperCase().trim(),
-        phone: input.phone,
-        email: input.email,
-        address: input.address,
+        phone: input.phone?.trim() || null,
+        email: input.email?.trim() || null,
+        address: input.address?.trim() || null,
         brandColor: input.brandColor || "#2A5CAA",
         patientIdMode: input.patientIdMode || "PRE_PRINTED",
       })
@@ -52,165 +55,188 @@ export async function createClinicWithMasterCatalog(input: CreateClinicInput) {
 
     const tenantId = tenant.id;
 
-    // 2. Clone master service categories
+    // 2. Clone master service categories in a single bulk insert
     const masterCats = await tx
       .select()
       .from(schema.masterServiceCategories)
       .where(eq(schema.masterServiceCategories.isActive, true));
 
     const categoryMap = new Map<string, string>(); // masterId -> clinicCategoryId
-    for (const mc of masterCats) {
-      const [clinicCat] = await tx
+    if (masterCats.length > 0) {
+      const insertedCats = await tx
         .insert(schema.serviceCategories)
-        .values({
-          tenantId,
-          masterId: mc.id,
-          source: "master",
-          name: mc.name,
-          sortOrder: mc.sortOrder,
-          isActive: true,
-        })
-        .returning();
-      categoryMap.set(mc.id, clinicCat.id);
+        .values(
+          masterCats.map((mc) => ({
+            tenantId,
+            masterId: mc.id,
+            source: "master" as const,
+            name: mc.name,
+            sortOrder: mc.sortOrder,
+            isActive: true,
+          }))
+        )
+        .returning({
+          id: schema.serviceCategories.id,
+          masterId: schema.serviceCategories.masterId,
+        });
+
+      for (const ic of insertedCats) {
+        if (ic.masterId) {
+          categoryMap.set(ic.masterId, ic.id);
+        }
+      }
     }
 
-    // 3. Clone master services
+    // 3. Clone master services in a single bulk insert
     const masterSvcs = await tx
       .select()
       .from(schema.masterServices)
       .where(eq(schema.masterServices.isActive, true));
 
-    for (const ms of masterSvcs) {
-      const clinicCatId = categoryMap.get(ms.categoryId);
-      if (!clinicCatId) continue;
-
-      await tx.insert(schema.services).values({
+    const servicesToInsert = masterSvcs
+      .filter((ms) => categoryMap.has(ms.categoryId))
+      .map((ms) => ({
         tenantId,
         masterId: ms.id,
-        categoryId: clinicCatId,
-        source: "master",
+        categoryId: categoryMap.get(ms.categoryId)!,
+        source: "master" as const,
         name: ms.name,
         durationMinutes: ms.durationMinutes,
         priceBdt: ms.priceBdt || 0,
         bookableOnline: ms.bookableOnline,
         sortOrder: ms.sortOrder,
         isActive: true,
-      });
+      }));
+
+    if (servicesToInsert.length > 0) {
+      await tx.insert(schema.services).values(servicesToInsert);
     }
 
-    // 4. Clone master medicines
+    // 4. Clone master medicines in a single bulk insert
     const masterMeds = await tx
       .select()
       .from(schema.masterMedicines)
       .where(eq(schema.masterMedicines.isActive, true));
 
-    for (const mm of masterMeds) {
-      await tx.insert(schema.medicines).values({
-        tenantId,
-        masterId: mm.id,
-        source: "master",
-        brandName: mm.brandName,
-        genericName: mm.genericName,
-        strength: mm.strength,
-        form: mm.form,
-        drugClass: mm.drugClass,
-        sortOrder: mm.sortOrder,
-        isActive: true,
-      });
+    if (masterMeds.length > 0) {
+      await tx.insert(schema.medicines).values(
+        masterMeds.map((mm) => ({
+          tenantId,
+          masterId: mm.id,
+          source: "master" as const,
+          brandName: mm.brandName,
+          genericName: mm.genericName,
+          strength: mm.strength,
+          form: mm.form,
+          drugClass: mm.drugClass,
+          sortOrder: mm.sortOrder,
+          isActive: true,
+        }))
+      );
     }
 
-    // 5. Clone master dosage patterns
+    // 5. Clone master dosage patterns in a single bulk insert
     const masterDp = await tx
       .select()
       .from(schema.masterDosagePatterns)
       .where(eq(schema.masterDosagePatterns.isActive, true));
 
-    for (const dp of masterDp) {
-      await tx.insert(schema.dosagePatterns).values({
-        tenantId,
-        masterId: dp.id,
-        source: "master",
-        labelBn: dp.labelBn,
-        code: dp.code,
-        formGroup: dp.formGroup,
-        sortOrder: dp.sortOrder,
-        isActive: true,
-      });
+    if (masterDp.length > 0) {
+      await tx.insert(schema.dosagePatterns).values(
+        masterDp.map((dp) => ({
+          tenantId,
+          masterId: dp.id,
+          source: "master" as const,
+          labelBn: dp.labelBn,
+          code: dp.code,
+          formGroup: dp.formGroup,
+          sortOrder: dp.sortOrder,
+          isActive: true,
+        }))
+      );
     }
 
-    // 6. Clone master meal timings
+    // 6. Clone master meal timings in a single bulk insert
     const masterMt = await tx
       .select()
       .from(schema.masterMealTimings)
       .where(eq(schema.masterMealTimings.isActive, true));
 
-    for (const mt of masterMt) {
-      await tx.insert(schema.mealTimings).values({
-        tenantId,
-        masterId: mt.id,
-        source: "master",
-        labelBn: mt.labelBn,
-        code: mt.code,
-        sortOrder: mt.sortOrder,
-        isActive: true,
-      });
+    if (masterMt.length > 0) {
+      await tx.insert(schema.mealTimings).values(
+        masterMt.map((mt) => ({
+          tenantId,
+          masterId: mt.id,
+          source: "master" as const,
+          labelBn: mt.labelBn,
+          code: mt.code,
+          sortOrder: mt.sortOrder,
+          isActive: true,
+        }))
+      );
     }
 
-    // 7. Clone master duration options
+    // 7. Clone master duration options in a single bulk insert
     const masterDur = await tx
       .select()
       .from(schema.masterDurationOptions)
       .where(eq(schema.masterDurationOptions.isActive, true));
 
-    for (const dur of masterDur) {
-      await tx.insert(schema.durationOptions).values({
-        tenantId,
-        masterId: dur.id,
-        source: "master",
-        labelBn: dur.labelBn,
-        daysCount: dur.daysCount,
-        sortOrder: dur.sortOrder,
-        isActive: true,
-      });
+    if (masterDur.length > 0) {
+      await tx.insert(schema.durationOptions).values(
+        masterDur.map((dur) => ({
+          tenantId,
+          masterId: dur.id,
+          source: "master" as const,
+          labelBn: dur.labelBn,
+          daysCount: dur.daysCount,
+          sortOrder: dur.sortOrder,
+          isActive: true,
+        }))
+      );
     }
 
-    // 8. Clone master advice templates
+    // 8. Clone master advice templates in a single bulk insert
     const masterAdv = await tx
       .select()
       .from(schema.masterAdviceTemplates)
       .where(eq(schema.masterAdviceTemplates.isActive, true));
 
-    for (const adv of masterAdv) {
-      await tx.insert(schema.adviceTemplates).values({
-        tenantId,
-        masterId: adv.id,
-        source: "master",
-        groupName: adv.groupName,
-        textBn: adv.textBn,
-        sortOrder: adv.sortOrder,
-        isActive: true,
-      });
+    if (masterAdv.length > 0) {
+      await tx.insert(schema.adviceTemplates).values(
+        masterAdv.map((adv) => ({
+          tenantId,
+          masterId: adv.id,
+          source: "master" as const,
+          groupName: adv.groupName,
+          textBn: adv.textBn,
+          sortOrder: adv.sortOrder,
+          isActive: true,
+        }))
+      );
     }
 
-    // 9. Clone master quick texts
+    // 9. Clone master quick texts in a single bulk insert
     const masterQt = await tx
       .select()
       .from(schema.masterQuickTexts)
       .where(eq(schema.masterQuickTexts.isActive, true));
 
-    for (const qt of masterQt) {
-      await tx.insert(schema.quickTexts).values({
-        tenantId,
-        masterId: qt.id,
-        source: "master",
-        kind: qt.kind,
-        text: qt.text,
-        sortOrder: qt.sortOrder,
-        isActive: true,
-      });
+    if (masterQt.length > 0) {
+      await tx.insert(schema.quickTexts).values(
+        masterQt.map((qt) => ({
+          tenantId,
+          masterId: qt.id,
+          source: "master" as const,
+          kind: qt.kind,
+          text: qt.text,
+          sortOrder: qt.sortOrder,
+          isActive: true,
+        }))
+      );
     }
 
-    // 10. Seed tenant features
+    // 10. Seed tenant features in a single bulk insert
     const featureKeys = [
       "public_booking",
       "email_notifications",
@@ -218,24 +244,24 @@ export async function createClinicWithMasterCatalog(input: CreateClinicInput) {
       "reports",
       "camera_scan",
     ];
-    for (const featureKey of featureKeys) {
-      await tx.insert(schema.tenantFeatures).values({
+    await tx.insert(schema.tenantFeatures).values(
+      featureKeys.map((featureKey) => ({
         tenantId,
         featureKey,
         platformEnabled: true,
         tenantEnabled: true,
-      });
-    }
+      }))
+    );
 
-    // 11. Seed tenant counters
+    // 11. Seed tenant counters in a single bulk insert
     const counterKeys = ["APT", "RX", "INV", "RPT", "CARD"];
-    for (const key of counterKeys) {
-      await tx.insert(schema.tenantCounters).values({
+    await tx.insert(schema.tenantCounters).values(
+      counterKeys.map((key) => ({
         tenantId,
         key,
         nextValue: 1,
-      });
-    }
+      }))
+    );
 
     // 12. Seed default chair
     await tx.insert(schema.chairs).values({
@@ -265,12 +291,12 @@ export async function createClinicWithMasterCatalog(input: CreateClinicInput) {
 
   // 14. Create Admin User using Better Auth
   let adminUserId: string | null = null;
-  if (input.adminEmail) {
+  if (cleanEmail) {
     try {
       const authResult = await auth.api.signUpEmail({
         body: {
-          name: input.adminName,
-          email: input.adminEmail,
+          name: input.adminName.trim(),
+          email: cleanEmail,
           password: input.adminPassword || "ClinicAdmin123!",
         },
       });
@@ -283,9 +309,9 @@ export async function createClinicWithMasterCatalog(input: CreateClinicInput) {
             tenantId: result.tenant.id,
             role: "TENANT_ADMIN",
             isDoctor: input.adminIsDoctor ?? false,
-            doctorTitle: input.adminDoctorTitle,
-            doctorSpecialty: input.adminDoctorSpecialty,
-            doctorRegNo: input.adminDoctorRegNo,
+            doctorTitle: input.adminDoctorTitle?.trim() || (input.adminIsDoctor ? "Dr." : null),
+            doctorSpecialty: input.adminDoctorSpecialty?.trim() || null,
+            doctorRegNo: input.adminDoctorRegNo?.trim() || null,
             status: "active",
             emailVerified: true,
             preferences: {
@@ -294,8 +320,9 @@ export async function createClinicWithMasterCatalog(input: CreateClinicInput) {
           })
           .where(eq(schema.users.id, adminUserId));
       }
-    } catch (e) {
-      console.warn("Notice: user account creation during clinic onboarding:", e);
+    } catch (e: any) {
+      console.error("[CLINIC ADMIN ONBOARDING ERROR]:", e);
+      throw new Error(`Failed to create clinic administrator account: ${e?.message || "Email may already be in use"}`);
     }
   }
 

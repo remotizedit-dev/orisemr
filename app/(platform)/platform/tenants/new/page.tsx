@@ -2,22 +2,29 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { createClinicAction } from "../actions";
 import {
+  AlertCircle,
   ArrowLeft,
   Building2,
   CheckCircle2,
   CreditCard,
   Layers,
+  Loader2,
   Sparkles,
   UserCheck,
 } from "lucide-react";
 
 export default function NewTenantPage() {
+  const router = useRouter();
   const [isDoctor, setIsDoctor] = useState(true);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [shortCode, setShortCode] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -42,6 +49,32 @@ export default function NewTenantPage() {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      const res = await createClinicAction(formData);
+
+      if (res?.error) {
+        setErrorMessage(res.error);
+        toast.error(res.error);
+        setIsSubmitting(false);
+        return;
+      }
+
+      toast.success("Clinic successfully provisioned with master catalog!");
+      router.push("/platform/tenants");
+    } catch (err: any) {
+      const msg = err?.message || "An unexpected error occurred while creating the clinic.";
+      setErrorMessage(msg);
+      toast.error(msg);
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
@@ -61,7 +94,17 @@ export default function NewTenantPage() {
         </div>
       </div>
 
-      <form action={createClinicAction} className="space-y-6">
+      {errorMessage && (
+        <div className="p-4 rounded-xl bg-[#FFF2F2] border border-[#FF453A]/30 text-[#D70015] flex items-start gap-3 animate-in fade-in duration-200">
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#FF453A]" />
+          <div>
+            <p className="font-bold text-sm">Cannot Create Clinic</p>
+            <p className="text-xs mt-0.5 leading-relaxed">{errorMessage}</p>
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
         {/* Section 1: Clinic Profile */}
         <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-[#E4E4E7]">
@@ -327,10 +370,20 @@ export default function NewTenantPage() {
         <div className="pt-2">
           <button
             type="submit"
-            className="w-full py-3.5 px-6 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2A5CAA]/25 transition cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full py-3.5 px-6 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#2A5CAA]/25 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>Create Clinic &amp; Clone Master Catalog</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Provisioning Clinic &amp; Master Catalog...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Create Clinic &amp; Clone Master Catalog</span>
+              </>
+            )}
           </button>
         </div>
       </form>
