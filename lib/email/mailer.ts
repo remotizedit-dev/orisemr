@@ -17,6 +17,12 @@ if (env.SMTP_HOST && env.SMTP_USER) {
     tls: {
       rejectUnauthorized: false,
     },
+    pool: true, // Reuse authenticated SMTP connection across background emails
+    maxConnections: 3,
+    maxMessages: 50,
+    connectionTimeout: 40000, // 40 seconds connection buffer
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
   });
 }
 
