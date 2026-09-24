@@ -9,13 +9,15 @@ interface SignOutButtonProps {
   title?: string;
   iconClassName?: string;
   showText?: boolean;
+  text?: string;
 }
 
 export default function SignOutButton({
-  className = "p-2 rounded-lg text-[#6B7280] hover:text-[#FF453A] hover:bg-white transition cursor-pointer flex items-center gap-2",
-  title = "Sign Out",
+  className,
+  title = "Log Out",
   iconClassName = "w-4 h-4",
   showText = false,
+  text = "Log Out",
 }: SignOutButtonProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -40,23 +42,27 @@ export default function SignOutButton({
     }
   };
 
+  const defaultClasses =
+    className ??
+    "p-2 rounded-lg text-[#6B7280] hover:text-[#DC2626] hover:bg-[#FEE2E2]/50 transition cursor-pointer flex items-center gap-2";
+
   return (
     <button
       type="button"
       onClick={handleSignOut}
       disabled={isSigningOut}
-      className={className}
+      className={defaultClasses}
       title={title}
-      aria-label="Sign Out"
+      aria-label={title}
     >
       {isSigningOut ? (
-        <Loader2 className={`${iconClassName} animate-spin text-[#FF453A]`} />
+        <Loader2 className={`${iconClassName} animate-spin text-current`} />
       ) : (
         <LogOut className={iconClassName} />
       )}
       {showText && (
-        <span className="text-xs font-medium">
-          {isSigningOut ? "Signing out..." : "Sign Out"}
+        <span className="font-semibold">
+          {isSigningOut ? "Logging out..." : text}
         </span>
       )}
     </button>

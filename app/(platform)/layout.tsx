@@ -34,13 +34,20 @@ export default async function PlatformLayout({
           <PlatformNav />
         </div>
 
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-medium text-[#6B7280] hidden sm:inline">
-            {session.user.name} ({session.user.email})
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex flex-col text-right">
+            <span className="text-xs font-bold text-[#1C1C1E]">
+              {session.user.name}
+            </span>
+            <span className="text-[11px] text-[#6B7280]">
+              {session.user.email}
+            </span>
+          </div>
           <SignOutButton
-            className="p-2 rounded-lg text-[#6B7280] hover:text-[#FF453A] hover:bg-white transition cursor-pointer"
-            title="Sign Out"
+            showText={true}
+            text="Log Out"
+            className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-[#DC2626] bg-[#FEE2E2]/60 hover:bg-[#DC2626] hover:text-white border border-[#FCA5A5]/70 hover:border-[#DC2626] rounded-xl transition-all cursor-pointer shadow-2xs active:scale-95"
+            title="Log Out of Platform Admin"
           />
         </div>
       </header>
