@@ -8,6 +8,8 @@ import {
   Armchair,
   Stethoscope,
   CreditCard,
+  UserCheck,
+  Pill,
 } from "lucide-react";
 
 export default function SettingsTabs() {
@@ -15,9 +17,11 @@ export default function SettingsTabs() {
 
   const tabs = [
     { href: "/app/settings", label: "General & Booking", icon: Building2, exact: true },
+    { href: "/app/settings/doctors", label: "Doctors & Rosters", icon: UserCheck },
     { href: "/app/settings/hours", label: "Working Hours & Shifts", icon: Clock },
     { href: "/app/settings/chairs", label: "Chairs & Operatories", icon: Armchair },
     { href: "/app/settings/services", label: "Procedures & Pricing", icon: Stethoscope },
+    { href: "/app/settings/prescriptions", label: "Prescription Catalog", icon: Pill },
     { href: "/app/settings/card", label: "Patient Card Mode", icon: CreditCard },
   ];
 

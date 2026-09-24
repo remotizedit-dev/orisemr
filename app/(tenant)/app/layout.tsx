@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireClinicStaff } from "@/lib/session";
 import { ScanListener } from "@/components/scan/ScanListener";
+import { ScanModal } from "@/components/scan/ScanModal";
 import { CommandPalette } from "@/components/palette/CommandPalette";
 import { Stethoscope } from "lucide-react";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -81,6 +82,11 @@ export default async function TenantAppLayout({
           </div>
 
           <div className="flex items-center gap-3">
+            <ScanModal
+              tenantId={tenant.id}
+              tenantShortCode={tenant.shortCode}
+              triggerButton={true}
+            />
             <Link
               href={`/book/${tenant.slug}`}
               target="_blank"

@@ -118,6 +118,5 @@ export async function registerPatientAction(input: RegisterPatientInput) {
       createdBy: user.id,
     })
     .returning();
-
-  redirect(`/app/patients/${patient.id}`);
+  return { success: true, patientId: patient.id };
 }

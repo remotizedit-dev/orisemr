@@ -16,76 +16,94 @@ export async function getPublicAvailableSlots(
   serviceIds: string[],
   doctorId: string = "any"
 ) {
-  // 1. Calculate total duration
-  const selectedServices = await db
-    .select({ duration: schema.services.durationMinutes })
-    .from(schema.services)
-    .where(
-      and(
-        eq(schema.services.tenantId, tenantId),
-        inArray(schema.services.id, serviceIds)
-      )
-    );
+  if (!serviceIds || serviceIds.length === 0 || !dateStr) return [];
 
-  const totalDurationMinutes = selectedServices.reduce(
-    (acc, s) => acc + s.duration,
-    0
-  );
-
-  if (totalDurationMinutes === 0) return [];
-
-  // 2. Fetch tenant config
-  const [tenant] = await db
-    .select()
-    .from(schema.tenants)
-    .where(eq(schema.tenants.id, tenantId))
-    .limit(1);
-
-  if (!tenant) return [];
-
-  // 3. Resolve target weekday (0..6)
+  // 1. Resolve target weekday (0..6)
   const [year, month, day] = dateStr.split("-").map(Number);
   const targetDate = new Date(Date.UTC(year, month - 1, day));
   const weekday = targetDate.getUTCDay();
+  const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
 
-  // 4. Fetch clinic hours for this weekday
-  const clinicHours = await db
-    .select()
-    .from(schema.tenantWorkingHours)
-    .where(
-      and(
-        eq(schema.tenantWorkingHours.tenantId, tenantId),
-        eq(schema.tenantWorkingHours.weekday, weekday)
-      )
-    );
-
-  // 5. Fetch candidate doctors
-  const doctors = await db
-    .select()
-    .from(schema.users)
-    .where(
-      and(
-        eq(schema.users.tenantId, tenantId),
-        eq(schema.users.isDoctor, true),
-        eq(schema.users.status, "active")
-      )
-    );
-
-  const candidates: CandidateDoctor[] = [];
-
-  for (const doc of doctors) {
-    // Check dentist personal schedule
-    const personalSchedules = await db
+  // 2. Fetch everything in 1 single parallel round-trip
+  const [
+    selectedServices,
+    [tenant],
+    clinicHours,
+    doctors,
+    allDoctorSchedules,
+    allAppointmentsOnDate,
+  ] = await Promise.all([
+    db
+      .select({ duration: schema.services.durationMinutes })
+      .from(schema.services)
+      .where(
+        and(
+          eq(schema.services.tenantId, tenantId),
+          inArray(schema.services.id, serviceIds)
+        )
+      ),
+    db
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenantId))
+      .limit(1),
+    db
+      .select()
+      .from(schema.tenantWorkingHours)
+      .where(
+        and(
+          eq(schema.tenantWorkingHours.tenantId, tenantId),
+          eq(schema.tenantWorkingHours.weekday, weekday)
+        )
+      ),
+    db
+      .select()
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenantId),
+          eq(schema.users.isDoctor, true),
+          eq(schema.users.status, "active")
+        )
+      ),
+    db
       .select()
       .from(schema.doctorSchedules)
       .where(
         and(
           eq(schema.doctorSchedules.tenantId, tenantId),
-          eq(schema.doctorSchedules.doctorId, doc.id),
           eq(schema.doctorSchedules.weekday, weekday)
         )
-      );
+      ),
+    db
+      .select({
+        doctorId: schema.appointments.doctorId,
+        startTime: schema.appointments.startTime,
+        endTime: schema.appointments.endTime,
+      })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenantId),
+          sql`${schema.appointments.status} IN ('pending', 'confirmed')`,
+          sql`${schema.appointments.startTime} >= ${dayStart.toISOString()}`,
+          sql`${schema.appointments.startTime} <= ${dayEnd.toISOString()}`
+        )
+      ),
+  ]);
 
+  if (!tenant) return [];
+
+  const totalDurationMinutes = selectedServices.reduce(
+    (acc, s) => acc + s.duration,
+    0
+  );
+  if (totalDurationMinutes === 0) return [];
+
+  // 3. Map candidates in memory (ultra-fast, 0ms)
+  const candidates: CandidateDoctor[] = doctors.map((doc) => {
+    const personalSchedules = allDoctorSchedules.filter((s) => s.doctorId === doc.id);
     const windows =
       personalSchedules.length > 0
         ? personalSchedules.map((s) => ({
@@ -97,33 +115,20 @@ export async function getPublicAvailableSlots(
             endTime: h.endTime,
           }));
 
-    // Fetch existing appointments on this date
-    const appointmentsOnDate = await db
-      .select({
-        startTime: schema.appointments.startTime,
-        endTime: schema.appointments.endTime,
-      })
-      .from(schema.appointments)
-      .where(
-        and(
-          eq(schema.appointments.tenantId, tenantId),
-          eq(schema.appointments.doctorId, doc.id),
-          inArray(schema.appointments.status, ["pending", "confirmed"])
-        )
-      );
+    const docAppointments = allAppointmentsOnDate.filter((a) => a.doctorId === doc.id);
 
-    candidates.push({
+    return {
       doctorId: doc.id,
       doctorName: doc.name,
       sortOrder: doc.sortOrder,
-      appointmentCountToday: appointmentsOnDate.length,
+      appointmentCountToday: docAppointments.length,
       windows,
-      busyIntervals: appointmentsOnDate.map((a) => ({
+      busyIntervals: docAppointments.map((a) => ({
         startTime: new Date(a.startTime),
         endTime: new Date(a.endTime),
       })),
-    });
-  }
+    };
+  });
 
   return calculateAvailableSlots({
     date: dateStr,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   getPublicAvailableSlots,
   submitPublicBooking,
@@ -8,6 +8,9 @@ import {
 import { formatBdt } from "@/lib/utils";
 import {
   Calendar,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Check,
   CheckCircle2,
   Clock,
@@ -96,25 +99,43 @@ export function PublicBookingClient({
     }
   };
 
-  const handleFetchSlots = async () => {
+  // Eager pre-fetching of available slots in the background whenever selections change
+  useEffect(() => {
     if (selectedServices.length === 0 || !selectedDate) return;
+    let isCancelled = false;
+
     setIsLoadingSlots(true);
-    setSelectedSlot(null);
-    try {
-      const slots = await getPublicAvailableSlots(
-        tenant.id,
-        selectedDate,
-        selectedServices,
-        selectedDoctorId
-      );
-      setAvailableSlots(slots);
-      if (slots.length === 0) {
-        toast.info("No available slots found for this date. Please try another day.");
-      }
-    } catch {
-      toast.error("Failed to load available times");
-    } finally {
-      setIsLoadingSlots(false);
+    getPublicAvailableSlots(
+      tenant.id,
+      selectedDate,
+      selectedServices,
+      selectedDoctorId
+    )
+      .then((slots) => {
+        if (!isCancelled) {
+          setAvailableSlots(slots);
+          setIsLoadingSlots(false);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setIsLoadingSlots(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [tenant.id, selectedDate, selectedDoctorId, selectedServices]);
+
+  const shiftDate = (days: number) => {
+    const cur = new Date(selectedDate);
+    cur.setDate(cur.getDate() + days);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (cur >= today) {
+      setSelectedDate(cur.toISOString().split("T")[0]);
+      setSelectedSlot(null);
     }
   };
 
@@ -340,13 +361,11 @@ export function PublicBookingClient({
             </button>
             <button
               type="button"
-              onClick={async () => {
-                await handleFetchSlots();
-                setStep(3);
-              }}
-              className="px-6 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs transition cursor-pointer"
+              onClick={() => setStep(3)}
+              className="px-6 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
-              Find Available Times →
+              <span>Find Available Times</span>
+              <span>→</span>
             </button>
           </div>
         </div>
@@ -360,47 +379,104 @@ export function PublicBookingClient({
               Pick an Appointment Time
             </h2>
             <p className="text-xs text-[#6B7280]">
-              Showing confirmed available slots on {selectedDate}.
+              Select your convenient chamber visit time slot.
             </p>
           </div>
 
+          {/* Quick Date Switcher Bar */}
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-[#E8EEF7]/50 border border-[#2A5CAA]/20">
+            <button
+              type="button"
+              onClick={() => shiftDate(-1)}
+              className="px-2.5 py-1.5 rounded-xl bg-white border border-[#E4E4E7] text-[#6B7280] hover:text-[#1C1C1E] transition cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-2xs"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Prev Day</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-[#2A5CAA]" />
+              <input
+                type="date"
+                value={selectedDate}
+                min={new Date().toISOString().split("T")[0]}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setSelectedSlot(null);
+                }}
+                className="px-2.5 py-1 rounded-lg border border-[#E4E4E7] bg-white font-mono text-xs font-bold text-[#1C1C1E] cursor-pointer shadow-2xs"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => shiftDate(1)}
+              className="px-2.5 py-1.5 rounded-xl bg-white border border-[#E4E4E7] text-[#6B7280] hover:text-[#1C1C1E] transition cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-2xs"
+            >
+              <span className="hidden sm:inline">Next Day</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {isLoadingSlots ? (
-            <div className="py-12 text-center text-xs text-[#6B7280] space-y-2">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#2A5CAA]" />
-              <span>Calculating available chamber slots...</span>
+            <div className="space-y-3 py-4">
+              <div className="flex items-center justify-center gap-2 text-xs font-semibold text-[#2A5CAA]">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Checking available chamber slots...</span>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-10 rounded-xl bg-[#E4E4E7]/60 animate-pulse border border-[#E4E4E7]"
+                  />
+                ))}
+              </div>
             </div>
           ) : availableSlots.length === 0 ? (
-            <div className="py-12 text-center text-xs text-[#6B7280] space-y-2">
-              <p>No available slots found on this date.</p>
+            <div className="glass-panel p-8 rounded-2xl border border-[#E4E4E7] text-center space-y-3">
+              <Clock className="w-8 h-8 text-[#A1A1AA] mx-auto" />
+              <p className="text-xs font-semibold text-[#1C1C1E]">
+                No available appointment slots on {selectedDate}.
+              </p>
+              <p className="text-[11px] text-[#6B7280]">
+                The clinic may be closed or all doctor slots are booked for this day.
+              </p>
               <button
                 type="button"
-                onClick={() => setStep(2)}
-                className="text-[#2A5CAA] font-bold hover:underline"
+                onClick={() => shiftDate(1)}
+                className="px-4 py-2 rounded-xl bg-[#2A5CAA] text-white text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-[#1E4282] transition cursor-pointer shadow-xs"
               >
-                Change Date or Doctor
+                <span>Check Next Day</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 overflow-y-auto p-1">
-              {availableSlots.map((s) => {
-                const active = selectedSlot?.time === s.time;
-                return (
-                  <button
-                    key={s.time}
-                    type="button"
-                    onClick={() =>
-                      setSelectedSlot({ time: s.time, doctorId: s.doctorId })
-                    }
-                    className={`py-2 px-3 rounded-lg border text-center transition font-mono text-xs cursor-pointer ${
-                      active
-                        ? "bg-[#2A5CAA] text-white border-[#2A5CAA] font-bold shadow-xs"
-                        : "bg-white border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#E8EEF7]"
-                    }`}
-                  >
-                    {s.displayTime}
-                  </button>
-                );
-              })}
+            <div className="space-y-2">
+              <span className="text-[11px] font-semibold text-[#6B7280]">
+                Available slots ({availableSlots.length}):
+              </span>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-72 overflow-y-auto p-1">
+                {availableSlots.map((s) => {
+                  const active = selectedSlot?.time === s.time;
+                  return (
+                    <button
+                      key={s.time}
+                      type="button"
+                      onClick={() =>
+                        setSelectedSlot({ time: s.time, doctorId: s.doctorId })
+                      }
+                      className={`py-2.5 px-3 rounded-xl border text-center transition font-mono text-xs cursor-pointer shadow-2xs ${
+                        active
+                          ? "bg-[#2A5CAA] text-white border-[#2A5CAA] font-bold shadow-xs scale-102"
+                          : "bg-white border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#E8EEF7] hover:border-[#2A5CAA]/30"
+                      }`}
+                    >
+                      {s.displayTime}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

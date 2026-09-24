@@ -30,17 +30,52 @@ export default async function PublicBookingPage({
     notFound();
   }
 
-  // Check if public booking feature is enabled
-  const [feature] = await db
-    .select()
-    .from(schema.tenantFeatures)
-    .where(
-      and(
-        eq(schema.tenantFeatures.tenantId, tenant.id),
-        eq(schema.tenantFeatures.featureKey, "public_booking")
+  // Fetch feature, bookable services, and active doctors concurrently
+  const [[feature], services, doctors] = await Promise.all([
+    db
+      .select()
+      .from(schema.tenantFeatures)
+      .where(
+        and(
+          eq(schema.tenantFeatures.tenantId, tenant.id),
+          eq(schema.tenantFeatures.featureKey, "public_booking")
+        )
       )
-    )
-    .limit(1);
+      .limit(1),
+    db
+      .select({
+        id: schema.services.id,
+        name: schema.services.name,
+        durationMinutes: schema.services.durationMinutes,
+        priceBdt: schema.services.priceBdt,
+      })
+      .from(schema.services)
+      .where(
+        and(
+          eq(schema.services.tenantId, tenant.id),
+          eq(schema.services.bookableOnline, true),
+          eq(schema.services.isActive, true)
+        )
+      )
+      .orderBy(schema.services.sortOrder),
+    db
+      .select({
+        id: schema.users.id,
+        name: schema.users.name,
+        doctorTitle: schema.users.doctorTitle,
+        doctorSpecialty: schema.users.doctorSpecialty,
+        sortOrder: schema.users.sortOrder,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenant.id),
+          eq(schema.users.isDoctor, true),
+          eq(schema.users.status, "active")
+        )
+      )
+      .orderBy(schema.users.sortOrder),
+  ]);
 
   if (feature && (!feature.platformEnabled || !feature.tenantEnabled)) {
     return (
@@ -56,43 +91,6 @@ export default async function PublicBookingPage({
       </div>
     );
   }
-
-  // Fetch online bookable services
-  const services = await db
-    .select({
-      id: schema.services.id,
-      name: schema.services.name,
-      durationMinutes: schema.services.durationMinutes,
-      priceBdt: schema.services.priceBdt,
-    })
-    .from(schema.services)
-    .where(
-      and(
-        eq(schema.services.tenantId, tenant.id),
-        eq(schema.services.bookableOnline, true),
-        eq(schema.services.isActive, true)
-      )
-    )
-    .orderBy(schema.services.sortOrder);
-
-  // Fetch active doctors
-  const doctors = await db
-    .select({
-      id: schema.users.id,
-      name: schema.users.name,
-      doctorTitle: schema.users.doctorTitle,
-      doctorSpecialty: schema.users.doctorSpecialty,
-      sortOrder: schema.users.sortOrder,
-    })
-    .from(schema.users)
-    .where(
-      and(
-        eq(schema.users.tenantId, tenant.id),
-        eq(schema.users.isDoctor, true),
-        eq(schema.users.status, "active")
-      )
-    )
-    .orderBy(schema.users.sortOrder);
 
   return (
     <div

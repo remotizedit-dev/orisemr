@@ -85,7 +85,7 @@ export default function NewPatientPage() {
 
     setIsSubmitting(true);
     try {
-      await registerPatientAction({
+      const res = await registerPatientAction({
         cardNumber: cardNumber || undefined,
         name,
         phone,
@@ -102,6 +102,9 @@ export default function NewPatientPage() {
         medicalNotes,
       });
       toast.success("Patient registered successfully!");
+      if (res?.patientId) {
+        router.push(`/app/patients/${res.patientId}`);
+      }
     } catch (err: any) {
       toast.error(err?.message || "Failed to register patient");
       setIsSubmitting(false);
