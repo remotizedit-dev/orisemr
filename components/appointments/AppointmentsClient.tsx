@@ -446,14 +446,14 @@ export default function AppointmentsClient({
                     </div>
                   )}
 
-                  {apt.status !== "completed" && apt.status !== "cancelled" && (&& (
+                  {apt.status !== "completed" && apt.status !== "cancelled" && (
                     <button
                       onClick={() => setCancellingId(apt.id)}
                       disabled={isUpdating}
-                      className="p-1.5 rounded-xl hover:bg-[#FFEBEA] text-[#6B7280] hover:text-[#FF453A] transition"
+                      className="p-2 rounded-xl hover:bg-[#FFEBEA] text-[#6B7280] hover:text-[#FF453A] transition cursor-pointer"
                       title="Cancel Appointment"
                     >
-                      <XCircle className="w-4 h-4" />
+                      <XCircle className="w-5 h-5" />
                     </button>
                   )}
                 </div>
