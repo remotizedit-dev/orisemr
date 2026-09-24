@@ -78,7 +78,6 @@ export async function recordPaymentAction(input: RecordPaymentInput) {
 
   revalidatePath("/app/billing");
   revalidatePath("/app/billing/dues");
-  revalidatePath("/app");
 }
 
 export interface InvoiceItemInput {
@@ -224,10 +223,9 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
 
   revalidatePath("/app/billing");
   revalidatePath("/app/billing/dues");
-  revalidatePath("/app/queue");
-  revalidatePath("/app/patients");
-  revalidatePath(`/app/patients/${input.patientId}`);
-  revalidatePath("/app");
+  if (input.appointmentId) {
+    revalidatePath("/app/queue");
+  }
 
   return { success: true, invoiceId: createdInvoiceId };
 }

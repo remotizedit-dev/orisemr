@@ -7,6 +7,9 @@ if (typeof WebSocket === "undefined") {
   neonConfig.webSocketConstructor = ws;
 }
 
+// Pipeline TLS and authentication handshake to reduce initial connection latency
+neonConfig.pipelineConnect = "password";
+
 const connectionString =
   process.env.DATABASE_URL ||
   "postgresql://postgres:postgres@localhost:5432/oris_emr";
@@ -16,8 +19,16 @@ const globalForDb = globalThis as unknown as {
   conn: Pool | undefined;
 };
 
-export const pool = globalForDb.conn ?? new Pool({ connectionString });
-if (process.env.NODE_ENV !== "production") globalForDb.conn = pool;
+export const pool =
+  globalForDb.conn ??
+  new Pool({
+    connectionString,
+    max: 20,
+    idleTimeoutMillis: 300000, // 5 minutes keepalive to prevent frequent reconnects
+    connectionTimeoutMillis: 10000,
+  });
+
+globalForDb.conn = pool;
 
 export const db = drizzle(pool, { schema, casing: "snake_case" });
 

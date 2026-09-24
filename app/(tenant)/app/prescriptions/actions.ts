@@ -169,8 +169,6 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
   revalidatePath("/app/queue");
   revalidatePath("/app/prescriptions");
   revalidatePath("/app/billing");
-  revalidatePath(`/app/patients/${input.patientId}`);
-  revalidatePath("/app");
 
   return result;
 }

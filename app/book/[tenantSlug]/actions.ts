@@ -278,7 +278,7 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
         ? `${assignedDoctor.title || "Dr."} ${assignedDoctor.name}`
         : "Dental Surgeon";
 
-      await sendEmail({
+      void sendEmail({
         to: input.email.trim(),
         subject: result.isAutoConfirmed
           ? `Appointment Confirmed - ${tenant.name} (${result.appointmentCode})`
@@ -293,9 +293,11 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
           appointmentCode: result.appointmentCode,
           isConfirmed: result.isAutoConfirmed,
         }),
+      }).catch((e) => {
+        console.warn("Notice: background booking confirmation email error:", e);
       });
     } catch (e) {
-      console.warn("Notice: could not send booking confirmation email:", e);
+      console.warn("Notice: could not prepare booking confirmation email:", e);
     }
   }
 

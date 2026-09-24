@@ -158,42 +158,80 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     throw new Error("Invalid appointment start or end time.");
   }
 
-  // Check overlap if not explicitly overbooked
-  if (!input.isOverbooked) {
-    const overlapping = await db
-      .select({ id: schema.appointments.id })
-      .from(schema.appointments)
+  // Pre-fetch overlap check, selected services, patient, and doctor concurrently in parallel
+  const [overlapping, selectedServices, patient, assignedDoctor] = await Promise.all([
+    // Check overlap if not explicitly overbooked
+    !input.isOverbooked
+      ? db
+          .select({ id: schema.appointments.id })
+          .from(schema.appointments)
+          .where(
+            and(
+              eq(schema.appointments.tenantId, tenant.id),
+              eq(schema.appointments.doctorId, input.doctorId),
+              sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+              sql`${schema.appointments.startTime} < ${end.toISOString()}`,
+              sql`${schema.appointments.endTime} > ${start.toISOString()}`
+            )
+          )
+          .limit(1)
+      : Promise.resolve([]),
+
+    // Fetch selected services
+    input.serviceIds.length > 0
+      ? db
+          .select()
+          .from(schema.services)
+          .where(
+            and(
+              eq(schema.services.tenantId, tenant.id),
+              inArray(schema.services.id, input.serviceIds)
+            )
+          )
+      : Promise.resolve([]),
+
+    // Fetch patient info for non-blocking confirmation email
+    db
+      .select({ name: schema.patients.name, email: schema.patients.email })
+      .from(schema.patients)
       .where(
         and(
-          eq(schema.appointments.tenantId, tenant.id),
-          eq(schema.appointments.doctorId, input.doctorId),
-          sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
-          sql`${schema.appointments.startTime} < ${end.toISOString()}`,
-          sql`${schema.appointments.endTime} > ${start.toISOString()}`
+          eq(schema.patients.tenantId, tenant.id),
+          eq(schema.patients.id, input.patientId)
         )
       )
-      .limit(1);
+      .limit(1)
+      .then((rows) => rows[0] || null),
 
-    if (overlapping.length > 0) {
-      return {
-        error: "OVERLAP",
-        message: "This slot overlaps with an existing appointment for this doctor. Overbook to proceed anyway?",
-      };
-    }
+    // Fetch doctor info for confirmation email
+    db
+      .select({ name: schema.users.name, title: schema.users.doctorTitle })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenant.id),
+          eq(schema.users.id, input.doctorId)
+        )
+      )
+      .limit(1)
+      .then((rows) => rows[0] || null),
+  ]);
+
+  if (overlapping.length > 0) {
+    return {
+      error: "OVERLAP",
+      message: "This slot overlaps with an existing appointment for this doctor. Overbook to proceed anyway?",
+    };
   }
 
-  // Fetch selected services
-  const selectedServices = await db
-    .select()
-    .from(schema.services)
-    .where(
-      and(
-        eq(schema.services.tenantId, tenant.id),
-        inArray(schema.services.id, input.serviceIds)
-      )
-    );
+  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
-  const newAppointmentId = await db.transaction(async (tx) => {
+  const { newAppointmentId, appointmentCode } = await db.transaction(async (tx) => {
     // Increment appointment counter
     const [counter] = await tx
       .insert(schema.tenantCounters)
@@ -232,31 +270,24 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       })
       .returning({ id: schema.appointments.id });
 
-    // Insert appointment_services snapshots
-    let sortOrder = 0;
-    for (const s of selectedServices) {
-      await tx.insert(schema.appointmentServices).values({
-        tenantId: tenant.id,
-        appointmentId: created.id,
-        serviceId: s.id,
-        serviceNameSnapshot: s.name,
-        durationMinutesSnapshot: s.durationMinutes,
-        priceBdtSnapshot: s.priceBdt,
-        toothCodes: [],
-        sortOrder: sortOrder++,
-      });
+    // Batch insert appointment_services snapshots in a single query
+    if (selectedServices.length > 0) {
+      await tx.insert(schema.appointmentServices).values(
+        selectedServices.map((s, idx) => ({
+          tenantId: tenant.id,
+          appointmentId: created.id,
+          serviceId: s.id,
+          serviceNameSnapshot: s.name,
+          durationMinutesSnapshot: s.durationMinutes,
+          priceBdtSnapshot: s.priceBdt,
+          toothCodes: [],
+          sortOrder: idx,
+        }))
+      );
     }
 
     // If appointment is for today (Asia/Dhaka), automatically add to queueEntries
-    const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Dhaka",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
-
     if (input.dateStr === todayDhakaStr) {
-      // Find max serial for today
       const maxSerialResult = await tx
         .select({ maxSerial: sql<number>`COALESCE(MAX(${schema.queueEntries.serialNo}), 0)` })
         .from(schema.queueEntries)
@@ -282,56 +313,38 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       });
     }
 
-    return created.id;
+    return { newAppointmentId: created.id, appointmentCode };
   });
 
-  // Dispatch confirmation email asynchronously if patient email is available
-  try {
-    const [patient] = await db
-      .select({ name: schema.patients.name, email: schema.patients.email })
-      .from(schema.patients)
-      .where(eq(schema.patients.id, input.patientId))
-      .limit(1);
+  // Dispatch confirmation email asynchronously (fire-and-forget without blocking HTTP response)
+  if (patient?.email) {
+    const docName = assignedDoctor
+      ? `${assignedDoctor.title || "Dr."} ${assignedDoctor.name}`
+      : "Dental Surgeon";
 
-    if (patient?.email) {
-      const [assignedDoctor] = await db
-        .select({ name: schema.users.name, title: schema.users.doctorTitle })
-        .from(schema.users)
-        .where(eq(schema.users.id, input.doctorId))
-        .limit(1);
-
-      const [aptRecord] = await db
-        .select({ appointmentCode: schema.appointments.appointmentCode })
-        .from(schema.appointments)
-        .where(eq(schema.appointments.id, newAppointmentId))
-        .limit(1);
-
-      const docName = assignedDoctor
-        ? `${assignedDoctor.title || "Dr."} ${assignedDoctor.name}`
-        : "Dental Surgeon";
-
-      await sendEmail({
-        to: patient.email.trim(),
-        subject: `Appointment Confirmed - ${tenant.name} (${aptRecord?.appointmentCode})`,
-        html: renderAppointmentConfirmationHtml({
-          patientName: patient.name,
-          doctorName: docName,
-          clinicName: tenant.name,
-          clinicAddress: tenant.address || undefined,
-          clinicPhone: tenant.phone || undefined,
-          displayTime: `${input.dateStr} from ${formatDhakaDate(start, "hh:mm a")} to ${formatDhakaDate(end, "hh:mm a")}`,
-          appointmentCode: aptRecord?.appointmentCode || "APT",
-          isConfirmed: true,
-        }),
-      });
-    }
-  } catch (err) {
-    console.warn("Notice: could not send staff appointment confirmation email:", err);
+    void sendEmail({
+      to: patient.email.trim(),
+      subject: `Appointment Confirmed - ${tenant.name} (${appointmentCode})`,
+      html: renderAppointmentConfirmationHtml({
+        patientName: patient.name,
+        doctorName: docName,
+        clinicName: tenant.name,
+        clinicAddress: tenant.address || undefined,
+        clinicPhone: tenant.phone || undefined,
+        displayTime: `${input.dateStr} from ${formatDhakaDate(start, "hh:mm a")} to ${formatDhakaDate(end, "hh:mm a")}`,
+        appointmentCode: appointmentCode || "APT",
+        isConfirmed: true,
+      }),
+    }).catch((err) => {
+      console.warn("Notice: background staff appointment confirmation email error:", err);
+    });
   }
 
+  // Fast targeted revalidation: only revalidate active appointments list and today's queue if affected
   revalidatePath("/app/appointments");
-  revalidatePath("/app/queue");
-  revalidatePath("/app");
+  if (input.dateStr === todayDhakaStr) {
+    revalidatePath("/app/queue");
+  }
 
   return { success: true, appointmentId: newAppointmentId };
 }
@@ -424,7 +437,7 @@ export async function updateAppointmentStatusAction(
         .limit(1);
 
       if (apt?.patientEmail) {
-        await sendEmail({
+        void sendEmail({
           to: apt.patientEmail.trim(),
           subject: `Appointment Confirmed - ${tenant.name} (${apt.code})`,
           html: renderAppointmentConfirmationHtml({
@@ -437,6 +450,8 @@ export async function updateAppointmentStatusAction(
             appointmentCode: apt.code,
             isConfirmed: true,
           }),
+        }).catch((err) => {
+          console.warn("Notice: background status confirmation email error:", err);
         });
       }
     } catch (e) {
@@ -446,7 +461,6 @@ export async function updateAppointmentStatusAction(
 
   revalidatePath("/app/appointments");
   revalidatePath("/app/queue");
-  revalidatePath("/app");
   return { success: true };
 }
 
