@@ -290,20 +290,9 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       );
     }
 
-    // If appointment is for today (Asia/Dhaka), automatically add to queueEntries
+    // If appointment is for today (Asia/Dhaka), automatically add to queueEntries as booked
+    // NOTE: serialNo remains null until the patient physically arrives and checks in
     if (input.dateStr === todayDhakaStr) {
-      const maxSerialResult = await tx
-        .select({ maxSerial: sql<number>`COALESCE(MAX(${schema.queueEntries.serialNo}), 0)` })
-        .from(schema.queueEntries)
-        .where(
-          and(
-            eq(schema.queueEntries.tenantId, tenant.id),
-            eq(schema.queueEntries.date, todayDhakaStr)
-          )
-        );
-
-      const nextSerial = (Number(maxSerialResult[0]?.maxSerial) || 0) + 1;
-
       await tx.insert(schema.queueEntries).values({
         tenantId: tenant.id,
         appointmentId: created.id,
@@ -312,8 +301,8 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
         chairId: input.chairId || null,
         date: todayDhakaStr,
         status: "booked",
-        serialNo: nextSerial,
-        queuePosition: nextSerial,
+        serialNo: null,
+        queuePosition: 0,
       });
     }
 

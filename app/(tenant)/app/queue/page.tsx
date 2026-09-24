@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
@@ -14,7 +14,62 @@ export default async function LiveQueuePage() {
     day: "2-digit",
   }).format(new Date());
 
-  // 1. Fetch all queue entries for today
+  // 1. Auto-sync any confirmed/pending appointments scheduled for today into queueEntries
+  // (guarantees advance bookings made days ago appear in Booked Today)
+  const [year, month, day] = todayDhakaStr.split("-").map(Number);
+  const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+
+  const todayApts = await db
+    .select({
+      id: schema.appointments.id,
+      patientId: schema.appointments.patientId,
+      doctorId: schema.appointments.doctorId,
+      chairId: schema.appointments.chairId,
+    })
+    .from(schema.appointments)
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenant.id),
+        sql`${schema.appointments.startTime} >= ${dayStart.toISOString()}`,
+        sql`${schema.appointments.startTime} <= ${dayEnd.toISOString()}`,
+        sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`
+      )
+    );
+
+  if (todayApts.length > 0) {
+    const existingQueueRows = await db
+      .select({ appointmentId: schema.queueEntries.appointmentId })
+      .from(schema.queueEntries)
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenant.id),
+          eq(schema.queueEntries.date, todayDhakaStr)
+        )
+      );
+    const existingAptIdSet = new Set(existingQueueRows.map((q) => q.appointmentId));
+    const missingQueueApts = todayApts.filter(
+      (a) => a.patientId && !existingAptIdSet.has(a.id)
+    );
+
+    if (missingQueueApts.length > 0) {
+      await db.insert(schema.queueEntries).values(
+        missingQueueApts.map((m) => ({
+          tenantId: tenant.id,
+          appointmentId: m.id,
+          patientId: m.patientId!,
+          doctorId: m.doctorId,
+          chairId: m.chairId || null,
+          date: todayDhakaStr,
+          status: "booked" as const,
+          serialNo: null,
+          queuePosition: 0,
+        }))
+      );
+    }
+  }
+
+  // 2. Fetch all queue entries for today
   const entries = await db
     .select({
       id: schema.queueEntries.id,
@@ -50,7 +105,7 @@ export default async function LiveQueuePage() {
         eq(schema.queueEntries.date, todayDhakaStr)
       )
     )
-    .orderBy(schema.queueEntries.queuePosition, schema.queueEntries.serialNo);
+    .orderBy(schema.appointments.startTime);
 
   const formattedItems: QueueItem[] = entries.map((e) => ({
     id: e.id,
@@ -69,6 +124,7 @@ export default async function LiveQueuePage() {
       hour: "2-digit",
       minute: "2-digit",
     }),
+    startTimeRaw: e.startTime.toISOString(),
   }));
 
   // 2. Fetch doctors in this clinic

@@ -7,6 +7,8 @@ import {
   advanceQueueStatusAction,
   checkInPatientAction,
   callNextPatientAction,
+  markNoShowAction,
+  cancelQueueBookingAction,
 } from "@/app/(tenant)/app/queue/actions";
 import {
   AlertCircle,
@@ -20,10 +22,13 @@ import {
   Info,
   Loader2,
   Play,
+  RotateCcw,
   Sparkles,
   Stethoscope,
   User,
   Users,
+  UserX,
+  XCircle,
   ChevronDown,
   ChevronUp,
   Phone,
@@ -44,6 +49,7 @@ export interface QueueItem {
   doctorId: string;
   doctorName: string;
   startTime: string;
+  startTimeRaw?: string;
 }
 
 interface ChairOption {
@@ -73,6 +79,7 @@ export function QueueBoard({
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isCallingNext, setIsCallingNext] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   // Sync state whenever server revalidates and sends fresh initialItems
   useEffect(() => {
@@ -84,8 +91,27 @@ export function QueueBoard({
     return item.doctorId === selectedDoctorFilter;
   });
 
-  const getColumnItems = (status: QueueItem["status"]) =>
-    filteredItems.filter((i) => i.status === status);
+  const getColumnItems = (status: QueueItem["status"]) => {
+    const list = filteredItems.filter((i) => i.status === status);
+    if (status === "booked") {
+      // Sort by scheduled appointment time ascending (7:00 PM, 7:20 PM, 7:40 PM...)
+      return [...list].sort((a, b) =>
+        (a.startTimeRaw || a.startTime).localeCompare(b.startTimeRaw || b.startTime)
+      );
+    }
+    if (status === "waiting") {
+      // Sort strictly by daily serial number ascending (SL #1, SL #2, SL #3...)
+      return [...list].sort((a, b) => (a.serialNo || 999999) - (b.serialNo || 999999));
+    }
+    if (status === "in_chair" || status === "billing") {
+      return [...list].sort((a, b) => (a.serialNo || 999999) - (b.serialNo || 999999));
+    }
+    return list;
+  };
+
+  const inactiveItems = filteredItems.filter(
+    (i) => i.status === "no_show" || i.status === "cancelled"
+  );
 
   const handleCheckIn = async (appointmentId: string) => {
     setProcessingId(appointmentId);
@@ -99,10 +125,46 @@ export function QueueBoard({
               : i
           )
         );
-        toast.success(`Patient checked in! Assigned Serial #${res.serialNo}`);
+        toast.success(`Patient checked in! Assigned Daily Serial #${res.serialNo}`);
       }
     } catch {
       toast.error("Failed to check in patient");
+      router.refresh();
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleMarkNoShow = async (appointmentId: string) => {
+    setProcessingId(appointmentId);
+    try {
+      await markNoShowAction(appointmentId);
+      setItems((prev) =>
+        prev.map((i) =>
+          i.appointmentId === appointmentId ? { ...i, status: "no_show" } : i
+        )
+      );
+      toast.info("Patient marked as No-Show. No serial number was used.");
+    } catch {
+      toast.error("Failed to mark as no-show");
+      router.refresh();
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleCancelBooking = async (appointmentId: string) => {
+    setProcessingId(appointmentId);
+    try {
+      await cancelQueueBookingAction(appointmentId);
+      setItems((prev) =>
+        prev.map((i) =>
+          i.appointmentId === appointmentId ? { ...i, status: "cancelled" } : i
+        )
+      );
+      toast.info("Appointment cancelled");
+    } catch {
+      toast.error("Failed to cancel appointment");
       router.refresh();
     } finally {
       setProcessingId(null);
@@ -362,22 +424,47 @@ export function QueueBoard({
                       <span className="truncate">Dentist: {item.doctorName}</span>
                     </div>
 
-                    {/* Check In Action Button */}
-                    <button
-                      type="button"
-                      onClick={() => handleCheckIn(item.appointmentId)}
-                      disabled={processingId === item.appointmentId}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold flex items-center justify-center gap-2 transition shadow-xs disabled:opacity-50 cursor-pointer"
-                    >
-                      {processingId === item.appointmentId ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <span>Check In Patient</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
+                    {/* Check In & Quick Triage Actions */}
+                    <div className="space-y-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleCheckIn(item.appointmentId)}
+                        disabled={processingId === item.appointmentId}
+                        className="w-full py-2.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold flex items-center justify-center gap-2 transition shadow-xs disabled:opacity-50 cursor-pointer"
+                      >
+                        {processingId === item.appointmentId ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <span>Check In (Assign SL)</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleMarkNoShow(item.appointmentId)}
+                          disabled={processingId === item.appointmentId}
+                          title="Patient did not arrive or respond"
+                          className="py-1.5 px-2 rounded-lg bg-[#FFF9EB] hover:bg-[#FFF3D6] text-[#B45309] text-xs font-bold border border-[#FDE68A] flex items-center justify-center gap-1 transition disabled:opacity-50 cursor-pointer"
+                        >
+                          <UserX className="w-3.5 h-3.5 text-[#D97706]" />
+                          <span>No-Show</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelBooking(item.appointmentId)}
+                          disabled={processingId === item.appointmentId}
+                          title="Patient called to cancel appointment"
+                          className="py-1.5 px-2 rounded-lg bg-[#FFF2F2] hover:bg-[#FFE5E5] text-[#DC2626] text-xs font-bold border border-[#FECACA] flex items-center justify-center gap-1 transition disabled:opacity-50 cursor-pointer"
+                        >
+                          <XCircle className="w-3.5 h-3.5 text-[#EF4444]" />
+                          <span>Cancel</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
@@ -749,6 +836,90 @@ export function QueueBoard({
           </div>
         </div>
       </div>
+
+      {/* ================================================================ */}
+      {/* Bottom Drawer: No-Shows & Cancelled (With Instant Re-instate)    */}
+      {/* ================================================================ */}
+      {inactiveItems.length > 0 && (
+        <div className="rounded-3xl border border-[#E4E4E7] bg-white overflow-hidden shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setShowInactive(!showInactive)}
+            className="w-full p-4 flex items-center justify-between text-left hover:bg-[#F9FAFB] transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs font-mono">
+                {inactiveItems.length}
+              </div>
+              <div>
+                <p className="text-sm font-extrabold text-[#1C1C1E]">
+                  Inactive Patients Today ({inactiveItems.length} No-Show / Cancelled)
+                </p>
+                <p className="text-xs text-[#6B7280]">
+                  Missed or cancelled slots. If a patient shows up late (e.g. 7:40 PM), click &quot;Re-instate &amp; Check In&quot; to give them the next active Serial #.
+                </p>
+              </div>
+            </div>
+            {showInactive ? (
+              <ChevronUp className="w-5 h-5 text-[#6B7280]" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-[#6B7280]" />
+            )}
+          </button>
+
+          {showInactive && (
+            <div className="p-4 border-t border-[#E4E4E7] bg-[#FAFAFA] space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {inactiveItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-2xl bg-white border border-[#E4E4E7] shadow-2xs space-y-2.5 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[11px] font-black uppercase tracking-wider ${
+                            item.status === "no_show"
+                              ? "bg-amber-100 text-amber-800 border border-amber-300"
+                              : "bg-rose-100 text-rose-800 border border-rose-300"
+                          }`}
+                        >
+                          {item.status === "no_show" ? "No-Show" : "Cancelled"}
+                        </span>
+                        <span className="text-xs font-mono font-bold text-[#6B7280]">
+                          Booked: {item.startTime}
+                        </span>
+                      </div>
+                      <p className="font-extrabold text-sm text-[#1C1C1E] mt-2">
+                        {item.patientName}
+                      </p>
+                      <p className="text-xs font-mono text-[#6B7280]">
+                        Card: {item.patientCard} • {item.patientPhone}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCheckIn(item.appointmentId)}
+                      disabled={processingId === item.appointmentId}
+                      className="w-full mt-1 py-2 px-3 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-xs"
+                    >
+                      {processingId === item.appointmentId ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Patient Arrived Late → Check In (Next SL)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

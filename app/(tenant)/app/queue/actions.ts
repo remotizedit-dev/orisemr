@@ -45,6 +45,7 @@ export async function checkInPatientAction(appointmentId: string) {
       .set({
         status: "waiting",
         serialNo: assignedSerial,
+        queuePosition: assignedSerial,
         checkedInAt: new Date(),
         updatedBy: user.id,
         updatedAt: new Date(),
@@ -55,9 +56,25 @@ export async function checkInPatientAction(appointmentId: string) {
           eq(schema.queueEntries.appointmentId, appointmentId)
         )
       );
+
+    // 3. Keep appointment status synced (e.g. if pending, confirm it upon check-in)
+    await tx
+      .update(schema.appointments)
+      .set({
+        status: "confirmed",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.id, appointmentId),
+          eq(schema.appointments.status, "pending")
+        )
+      );
   });
 
   revalidatePath("/app/queue");
+  revalidatePath("/app/appointments");
 
   return { success: true, serialNo: assignedSerial };
 }
@@ -113,7 +130,7 @@ export async function callNextPatientAction(doctorId?: string, chairId?: string)
     day: "2-digit",
   }).format(new Date());
 
-  // Find earliest waiting patient for this doctor (or any doctor if unspecified)
+  // Find earliest waiting patient by assigned Serial Number (SL #1 before SL #2)
   const [nextPatient] = await db
     .select()
     .from(schema.queueEntries)
@@ -125,7 +142,7 @@ export async function callNextPatientAction(doctorId?: string, chairId?: string)
         doctorId ? eq(schema.queueEntries.doctorId, targetDocId) : undefined
       )
     )
-    .orderBy(schema.queueEntries.queuePosition, schema.queueEntries.serialNo)
+    .orderBy(schema.queueEntries.serialNo, schema.queueEntries.checkedInAt)
     .limit(1);
 
   if (nextPatient) {
@@ -134,4 +151,78 @@ export async function callNextPatientAction(doctorId?: string, chairId?: string)
   }
 
   return { success: false, message: "No patients currently in Waiting status." };
+}
+
+export async function markNoShowAction(appointmentId: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.queueEntries)
+      .set({
+        status: "no_show",
+        updatedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenant.id),
+          eq(schema.queueEntries.appointmentId, appointmentId)
+        )
+      );
+
+    await tx
+      .update(schema.appointments)
+      .set({
+        status: "no_show",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.id, appointmentId)
+        )
+      );
+  });
+
+  revalidatePath("/app/queue");
+  revalidatePath("/app/appointments");
+  return { success: true };
+}
+
+export async function cancelQueueBookingAction(appointmentId: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.queueEntries)
+      .set({
+        status: "cancelled",
+        updatedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenant.id),
+          eq(schema.queueEntries.appointmentId, appointmentId)
+        )
+      );
+
+    await tx
+      .update(schema.appointments)
+      .set({
+        status: "cancelled",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.id, appointmentId)
+        )
+      );
+  });
+
+  revalidatePath("/app/queue");
+  revalidatePath("/app/appointments");
+  return { success: true };
 }
