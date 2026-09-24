@@ -48,6 +48,10 @@ export const invoices = pgTable(
   (table) => [
     index("invoices_tenant_status_idx").on(table.tenantId, table.status),
     index("invoices_tenant_patient_idx").on(table.tenantId, table.patientId),
+    index("invoices_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("invoices_tenant_code_idx").on(table.tenantId, table.invoiceCode),
+    index("invoices_tenant_appt_idx").on(table.tenantId, table.appointmentId),
+    index("invoices_tenant_due_idx").on(table.tenantId, table.status, table.totalBdt, table.paidBdt),
   ]
 );
 
@@ -74,6 +78,7 @@ export const invoiceItems = pgTable(
   (table) => [
     index("ii_invoice_idx").on(table.invoiceId),
     index("ii_tenant_idx").on(table.tenantId),
+    index("ii_invoice_sort_idx").on(table.invoiceId, table.sortOrder),
   ]
 );
 
@@ -103,5 +108,6 @@ export const payments = pgTable(
   (table) => [
     index("payments_tenant_paid_at_idx").on(table.tenantId, table.paidAt),
     index("payments_invoice_idx").on(table.invoiceId),
+    index("payments_invoice_paid_idx").on(table.invoiceId, table.paidAt),
   ]
 );

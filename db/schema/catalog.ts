@@ -94,6 +94,7 @@ export const services = pgTable(
   },
   (table) => [
     index("services_tenant_idx").on(table.tenantId),
+    index("services_tenant_active_sort_idx").on(table.tenantId, table.isActive, table.sortOrder),
   ]
 );
 
@@ -262,6 +263,7 @@ export const medicines = pgTable(
   },
   (table) => [
     index("medicines_tenant_idx").on(table.tenantId),
+    index("medicines_tenant_active_sort_idx").on(table.tenantId, table.isActive, table.sortOrder),
   ]
 );
 

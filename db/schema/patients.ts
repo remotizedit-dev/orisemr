@@ -47,5 +47,6 @@ export const patients = pgTable(
     uniqueIndex("patients_tenant_card_number_uq").on(table.tenantId, table.cardNumber),
     index("patients_tenant_phone_idx").on(table.tenantId, table.phone),
     index("patients_tenant_name_idx").on(table.tenantId, table.name),
+    index("patients_tenant_created_idx").on(table.tenantId, table.createdAt),
   ]
 );

@@ -57,6 +57,8 @@ export const prescriptions = pgTable(
       table.patientId,
       table.createdAt
     ),
+    index("prescriptions_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("prescriptions_tenant_appt_idx").on(table.tenantId, table.appointmentId),
   ]
 );
 

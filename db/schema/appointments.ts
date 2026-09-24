@@ -64,6 +64,14 @@ export const appointments = pgTable(
     index("appointments_doctor_start_idx").on(table.doctorId, table.startTime),
     index("appointments_tenant_start_idx").on(table.tenantId, table.startTime),
     index("appointments_tenant_status_idx").on(table.tenantId, table.status),
+    index("appointments_tenant_patient_idx").on(table.tenantId, table.patientId, table.startTime),
+    index("appointments_overlap_check_idx").on(
+      table.tenantId,
+      table.doctorId,
+      table.status,
+      table.startTime,
+      table.endTime
+    ),
   ]
 );
 
@@ -89,6 +97,7 @@ export const appointmentServices = pgTable(
   (table) => [
     index("as_appointment_idx").on(table.appointmentId),
     index("as_tenant_idx").on(table.tenantId),
+    index("as_tenant_appt_sort_idx").on(table.tenantId, table.appointmentId, table.sortOrder),
   ]
 );
 
@@ -128,5 +137,8 @@ export const queueEntries = pgTable(
   },
   (table) => [
     index("queue_tenant_date_status_idx").on(table.tenantId, table.date, table.status),
+    index("queue_tenant_date_pos_idx").on(table.tenantId, table.date, table.queuePosition, table.serialNo),
+    index("queue_tenant_appt_idx").on(table.tenantId, table.appointmentId),
+    index("queue_tenant_patient_idx").on(table.tenantId, table.patientId, table.date),
   ]
 );

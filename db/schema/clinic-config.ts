@@ -81,5 +81,6 @@ export const chairs = pgTable(
   },
   (table) => [
     index("chairs_tenant_idx").on(table.tenantId),
+    index("chairs_tenant_active_idx").on(table.tenantId, table.isActive, table.sortOrder),
   ]
 );
