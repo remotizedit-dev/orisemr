@@ -168,6 +168,8 @@ export default async function NewPrescriptionPage({
           approxAge: patient.approxAge,
           allergyFlags: patient.allergyFlags || [],
           medicalConditions: patient.medicalConditions || [],
+          bloodGroup: patient.bloodGroup || null,
+          phone: patient.phone || null,
         }}
         appointmentId={appointmentId}
         catalogMedicines={catalog.catalogMedicines}
