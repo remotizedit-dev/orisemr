@@ -428,13 +428,15 @@ export default function AppointmentsClient({
                   {/* If in chair */}
                   {apt.queueStatus === "in_chair" && (
                     <div className="flex items-center gap-2">
-                      <Link
-                        href={`/app/prescriptions/new?patientId=${apt.patientId}&appointmentId=${apt.id}`}
-                        className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                      >
-                        <FileText className="w-4 h-4" />
-                        <span>Prescribe</span>
-                      </Link>
+                      {apt.patientId ? (
+                        <Link
+                          href={`/app/prescriptions/new?patientId=${apt.patientId}&appointmentId=${apt.id}`}
+                          className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span>Prescribe</span>
+                        </Link>
+                      ) : null}
                       <button
                         onClick={() => handleQueueAdvance(apt.id, "done")}
                         disabled={isUpdating}

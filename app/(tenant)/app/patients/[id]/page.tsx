@@ -164,7 +164,7 @@ export default async function PatientProfilePage({
 
         {/* Quick Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {(user.isDoctor || user.role === "DOCTOR") && (
+          {(user.isDoctor || user.role === "DOCTOR" || user.role === "TENANT_ADMIN") && (
             <Link
               href={`/app/prescriptions/new?patientId=${patient.id}`}
               className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
