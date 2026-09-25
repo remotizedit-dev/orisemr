@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { getPatientProfileHistoryAction } from "@/app/(tenant)/app/patients/actions";
 import {
   AlertCircle,
@@ -64,8 +65,6 @@ export function PatientProfileModal({
     };
   }, [isOpen, patientId]);
 
-  if (!isOpen) return null;
-
   const patient = profileData?.patient;
   const prescriptions = profileData?.prescriptions || [];
   const appointments = profileData?.appointments || [];
@@ -77,8 +76,24 @@ export function PatientProfileModal({
     .reduce((acc: number, inv: any) => acc + (inv.totalBdt - inv.paidBdt), 0);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-[#E4E4E7] overflow-hidden animate-in zoom-in-95 duration-150">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          onClick={onClose}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ type: "spring", damping: 26, stiffness: 360, mass: 0.8 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-[#E4E4E7] overflow-hidden"
+          >
         {/* Header */}
         <div className="p-5 sm:p-6 bg-gradient-to-r from-[#F8FAFC] to-[#F1F5F9] border-b border-[#E4E4E7] flex items-start justify-between gap-4">
           <div className="space-y-1.5">
@@ -443,7 +458,9 @@ export function PatientProfileModal({
             Close &amp; Return to Prescription
           </button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
