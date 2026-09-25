@@ -351,7 +351,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     revalidatePath("/app/queue");
   }
 
-  return { success: true, appointmentId: newAppointmentId };
+  return { success: true, appointmentId: newAppointmentId, appointmentCode };
 }
 
 export async function updateAppointmentStatusAction(
@@ -548,3 +548,61 @@ export async function searchPatientsForBookingAction(query: string) {
 
   return results;
 }
+
+export async function getBookingFormDataAction() {
+  const { tenant } = await requireClinicStaff();
+
+  const [doctors, services, chairs] = await Promise.all([
+    db
+      .select({
+        id: schema.users.id,
+        name: schema.users.name,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenant.id),
+          eq(schema.users.isDoctor, true),
+          eq(schema.users.status, "active")
+        )
+      ),
+
+    db
+      .select({
+        id: schema.services.id,
+        name: schema.services.name,
+        durationMinutes: schema.services.durationMinutes,
+        priceBdt: schema.services.priceBdt,
+        category: schema.serviceCategories.name,
+      })
+      .from(schema.services)
+      .innerJoin(
+        schema.serviceCategories,
+        eq(schema.services.categoryId, schema.serviceCategories.id)
+      )
+      .where(
+        and(
+          eq(schema.services.tenantId, tenant.id),
+          eq(schema.services.isActive, true)
+        )
+      )
+      .orderBy(schema.serviceCategories.name, schema.services.name),
+
+    db
+      .select({
+        id: schema.chairs.id,
+        name: schema.chairs.name,
+      })
+      .from(schema.chairs)
+      .where(
+        and(
+          eq(schema.chairs.tenantId, tenant.id),
+          eq(schema.chairs.isActive, true)
+        )
+      )
+      .orderBy(schema.chairs.sortOrder),
+  ]);
+
+  return { doctors, services, chairs };
+}
+

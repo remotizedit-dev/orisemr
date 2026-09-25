@@ -140,6 +140,13 @@ export async function registerPatientAction(input: RegisterPatientInput) {
     success: true,
     patientId: patient.id,
     emailDispatched: Boolean(patient.email),
+    patient: {
+      id: patient.id,
+      name: patient.name,
+      phone: patient.phone,
+      cardNumber: patient.cardNumber,
+      email: patient.email,
+    },
   };
 }
 

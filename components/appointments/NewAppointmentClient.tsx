@@ -23,6 +23,7 @@ import {
   createStaffAppointmentAction,
   searchPatientsForBookingAction,
 } from "@/app/(tenant)/app/appointments/actions";
+import { QuickRegisterPatientModal } from "@/components/patients/QuickRegisterPatientModal";
 
 interface Doctor {
   id: string;
@@ -84,6 +85,7 @@ export default function NewAppointmentClient({
         }
       : null
   );
+  const [isQuickRegisterOpen, setIsQuickRegisterOpen] = useState(false);
 
   // Booking details
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("any");
@@ -286,13 +288,14 @@ export default function NewAppointmentClient({
                 <User className="w-3.5 h-3.5 text-[#2A5CAA]" />
                 <span>1. Select Patient</span>
               </span>
-              <Link
-                href="/app/patients/new"
-                className="text-xs font-bold text-[#2A5CAA] hover:underline flex items-center gap-1"
+              <button
+                type="button"
+                onClick={() => setIsQuickRegisterOpen(true)}
+                className="text-xs font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3 h-3" />
                 <span>Quick Register New</span>
-              </Link>
+              </button>
             </div>
 
             {selectedPatient ? (
@@ -662,6 +665,26 @@ export default function NewAppointmentClient({
           </div>
         </div>
       )}
+
+      {/* Quick Register Patient Pop-up Modal */}
+      <QuickRegisterPatientModal
+        isOpen={isQuickRegisterOpen}
+        onClose={() => setIsQuickRegisterOpen(false)}
+        onSuccess={(newPatient) => {
+          setSelectedPatient({
+            id: newPatient.id,
+            name: newPatient.name,
+            phone: newPatient.phone,
+            cardNumber: newPatient.cardNumber,
+            email: newPatient.email,
+          });
+          setPatientQuery(newPatient.name);
+          if (newPatient.email) setPatientEmail(newPatient.email);
+          setIsQuickRegisterOpen(false);
+          toast.success(`Patient ${newPatient.name} registered and selected!`);
+        }}
+        initialName={patientQuery}
+      />
     </div>
   );
 }

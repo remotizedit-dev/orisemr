@@ -8,6 +8,7 @@ import { SearchTrigger } from "@/components/palette/SearchTrigger";
 import { TenantDesktopSidebar } from "@/components/layout/TenantDesktopSidebar";
 import { TenantMobileNav } from "@/components/layout/TenantMobileNav";
 import { SidebarHeaderTrigger } from "@/components/layout/SidebarHeaderTrigger";
+import { GlobalActionDock } from "@/components/layout/GlobalActionDock";
 import { FirstLoginPasswordModal } from "@/components/auth/FirstLoginPasswordModal";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
@@ -102,6 +103,9 @@ export default async function TenantAppLayout({
         {/* Workspace Canvas (Full width without artificial 1280px constraint) */}
         <main className="flex-1 px-3 sm:px-5 lg:px-6 py-4 w-full">{children}</main>
       </div>
+
+      {/* Global Floating Action Docker (New Patient & Book Appointment) */}
+      <GlobalActionDock />
     </div>
   );
 }
