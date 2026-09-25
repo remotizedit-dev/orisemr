@@ -1,10 +1,11 @@
-import { notFound } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { notFound, redirect } from "next/navigation";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { PrescriptionBuilder } from "@/components/prescription/PrescriptionBuilder";
+import { SelectPatientForPrescription } from "@/components/prescription/SelectPatientForPrescription";
 
 /**
  * Cache chamber clinical catalogs (medicines, dosage patterns, timings, durations, advice, quick texts)
@@ -136,7 +137,26 @@ export default async function NewPrescriptionPage({
       : undefined;
 
   if (!patientId || patientId === "undefined" || patientId === "null") {
-    notFound();
+    const recentPatients = await db
+      .select({
+        id: schema.patients.id,
+        name: schema.patients.name,
+        phone: schema.patients.phone,
+        cardNumber: schema.patients.cardNumber,
+        gender: schema.patients.gender,
+        approxAge: schema.patients.approxAge,
+      })
+      .from(schema.patients)
+      .where(
+        and(
+          eq(schema.patients.tenantId, tenant.id),
+          isNull(schema.patients.deletedAt)
+        )
+      )
+      .orderBy(desc(schema.patients.createdAt))
+      .limit(6);
+
+    return <SelectPatientForPrescription recentPatients={recentPatients} />;
   }
 
   const isUuid = /^[0-9a-fA-F-]{36}$/.test(patientId);
@@ -161,7 +181,26 @@ export default async function NewPrescriptionPage({
   ]);
 
   if (!patient) {
-    notFound();
+    const recentPatients = await db
+      .select({
+        id: schema.patients.id,
+        name: schema.patients.name,
+        phone: schema.patients.phone,
+        cardNumber: schema.patients.cardNumber,
+        gender: schema.patients.gender,
+        approxAge: schema.patients.approxAge,
+      })
+      .from(schema.patients)
+      .where(
+        and(
+          eq(schema.patients.tenantId, tenant.id),
+          isNull(schema.patients.deletedAt)
+        )
+      )
+      .orderBy(desc(schema.patients.createdAt))
+      .limit(6);
+
+    return <SelectPatientForPrescription recentPatients={recentPatients} />;
   }
 
   return (

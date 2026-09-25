@@ -132,102 +132,131 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
       ? "partial"
       : "due";
 
-  const createdInvoiceId = await db.transaction(async (tx) => {
-    // 1. Increment INV counter
-    const [counter] = await tx
-      .insert(schema.tenantCounters)
-      .values({
-        tenantId: tenant.id,
-        key: "INV",
-        nextValue: 2,
-      })
-      .onConflictDoUpdate({
-        target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
-        set: {
-          nextValue: sql`${schema.tenantCounters.nextValue} + 1`,
-        },
-      })
-      .returning();
+  const cleanAppointmentId =
+    input.appointmentId &&
+    input.appointmentId !== "undefined" &&
+    input.appointmentId !== "null" &&
+    /^[0-9a-fA-F-]{36}$/.test(input.appointmentId)
+      ? input.appointmentId
+      : null;
 
-    const seq = counter ? counter.nextValue - 1 : 1;
-    const invoiceCode = generateRecordCode("INV", tenant.shortCode, seq);
+  // Verify patient belongs to this clinic
+  const [patient] = await db
+    .select({ id: schema.patients.id })
+    .from(schema.patients)
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        eq(schema.patients.id, input.patientId)
+      )
+    )
+    .limit(1);
 
-    // 2. Insert Invoice
-    const [created] = await tx
-      .insert(schema.invoices)
-      .values({
-        tenantId: tenant.id,
-        invoiceCode,
-        patientId: input.patientId,
-        appointmentId: input.appointmentId || null,
-        subtotalBdt,
-        discountBdt,
-        totalBdt,
-        paidBdt: advanceAmount,
-        status: initialStatus,
-        finalizedAt: new Date(),
-        createdBy: user.id,
-      })
-      .returning({ id: schema.invoices.id });
-
-    // 3. Insert Items
-    let sort = 0;
-    for (const item of input.items) {
-      await tx.insert(schema.invoiceItems).values({
-        tenantId: tenant.id,
-        invoiceId: created.id,
-        serviceId: item.serviceId || null,
-        description: item.description,
-        toothCodes: item.toothCodes || [],
-        quantity: item.quantity,
-        unitPriceBdt: item.unitPriceBdt,
-        totalBdt: item.quantity * item.unitPriceBdt,
-        sortOrder: sort++,
-      });
-    }
-
-    // 4. Record advance payment if provided
-    if (advanceAmount > 0 && input.advancePayment) {
-      await tx.insert(schema.payments).values({
-        tenantId: tenant.id,
-        invoiceId: created.id,
-        amountBdt: advanceAmount,
-        method: input.advancePayment.method,
-        transactionRef: input.advancePayment.transactionRef || null,
-        receivedBy: user.id,
-        paidAt: new Date(),
-        note: input.advancePayment.note || "Initial settlement at invoice creation",
-      });
-    }
-
-    // 5. If linked to an appointment, mark queue entry as done
-    if (input.appointmentId) {
-      await tx
-        .update(schema.queueEntries)
-        .set({
-          status: "done",
-          doneAt: new Date(),
-          updatedBy: user.id,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(schema.queueEntries.tenantId, tenant.id),
-            eq(schema.queueEntries.appointmentId, input.appointmentId)
-          )
-        );
-    }
-
-    return created.id;
-  });
-
-  revalidatePath("/app/billing");
-  revalidatePath("/app/billing/dues");
-  if (input.appointmentId) {
-    revalidatePath("/app/queue");
+  if (!patient) {
+    throw new Error("Patient not found in this clinic");
   }
 
-  return { success: true, invoiceId: createdInvoiceId };
+  try {
+    const createdInvoiceId = await db.transaction(async (tx) => {
+      // 1. Increment INV counter
+      const [counter] = await tx
+        .insert(schema.tenantCounters)
+        .values({
+          tenantId: tenant.id,
+          key: "INV",
+          nextValue: 2,
+        })
+        .onConflictDoUpdate({
+          target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
+          set: {
+            nextValue: sql`${schema.tenantCounters.nextValue} + 1`,
+          },
+        })
+        .returning();
+
+      const seq = counter ? counter.nextValue - 1 : 1;
+      const invoiceCode = generateRecordCode("INV", tenant.shortCode, seq);
+
+      // 2. Insert Invoice
+      const [created] = await tx
+        .insert(schema.invoices)
+        .values({
+          tenantId: tenant.id,
+          invoiceCode,
+          patientId: input.patientId,
+          appointmentId: cleanAppointmentId,
+          subtotalBdt,
+          discountBdt,
+          totalBdt,
+          paidBdt: advanceAmount,
+          status: initialStatus,
+          finalizedAt: new Date(),
+          createdBy: user.id,
+        })
+        .returning({ id: schema.invoices.id });
+
+      // 3. Insert Items
+      let sort = 0;
+      for (const item of input.items) {
+        await tx.insert(schema.invoiceItems).values({
+          tenantId: tenant.id,
+          invoiceId: created.id,
+          serviceId: item.serviceId || null,
+          description: item.description,
+          toothCodes: item.toothCodes || [],
+          quantity: item.quantity,
+          unitPriceBdt: item.unitPriceBdt,
+          totalBdt: item.quantity * item.unitPriceBdt,
+          sortOrder: sort++,
+        });
+      }
+
+      // 4. Record advance payment if provided
+      if (advanceAmount > 0 && input.advancePayment) {
+        await tx.insert(schema.payments).values({
+          tenantId: tenant.id,
+          invoiceId: created.id,
+          amountBdt: advanceAmount,
+          method: input.advancePayment.method,
+          transactionRef: input.advancePayment.transactionRef || null,
+          receivedBy: user.id,
+          paidAt: new Date(),
+          note: input.advancePayment.note || "Initial settlement at invoice creation",
+        });
+      }
+
+      // 5. If linked to an appointment, mark queue entry as done
+      if (cleanAppointmentId) {
+        await tx
+          .update(schema.queueEntries)
+          .set({
+            status: "done",
+            doneAt: new Date(),
+            updatedBy: user.id,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.queueEntries.tenantId, tenant.id),
+              eq(schema.queueEntries.appointmentId, cleanAppointmentId)
+            )
+          );
+      }
+
+      return created.id;
+    });
+
+    revalidatePath("/app/billing");
+    revalidatePath("/app/billing/dues");
+    if (cleanAppointmentId) {
+      revalidatePath("/app/queue");
+    }
+
+    return { success: true, invoiceId: createdInvoiceId };
+  } catch (error: any) {
+    console.error("createInvoiceAction failed:", error);
+    throw new Error(error?.message || "Failed to create invoice. Please check item details.");
+  }
 }
 
 export async function sendDueReminderEmailAction(invoiceId: string) {

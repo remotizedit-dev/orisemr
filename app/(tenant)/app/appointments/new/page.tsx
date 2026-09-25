@@ -67,8 +67,13 @@ export default async function NewAppointmentPage({ searchParams }: Props) {
     .orderBy(schema.chairs.sortOrder);
 
   // 4. Fetch preselected patient if any
+  // 4. Fetch preselected patient if any (supports both UUID and 10-digit Card Number)
   let initialPatient: { id: string; name: string; cardNumber: string } | null = null;
-  if (params.patientId) {
+  const rawPatientParam = params.patientId?.trim();
+
+  if (rawPatientParam && rawPatientParam !== "undefined" && rawPatientParam !== "null") {
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(rawPatientParam);
+
     const [p] = await db
       .select({
         id: schema.patients.id,
@@ -79,7 +84,9 @@ export default async function NewAppointmentPage({ searchParams }: Props) {
       .where(
         and(
           eq(schema.patients.tenantId, tenant.id),
-          eq(schema.patients.id, params.patientId)
+          isUuid
+            ? eq(schema.patients.id, rawPatientParam)
+            : eq(schema.patients.cardNumber, rawPatientParam)
         )
       )
       .limit(1);

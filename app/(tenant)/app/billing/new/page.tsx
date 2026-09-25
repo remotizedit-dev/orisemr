@@ -31,7 +31,22 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     )
     .orderBy(schema.services.name);
 
-  let patientId = params.patientId;
+  // Sanitize appointmentId
+  const appointmentId =
+    params.appointmentId &&
+    params.appointmentId !== "undefined" &&
+    params.appointmentId !== "null" &&
+    /^[0-9a-fA-F-]{36}$/.test(params.appointmentId)
+      ? params.appointmentId
+      : undefined;
+
+  // Sanitize patient query param
+  const rawPatientId = params.patientId ? decodeURIComponent(params.patientId).trim() : undefined;
+  let cleanPatientId =
+    rawPatientId && rawPatientId !== "undefined" && rawPatientId !== "null"
+      ? rawPatientId
+      : undefined;
+
   let preselectedPatient: {
     id: string;
     name: string;
@@ -39,7 +54,6 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     phone: string;
   } | null = null;
 
-  // 1. If appointmentId is provided, resolve patient and services from appointment
   interface InitialInvoiceItem {
     id: string;
     serviceId?: string;
@@ -56,7 +70,8 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     toothCodes?: string[];
   } | null = null;
 
-  if (params.appointmentId) {
+  // 1. If appointmentId is provided, resolve patient and services from appointment
+  if (appointmentId) {
     const [apt] = await db
       .select({
         id: schema.appointments.id,
@@ -66,13 +81,13 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .where(
         and(
           eq(schema.appointments.tenantId, tenant.id),
-          eq(schema.appointments.id, params.appointmentId)
+          eq(schema.appointments.id, appointmentId)
         )
       )
       .limit(1);
 
     if (apt?.patientId) {
-      if (!patientId) patientId = apt.patientId;
+      if (!cleanPatientId) cleanPatientId = apt.patientId;
     }
 
     // Fetch booked services for this appointment
@@ -88,7 +103,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .where(
         and(
           eq(schema.appointmentServices.tenantId, tenant.id),
-          eq(schema.appointmentServices.appointmentId, params.appointmentId)
+          eq(schema.appointmentServices.appointmentId, appointmentId)
         )
       );
 
@@ -115,7 +130,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .where(
         and(
           eq(schema.prescriptions.tenantId, tenant.id),
-          eq(schema.prescriptions.appointmentId, params.appointmentId)
+          eq(schema.prescriptions.appointmentId, appointmentId)
         )
       )
       .limit(1);
@@ -146,8 +161,10 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     }
   }
 
-  // 2. Fetch preselected patient info
-  if (patientId) {
+  // 2. Fetch preselected patient info (support UUID or 10-digit CardNumber)
+  let resolvedPatientId: string | null = null;
+  if (cleanPatientId) {
+    const isUuid = /^[0-9a-fA-F-]{36}$/.test(cleanPatientId);
     const [p] = await db
       .select({
         id: schema.patients.id,
@@ -159,12 +176,17 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .where(
         and(
           eq(schema.patients.tenantId, tenant.id),
-          eq(schema.patients.id, patientId)
+          isUuid
+            ? eq(schema.patients.id, cleanPatientId)
+            : eq(schema.patients.cardNumber, cleanPatientId)
         )
       )
       .limit(1);
 
-    if (p) preselectedPatient = p;
+    if (p) {
+      preselectedPatient = p;
+      resolvedPatientId = p.id;
+    }
   }
 
   // 3. Fetch patient's previous unpaid dues
@@ -185,7 +207,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     unpaidInvoices: [],
   };
 
-  if (patientId) {
+  if (resolvedPatientId) {
     const pastInvoices = await db
       .select({
         id: schema.invoices.id,
@@ -199,7 +221,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .where(
         and(
           eq(schema.invoices.tenantId, tenant.id),
-          eq(schema.invoices.patientId, patientId),
+          eq(schema.invoices.patientId, resolvedPatientId),
           inArray(schema.invoices.status, ["due", "partial"])
         )
       )
@@ -226,7 +248,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     <NewInvoiceClient
       services={services}
       preselectedPatient={preselectedPatient}
-      appointmentId={params.appointmentId}
+      appointmentId={appointmentId}
       initialItems={initialLineItems.length > 0 ? initialLineItems : undefined}
       patientDues={patientDues}
       prescriptionInfo={prescriptionInfo}

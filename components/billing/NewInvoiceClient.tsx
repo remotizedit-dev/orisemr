@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
+  UserPlus,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ import {
   recordPaymentAction,
 } from "@/app/(tenant)/app/billing/actions";
 import { searchPatientsForBookingAction } from "@/app/(tenant)/app/appointments/actions";
+import { QuickRegisterPatientModal } from "@/components/patients/QuickRegisterPatientModal";
 
 export interface ServiceOption {
   id: string;
@@ -89,6 +91,7 @@ export default function NewInvoiceClient({
   const [patientResults, setPatientResults] = useState<any[]>([]);
   const [isSearchingPatient, setIsSearchingPatient] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
   // Line items state
   const [items, setItems] = useState<InvoiceLine[]>(
@@ -601,10 +604,22 @@ export default function NewInvoiceClient({
 
       {/* Select Patient */}
       <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] space-y-3.5 shadow-2xs">
-        <span className="text-xs font-black text-[#1C1C1E] uppercase tracking-wider flex items-center gap-2">
-          <User className="w-4 h-4 text-[#2A5CAA]" />
-          <span>Patient Information</span>
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-[#1C1C1E] uppercase tracking-wider flex items-center gap-2">
+            <User className="w-4 h-4 text-[#2A5CAA]" />
+            <span>Patient Information</span>
+          </span>
+          {!selectedPatient && (
+            <button
+              type="button"
+              onClick={() => setIsRegisterModalOpen(true)}
+              className="text-xs font-bold text-[#2A5CAA] hover:text-[#1E4282] flex items-center gap-1 hover:underline cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Quick Register New</span>
+            </button>
+          )}
+        </div>
 
         {selectedPatient ? (
           <div className="p-4 rounded-2xl bg-[#EBF2FC] border border-[#2A5CAA]/20 flex items-center justify-between shadow-2xs">
@@ -668,8 +683,37 @@ export default function NewInvoiceClient({
                 ))}
               </div>
             )}
+
+            {patientQuery.trim().length >= 2 && patientResults.length === 0 && !isSearchingPatient && (
+              <div className="absolute left-0 right-0 top-14 bg-white rounded-2xl shadow-xl border border-[#E4E4E7] z-20 p-4 text-center space-y-2">
+                <p className="text-xs text-[#6B7280]">
+                  No existing patient found matching &ldquo;<span className="font-semibold text-[#1C1C1E]">{patientQuery}</span>&rdquo;
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsRegisterModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs cursor-pointer transition"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Register &ldquo;{patientQuery}&rdquo; as New Patient</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
+
+        {/* In-page Quick Patient Registration Modal */}
+        <QuickRegisterPatientModal
+          isOpen={isRegisterModalOpen}
+          onClose={() => setIsRegisterModalOpen(false)}
+          onSuccess={(newPatient) => {
+            setSelectedPatient(newPatient);
+            setPatientQuery(newPatient.name);
+            setPatientResults([]);
+            setIsRegisterModalOpen(false);
+          }}
+          initialName={patientQuery}
+        />
       </div>
 
       {/* Quick Catalog Procedure Chips */}

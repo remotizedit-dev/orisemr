@@ -68,11 +68,11 @@ export default async function PrescriptionsPage() {
             In-Chair Queue
           </Link>
           <Link
-            href="/app/patients"
+            href="/app/prescriptions/new"
             className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-xs shadow-xs flex items-center gap-2 transition"
           >
             <Plus className="w-4 h-4" />
-            <span>Select Patient to Prescribe</span>
+            <span>Write Prescription</span>
           </Link>
         </div>
       </div>

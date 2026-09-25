@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { getPatientProfileHistoryAction } from "@/app/(tenant)/app/patients/actions";
 import {
@@ -231,6 +232,15 @@ export function PatientProfileModal({
               {/* Prescriptions Tab */}
               {activeTab === "prescriptions" && (
                 <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <Link
+                      href={`/app/prescriptions/new?patientId=${patient.id}`}
+                      className="py-2 px-3.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>+ Write New Prescription</span>
+                    </Link>
+                  </div>
                   {prescriptions.length === 0 ? (
                     <div className="p-10 text-center text-sm font-medium text-[#6B7280] bg-white rounded-2xl border border-dashed border-[#E4E4E7]">
                       No previous prescriptions recorded for this patient.
@@ -399,6 +409,15 @@ export function PatientProfileModal({
               {/* Billing Tab */}
               {activeTab === "billing" && (
                 <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <Link
+                      href={`/app/billing/new?patientId=${patient.id}`}
+                      className="py-2 px-3.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>+ Create New Invoice</span>
+                    </Link>
+                  </div>
                   {invoices.length === 0 ? (
                     <div className="p-10 text-center text-sm font-medium text-[#6B7280] bg-white rounded-2xl border border-dashed border-[#E4E4E7]">
                       No invoice history for this patient.

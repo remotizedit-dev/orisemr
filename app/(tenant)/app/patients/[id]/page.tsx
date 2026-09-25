@@ -212,6 +212,14 @@ export default async function PatientProfilePage({
                 <FileText className="w-4 h-4 text-[#2A5CAA]" />
                 <span>Prescriptions History ({prescriptions.length})</span>
               </h2>
+              {(user.isDoctor || user.role === "DOCTOR" || user.role === "TENANT_ADMIN") && (
+                <Link
+                  href={`/app/prescriptions/new?patientId=${patient.id}`}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] hover:bg-[#2A5CAA] hover:text-white px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  + New Prescription
+                </Link>
+              )}
             </div>
 
             <div className="divide-y divide-[#E4E4E7]">
