@@ -226,3 +226,45 @@ export async function cancelQueueBookingAction(appointmentId: string) {
   revalidatePath("/app/appointments");
   return { success: true };
 }
+
+export async function revertToBookedAction(appointmentId: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  await db.transaction(async (tx) => {
+    // 1. Reset queue entry to booked, clearing any serial number
+    await tx
+      .update(schema.queueEntries)
+      .set({
+        status: "booked",
+        serialNo: null,
+        queuePosition: 0,
+        updatedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenant.id),
+          eq(schema.queueEntries.appointmentId, appointmentId)
+        )
+      );
+
+    // 2. Set appointment status back to confirmed
+    await tx
+      .update(schema.appointments)
+      .set({
+        status: "confirmed",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.id, appointmentId)
+        )
+      );
+  });
+
+  revalidatePath("/app/queue");
+  revalidatePath("/app/appointments");
+  return { success: true };
+}
+

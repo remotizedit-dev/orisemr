@@ -9,7 +9,9 @@ import {
   callNextPatientAction,
   markNoShowAction,
   cancelQueueBookingAction,
+  revertToBookedAction,
 } from "@/app/(tenant)/app/queue/actions";
+import { InactivePatientsModal } from "./InactivePatientsModal";
 import {
   AlertCircle,
   ArrowRight,
@@ -79,7 +81,7 @@ export function QueueBoard({
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isCallingNext, setIsCallingNext] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [showInactive, setShowInactive] = useState(false);
+  const [showInactiveModal, setShowInactiveModal] = useState(false);
 
   // Sync state whenever server revalidates and sends fresh initialItems
   useEffect(() => {
@@ -165,6 +167,31 @@ export function QueueBoard({
       toast.info("Appointment cancelled");
     } catch {
       toast.error("Failed to cancel appointment");
+      router.refresh();
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRevertToBooked = async (appointmentId: string) => {
+    setProcessingId(appointmentId);
+    try {
+      const res = await revertToBookedAction(appointmentId);
+      if (res?.success) {
+        setItems((prev) =>
+          prev.map((i) =>
+            i.appointmentId === appointmentId
+              ? { ...i, status: "booked", serialNo: null }
+              : i
+          )
+        );
+        toast.success("Appointment restored to Booked Today.");
+        router.refresh();
+      } else {
+        toast.error("Failed to restore appointment.");
+      }
+    } catch {
+      toast.error("An error occurred while restoring appointment.");
       router.refresh();
     } finally {
       setProcessingId(null);
@@ -315,6 +342,26 @@ export function QueueBoard({
           >
             <HelpCircle className="w-5 h-5 text-[#2A5CAA]" />
           </button>
+
+          {/* Cancelled / No-Show Modal Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setShowInactiveModal(true)}
+            className={`px-3.5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 border transition cursor-pointer shadow-2xs ${
+              inactiveItems.length > 0
+                ? "bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300"
+                : "bg-white hover:bg-[#F4F4F5] text-[#6B7280] border-[#E4E4E7]"
+            }`}
+            title="View and revive cancelled or no-show patients for today"
+          >
+            <UserX className={`w-4 h-4 ${inactiveItems.length > 0 ? "text-amber-700" : "text-[#9CA3AF]"}`} />
+            <span>Cancelled / Missed</span>
+            {inactiveItems.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[11px] font-mono">
+                {inactiveItems.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -360,13 +407,13 @@ export function QueueBoard({
         </div>
       )}
 
-      {/* 5-Column Kanban Board - Big Cards & Big Serial Numbers */}
+      {/* 5-Column Kanban Board - Responsive & Fluid */}
       <div className="overflow-x-auto pb-6">
-        <div className="flex gap-5 min-w-[1550px] items-start">
+        <div className="flex gap-3.5 xl:gap-4 min-w-[1380px] xl:min-w-full items-start">
           {/* ================================================================ */}
           {/* Column 1: Booked Today                                           */}
           {/* ================================================================ */}
-          <div className="w-[310px] shrink-0 bg-[#F4F4F5] rounded-3xl p-4 border border-[#E4E4E7] space-y-4 shadow-2xs">
+          <div className="flex-1 min-w-[265px] xl:min-w-[275px] max-w-[340px] shrink-0 xl:shrink bg-[#F4F4F5] rounded-3xl p-3.5 xl:p-4 border border-[#E4E4E7] space-y-4 shadow-2xs">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-slate-300 text-slate-800 font-bold text-xs flex items-center justify-center font-mono">
@@ -474,7 +521,7 @@ export function QueueBoard({
           {/* ================================================================ */}
           {/* Column 2: Waiting in Chamber (Big Serial Numbers)                */}
           {/* ================================================================ */}
-          <div className="w-[310px] shrink-0 bg-[#FFF7EB]/60 rounded-3xl p-4 border border-[#FF9F0A]/40 space-y-4 shadow-2xs">
+          <div className="flex-1 min-w-[265px] xl:min-w-[275px] max-w-[340px] shrink-0 xl:shrink bg-[#FFF7EB]/60 rounded-3xl p-3.5 xl:p-4 border border-[#FF9F0A]/40 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-amber-400 text-white font-bold text-xs flex items-center justify-center font-mono">
@@ -575,7 +622,7 @@ export function QueueBoard({
           {/* ================================================================ */}
           {/* Column 3: In Dental Chair (Active Treatment)                     */}
           {/* ================================================================ */}
-          <div className="w-[310px] shrink-0 bg-[#E8EEF7]/50 rounded-3xl p-4 border border-[#2A5CAA]/40 space-y-4 shadow-2xs">
+          <div className="flex-1 min-w-[265px] xl:min-w-[275px] max-w-[340px] shrink-0 xl:shrink bg-[#E8EEF7]/50 rounded-3xl p-3.5 xl:p-4 border border-[#2A5CAA]/40 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-[#2A5CAA] text-white font-bold text-xs flex items-center justify-center font-mono">
@@ -688,7 +735,7 @@ export function QueueBoard({
           {/* ================================================================ */}
           {/* Column 4: Front-Desk Billing                                     */}
           {/* ================================================================ */}
-          <div className="w-[310px] shrink-0 bg-[#FFEBEA]/40 rounded-3xl p-4 border border-[#FF453A]/30 space-y-4 shadow-2xs">
+          <div className="flex-1 min-w-[265px] xl:min-w-[275px] max-w-[340px] shrink-0 xl:shrink bg-[#FFEBEA]/40 rounded-3xl p-3.5 xl:p-4 border border-[#FF453A]/30 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-[#FF453A] text-white font-bold text-xs flex items-center justify-center font-mono">
@@ -785,7 +832,7 @@ export function QueueBoard({
           {/* ================================================================ */}
           {/* Column 5: Completed Visits                                       */}
           {/* ================================================================ */}
-          <div className="w-[310px] shrink-0 bg-[#E8F8EE]/50 rounded-3xl p-4 border border-[#30D158]/40 space-y-4 shadow-2xs">
+          <div className="flex-1 min-w-[265px] xl:min-w-[275px] max-w-[340px] shrink-0 xl:shrink bg-[#E8F8EE]/50 rounded-3xl p-3.5 xl:p-4 border border-[#30D158]/40 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center font-mono">
@@ -838,88 +885,16 @@ export function QueueBoard({
       </div>
 
       {/* ================================================================ */}
-      {/* Bottom Drawer: No-Shows & Cancelled (With Instant Re-instate)    */}
+      {/* Cancelled & No-Show Patients Modal (Revive to Waiting / Booked)  */}
       {/* ================================================================ */}
-      {inactiveItems.length > 0 && (
-        <div className="rounded-3xl border border-[#E4E4E7] bg-white overflow-hidden shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setShowInactive(!showInactive)}
-            className="w-full p-4 flex items-center justify-between text-left hover:bg-[#F9FAFB] transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs font-mono">
-                {inactiveItems.length}
-              </div>
-              <div>
-                <p className="text-sm font-extrabold text-[#1C1C1E]">
-                  Inactive Patients Today ({inactiveItems.length} No-Show / Cancelled)
-                </p>
-                <p className="text-xs text-[#6B7280]">
-                  Missed or cancelled slots. If a patient shows up late (e.g. 7:40 PM), click &quot;Re-instate &amp; Check In&quot; to give them the next active Serial #.
-                </p>
-              </div>
-            </div>
-            {showInactive ? (
-              <ChevronUp className="w-5 h-5 text-[#6B7280]" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-[#6B7280]" />
-            )}
-          </button>
-
-          {showInactive && (
-            <div className="p-4 border-t border-[#E4E4E7] bg-[#FAFAFA] space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {inactiveItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3.5 rounded-2xl bg-white border border-[#E4E4E7] shadow-2xs space-y-2.5 flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[11px] font-black uppercase tracking-wider ${
-                            item.status === "no_show"
-                              ? "bg-amber-100 text-amber-800 border border-amber-300"
-                              : "bg-rose-100 text-rose-800 border border-rose-300"
-                          }`}
-                        >
-                          {item.status === "no_show" ? "No-Show" : "Cancelled"}
-                        </span>
-                        <span className="text-xs font-mono font-bold text-[#6B7280]">
-                          Booked: {item.startTime}
-                        </span>
-                      </div>
-                      <p className="font-extrabold text-sm text-[#1C1C1E] mt-2">
-                        {item.patientName}
-                      </p>
-                      <p className="text-xs font-mono text-[#6B7280]">
-                        Card: {item.patientCard} • {item.patientPhone}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleCheckIn(item.appointmentId)}
-                      disabled={processingId === item.appointmentId}
-                      className="w-full mt-1 py-2 px-3 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-xs"
-                    >
-                      {processingId === item.appointmentId ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <>
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Patient Arrived Late → Check In (Next SL)</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <InactivePatientsModal
+        isOpen={showInactiveModal}
+        onClose={() => setShowInactiveModal(false)}
+        inactiveItems={inactiveItems}
+        onCheckInLate={handleCheckIn}
+        onRevertToBooked={handleRevertToBooked}
+        processingId={processingId}
+      />
     </div>
   );
 }
