@@ -13,6 +13,7 @@ export interface UpdateGeneralSettingsInput {
   phone?: string;
   email?: string;
   address?: string;
+  logoKey?: string | null;
   brandColor?: string;
   slotGranularityMinutes: number;
   bookingBufferMinutes: number;
@@ -41,6 +42,7 @@ export async function updateGeneralSettingsAction(input: UpdateGeneralSettingsIn
       phone: input.phone || null,
       email: input.email || null,
       address: input.address || null,
+      ...(input.logoKey !== undefined ? { logoKey: input.logoKey || null } : {}),
       brandColor: input.brandColor || null,
       slotGranularityMinutes: input.slotGranularityMinutes,
       bookingBufferMinutes: input.bookingBufferMinutes,
@@ -59,6 +61,77 @@ export async function updateGeneralSettingsAction(input: UpdateGeneralSettingsIn
 
   revalidatePath("/app/settings");
   revalidatePath("/app");
+  return { success: true };
+}
+
+export async function uploadClinicLogoAction(formData: FormData) {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "clinic_settings")) {
+    throw new Error("Only Chamber Admins may modify clinic configuration");
+  }
+
+  const file = formData.get("logo") as File | null;
+  if (!file || !(file instanceof File)) {
+    throw new Error("No valid logo file provided");
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("Logo file must be smaller than 5 MB");
+  }
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error("Logo must be a JPG, PNG, WebP, or SVG image");
+  }
+
+  const { uploadMedicalFile, getFileUrl } = await import("@/lib/s3");
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+
+  const result = await uploadMedicalFile(
+    tenant.slug,
+    `logo_${file.name}`,
+    buffer,
+    file.type
+  );
+
+  await db
+    .update(schema.tenants)
+    .set({
+      logoKey: result.s3Key,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.tenants.id, tenant.id));
+
+  revalidatePath("/app/settings");
+  revalidatePath("/app");
+
+  return {
+    success: true,
+    logoKey: result.s3Key,
+    logoUrl: getFileUrl(result.s3Key),
+  };
+}
+
+export async function removeClinicLogoAction() {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "clinic_settings")) {
+    throw new Error("Only Chamber Admins may modify clinic configuration");
+  }
+
+  await db
+    .update(schema.tenants)
+    .set({
+      logoKey: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.tenants.id, tenant.id));
+
+  revalidatePath("/app/settings");
+  revalidatePath("/app");
+
   return { success: true };
 }
 

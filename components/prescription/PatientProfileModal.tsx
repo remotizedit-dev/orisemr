@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { getPatientProfileHistoryAction } from "@/app/(tenant)/app/patients/actions";
+import { getPatientProfileHistoryAction, deletePatientAttachmentAction } from "@/app/(tenant)/app/patients/actions";
 import {
   AlertCircle,
   Calendar,
@@ -81,6 +81,25 @@ export function PatientProfileModal({
   const totalDue = invoices
     .filter((inv: any) => inv.status === "due" || inv.status === "partial")
     .reduce((acc: number, inv: any) => acc + (inv.totalBdt - inv.paidBdt), 0);
+
+  async function handleDeleteAttachment(attachmentId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this clinical document?")) return;
+    try {
+      await deletePatientAttachmentAction(attachmentId);
+      setProfileData((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              attachments: prev.attachments.filter((a: any) => a.id !== attachmentId),
+            }
+          : prev
+      );
+      toast.success("Document deleted successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete document");
+    }
+  }
 
   return (
     <AnimatePresence>
@@ -393,7 +412,7 @@ export function PatientProfileModal({
                       No X-rays, blood reports, or clinical documents uploaded yet.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                       {attachments.map((att: any) => {
                         const isImg =
                           att.contentType?.startsWith("image/") ||
@@ -402,49 +421,77 @@ export function PatientProfileModal({
                         return (
                           <div
                             key={att.id}
-                            className="p-3.5 rounded-2xl bg-white border border-[#E4E4E7] shadow-xs space-y-2.5 flex flex-col justify-between hover:border-[#2A5CAA]/40 transition group"
+                            className="group relative rounded-xl bg-white border border-[#E4E4E7] hover:border-[#2A5CAA] shadow-2xs hover:shadow-md p-2 flex flex-col justify-between transition overflow-hidden"
                           >
-                            <div className="space-y-2">
-                              {isImg && (
-                                <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center relative">
-                                  <img
-                                    src={att.url}
-                                    alt={att.title}
-                                    className="w-full h-full object-contain"
-                                  />
+                            {/* Delete Cross Icon */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteAttachment(att.id, e)}
+                              className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-black/60 hover:bg-rose-600 text-white flex items-center justify-center transition opacity-70 group-hover:opacity-100 z-10 cursor-pointer shadow-xs"
+                              title="Delete document"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+
+                            {/* Thumbnail */}
+                            <div className="w-full h-20 rounded-lg bg-[#0F172A] relative overflow-hidden flex items-center justify-center">
+                              {isImg ? (
+                                <img
+                                  src={att.url}
+                                  alt={att.title}
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center justify-center text-slate-300 gap-1 p-1">
+                                  <FileText className="w-5 h-5 text-[#2A5CAA]" />
+                                  <span className="text-[8px] uppercase font-bold text-center line-clamp-1">
+                                    {att.contentType?.split("/")[1] || "DOC"}
+                                  </span>
                                 </div>
                               )}
 
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#E8EEF7] text-[#2A5CAA]">
-                                  {att.kind.replace("_", " ")}
-                                </span>
-                                <span className="font-mono text-[10px] text-[#6B7280]">
+                              <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
+                                {att.kind.replace("_", " ")}
+                              </span>
+                            </div>
+
+                            {/* Details */}
+                            <div className="pt-1.5 space-y-0.5">
+                              <div className="flex items-center justify-between text-[9px]">
+                                <span className="font-mono text-[#2A5CAA] font-bold truncate max-w-[60px]">
                                   {att.reportCode || "DOC"}
+                                </span>
+                                <span className="text-[#8E8E93]">
+                                  {new Date(att.uploadedAt).toLocaleDateString([], {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
                                 </span>
                               </div>
 
-                              <p className="font-bold text-sm text-[#1C1C1E] line-clamp-2 group-hover:text-[#2A5CAA]">
-                                {att.title}
+                              <p
+                                className="font-bold text-[11px] text-[#1C1C1E] truncate group-hover:text-[#2A5CAA] transition"
+                                title={att.title}
+                              >
+                                {att.title || "Document"}
                               </p>
-                              <p className="text-[11px] text-[#6B7280]">
-                                {new Date(att.uploadedAt).toLocaleDateString([], {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </p>
-                            </div>
 
-                            <a
-                              href={att.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="w-full py-2 px-3 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#2A5CAA] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              <span>Open Full Document ↗</span>
-                            </a>
+                              <div className="pt-1 flex items-center justify-between border-t border-[#F4F4F5]">
+                                <a
+                                  href={att.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  <span>View</span>
+                                </a>
+
+                                <span className="text-[9px] text-[#6B7280]">
+                                  {att.sizeBytes ? `${Math.round(att.sizeBytes / 1024)} KB` : ""}
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         );
                       })}

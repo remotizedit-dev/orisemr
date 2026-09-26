@@ -99,7 +99,8 @@ export async function uploadMedicalFile(
 /**
  * Returns accessible URL for an attachment S3 key
  */
-export function getFileUrl(s3Key: string): string {
+export function getFileUrl(s3Key: string | null | undefined): string {
+  if (!s3Key) return "";
   if (s3Key.startsWith("http://") || s3Key.startsWith("https://") || s3Key.startsWith("/")) {
     return s3Key;
   }

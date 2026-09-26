@@ -5,6 +5,7 @@ import * as schema from "@/db/schema";
 import { BarcodeSvg } from "@/components/barcode/BarcodeSvg";
 import { AutoPrintTrigger } from "@/components/print/AutoPrintTrigger";
 import { formatDhakaDate } from "@/lib/utils";
+import { getFileUrl } from "@/lib/s3";
 
 export default async function PrintPrescriptionPage({
   params,
@@ -60,10 +61,19 @@ export default async function PrintPrescriptionPage({
       {/* Clinic Header / Letterhead */}
       {tenant.rxPrintLetterhead && (
         <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight">{tenant.name}</h1>
-            <p className="text-xs text-gray-700">{tenant.address}</p>
-            <p className="text-xs text-gray-700">Phone: {tenant.phone || "—"}</p>
+          <div className="flex items-center gap-3.5">
+            {tenant.logoKey && (
+              <img
+                src={getFileUrl(tenant.logoKey)}
+                alt={tenant.name}
+                className="w-16 h-16 object-contain shrink-0"
+              />
+            )}
+            <div>
+              <h1 className="text-2xl font-black tracking-tight">{tenant.name}</h1>
+              <p className="text-xs text-gray-700">{tenant.address}</p>
+              <p className="text-xs text-gray-700">Phone: {tenant.phone || "—"}</p>
+            </div>
           </div>
           <div className="text-right">
             <h2 className="text-base font-bold">

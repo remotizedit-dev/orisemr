@@ -10,6 +10,7 @@ import { PatientProfileModal } from "./PatientProfileModal";
 import { UploadReportModal } from "./UploadReportModal";
 import { checkMedicineAllergy, type AllergyCheckResult } from "@/lib/clinical-flags";
 import { savePrescriptionAction } from "@/app/(tenant)/app/prescriptions/actions";
+import { deletePatientAttachmentAction } from "@/app/(tenant)/app/patients/actions";
 import {
   AlertCircle,
   AlertTriangle,
@@ -350,6 +351,18 @@ export function PrescriptionBuilder({
   const oeSuggestions = quickTexts.filter((q) => q.kind === "examination");
   const dxSuggestions = quickTexts.filter((q) => q.kind === "diagnosis");
   const ixSuggestions = quickTexts.filter((q) => q.kind === "investigation");
+
+  async function handleDeleteReport(reportId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this clinical document?")) return;
+    try {
+      await deletePatientAttachmentAction(reportId);
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      toast.success("Clinical document deleted successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete document");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -717,15 +730,6 @@ export function PrescriptionBuilder({
               <User className="w-4 h-4 text-[#2A5CAA]" />
               <span>View Profile &amp; History</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setIsUploadModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer"
-            >
-              <Camera className="w-4 h-4" />
-              <span>Upload Report / X-Ray (S3)</span>
-            </button>
           </div>
         </div>
 
@@ -804,10 +808,10 @@ export function PrescriptionBuilder({
             <button
               type="button"
               onClick={() => setIsUploadModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
             >
               <Camera className="w-3.5 h-3.5" />
-              <span>+ Upload / Take Photo</span>
+              <span>+ Upload / Capture</span>
             </button>
 
             {reports.length > 0 && (
@@ -831,31 +835,29 @@ export function PrescriptionBuilder({
         {isReportsExpanded && (
           <>
             {reports.length === 0 ? (
-              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-dashed border-[#E4E4E7] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+              <div
+                onClick={() => setIsUploadModalOpen(true)}
+                className="p-3.5 rounded-2xl bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-dashed border-[#CBD5E1] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left cursor-pointer transition group"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                    <FileText className="w-5 h-5" />
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center text-[#2A5CAA] shrink-0 transition">
+                    <Camera className="w-4 h-4" />
                   </div>
                   <div>
                     <p className="text-xs font-bold text-[#1C1C1E]">
                       No radiographs or clinical documents uploaded for this patient yet
                     </p>
                     <p className="text-[11px] text-[#6B7280]">
-                      Capture intraoral photos with dental camera/webcam or upload X-ray images (stored in S3)
+                      Click here or use &quot;+ Upload / Capture&quot; to add X-rays, intraoral photos, or lab reports
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsUploadModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-[#E8EEF7] text-[#2A5CAA] border border-[#2A5CAA]/30 text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-2xs"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>Capture / Upload Now</span>
-                </button>
+                <span className="text-xs font-bold text-[#2A5CAA] group-hover:underline shrink-0">
+                  + Add Document
+                </span>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 pt-1">
                 {reports.map((report) => {
                   const isImg =
                     report.contentType?.startsWith("image/") ||
@@ -864,8 +866,18 @@ export function PrescriptionBuilder({
                   return (
                     <div
                       key={report.id}
-                      className="group relative rounded-2xl border border-[#E4E4E7] hover:border-[#2A5CAA] bg-white p-2.5 transition shadow-2xs hover:shadow-md flex flex-col justify-between overflow-hidden"
+                      className="group relative rounded-xl border border-[#E4E4E7] hover:border-[#2A5CAA] bg-white p-2 transition shadow-2xs hover:shadow-md flex flex-col justify-between overflow-hidden"
                     >
+                      {/* Delete Cross Icon */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteReport(report.id, e)}
+                        className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-black/60 hover:bg-rose-600 text-white flex items-center justify-center transition opacity-70 group-hover:opacity-100 z-10 cursor-pointer shadow-xs"
+                        title="Delete document"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+
                       {/* Thumbnail */}
                       <div
                         onClick={() => {
@@ -877,7 +889,7 @@ export function PrescriptionBuilder({
                             window.open(report.url, "_blank");
                           }
                         }}
-                        className="w-full h-24 rounded-xl bg-[#0F172A] relative overflow-hidden flex items-center justify-center cursor-pointer group/thumb"
+                        className="w-full h-20 rounded-lg bg-[#0F172A] relative overflow-hidden flex items-center justify-center cursor-pointer group/thumb"
                       >
                         {isImg ? (
                           <>
@@ -887,30 +899,30 @@ export function PrescriptionBuilder({
                               className="w-full h-full object-contain transition-transform duration-300 group-hover/thumb:scale-105"
                               loading="lazy"
                             />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white">
-                              <Search className="w-4 h-4" />
-                              <span className="text-[10px] font-bold">Inspect</span>
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-1 text-white">
+                              <Search className="w-3.5 h-3.5" />
+                              <span className="text-[9px] font-bold">Inspect</span>
                             </div>
                           </>
                         ) : (
-                          <div className="flex flex-col items-center justify-center text-slate-300 gap-1 p-2">
-                            <FileText className="w-6 h-6 text-[#2A5CAA]" />
-                            <span className="text-[9px] uppercase font-bold text-center line-clamp-1">
+                          <div className="flex flex-col items-center justify-center text-slate-300 gap-1 p-1">
+                            <FileText className="w-5 h-5 text-[#2A5CAA]" />
+                            <span className="text-[8px] uppercase font-bold text-center line-clamp-1">
                               {report.contentType?.split("/")[1] || "DOC"}
                             </span>
                           </div>
                         )}
 
                         {/* Kind Badge Tag */}
-                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
+                        <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
                           {report.kind.replace("_", " ")}
                         </span>
                       </div>
 
                       {/* Details */}
-                      <div className="pt-2 space-y-1">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="font-mono text-[#2A5CAA] font-bold">
+                      <div className="pt-1.5 space-y-0.5">
+                        <div className="flex items-center justify-between text-[9px]">
+                          <span className="font-mono text-[#2A5CAA] font-bold truncate max-w-[60px]">
                             {report.reportCode || "DOC"}
                           </span>
                           <span className="text-[#8E8E93]">
@@ -921,7 +933,7 @@ export function PrescriptionBuilder({
                           </span>
                         </div>
                         <p
-                          className="text-xs font-bold text-[#1C1C1E] line-clamp-1 group-hover:text-[#2A5CAA] transition"
+                          className="text-[11px] font-bold text-[#1C1C1E] truncate group-hover:text-[#2A5CAA] transition"
                           title={report.title || "Document"}
                         >
                           {report.title || "Document"}
@@ -936,13 +948,13 @@ export function PrescriptionBuilder({
                                 setLightboxZoom(1);
                                 setLightboxRotation(0);
                               }}
-                              className="text-[11px] font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
+                              className="text-[10px] font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
                             >
                               <Search className="w-3 h-3" />
                               <span>Inspect</span>
                             </button>
                           ) : (
-                            <span className="text-[10px] text-[#6B7280]">
+                            <span className="text-[9px] text-[#6B7280]">
                               {report.sizeBytes ? `${Math.round(report.sizeBytes / 1024)} KB` : "File"}
                             </span>
                           )}
@@ -951,7 +963,7 @@ export function PrescriptionBuilder({
                             href={report.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="p-1 rounded-md text-[#8E8E93] hover:text-[#2A5CAA] hover:bg-[#E8EEF7] transition"
+                            className="p-0.5 rounded text-[#8E8E93] hover:text-[#2A5CAA] hover:bg-[#E8EEF7] transition"
                             title="Open in new window ↗"
                           >
                             <ArrowRight className="w-3 h-3 -rotate-45" />

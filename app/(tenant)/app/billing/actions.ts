@@ -74,6 +74,56 @@ export async function recordPaymentAction(input: RecordPaymentInput) {
         updatedAt: new Date(),
       })
       .where(eq(schema.invoices.id, invoice.id));
+
+    // 4. Send Payment Confirmation Email if patient has an email
+    const [patient] = await tx
+      .select()
+      .from(schema.patients)
+      .where(eq(schema.patients.id, invoice.patientId))
+      .limit(1);
+
+    if (patient?.email) {
+      const items = await tx
+        .select()
+        .from(schema.invoiceItems)
+        .where(eq(schema.invoiceItems.invoiceId, invoice.id))
+        .orderBy(schema.invoiceItems.sortOrder);
+
+      const { sendEmailInBackground, renderPaymentReceiptHtml } = await import("@/lib/email/mailer");
+      const { getFileUrl } = await import("@/lib/s3");
+
+      sendEmailInBackground({
+        to: patient.email,
+        subject: `Payment Receipt: ${invoice.invoiceCode} - ${tenant.name}`,
+        html: renderPaymentReceiptHtml({
+          patientName: patient.name,
+          cardNumber: patient.cardNumber,
+          invoiceCode: invoice.invoiceCode || "INV",
+          clinicName: tenant.name,
+          clinicLogoUrl: tenant.logoKey ? getFileUrl(tenant.logoKey) : undefined,
+          clinicPhone: tenant.phone || undefined,
+          clinicAddress: tenant.address || undefined,
+          date: new Date().toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          }),
+          items: items.map((it) => ({
+            description: it.description,
+            quantity: it.quantity,
+            unitPriceBdt: it.unitPriceBdt,
+            totalBdt: it.totalBdt,
+          })),
+          subtotalBdt: invoice.subtotalBdt,
+          discountBdt: invoice.discountBdt,
+          totalBdt: invoice.totalBdt,
+          paidAmount: input.amountBdt,
+          dueAmount: Math.max(0, invoice.totalBdt - newPaidBdt),
+          paymentMethod: input.method,
+          paymentStatus: newStatus === "paid" ? "PAID" : "PARTIALLY PAID",
+        }),
+      });
+    }
   });
 
   revalidatePath("/app/billing");
@@ -243,8 +293,50 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
           );
       }
 
-      return created.id;
+      return { id: created.id, invoiceCode };
     });
+
+    if (patient.email) {
+      const { sendEmailInBackground, renderPaymentReceiptHtml } = await import("@/lib/email/mailer");
+      const { getFileUrl } = await import("@/lib/s3");
+
+      sendEmailInBackground({
+        to: patient.email,
+        subject: `Payment Receipt: ${createdInvoiceId.invoiceCode} - ${tenant.name}`,
+        html: renderPaymentReceiptHtml({
+          patientName: patient.name,
+          cardNumber: patient.cardNumber,
+          invoiceCode: createdInvoiceId.invoiceCode,
+          clinicName: tenant.name,
+          clinicLogoUrl: tenant.logoKey ? getFileUrl(tenant.logoKey) : undefined,
+          clinicPhone: tenant.phone || undefined,
+          clinicAddress: tenant.address || undefined,
+          date: new Date().toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          }),
+          items: input.items.map((it) => ({
+            description: it.description,
+            quantity: it.quantity,
+            unitPriceBdt: it.unitPriceBdt,
+            totalBdt: it.quantity * it.unitPriceBdt,
+          })),
+          subtotalBdt,
+          discountBdt,
+          totalBdt,
+          paidAmount: advanceAmount,
+          dueAmount: Math.max(0, totalBdt - advanceAmount),
+          paymentMethod: input.advancePayment?.method || "cash",
+          paymentStatus:
+            advanceAmount >= totalBdt
+              ? "PAID"
+              : advanceAmount > 0
+              ? "PARTIALLY PAID"
+              : "DUE",
+        }),
+      });
+    }
 
     revalidatePath("/app/billing");
     revalidatePath("/app/billing/dues");
@@ -252,7 +344,7 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
       revalidatePath("/app/queue");
     }
 
-    return { success: true, invoiceId: createdInvoiceId };
+    return { success: true, invoiceId: createdInvoiceId.id };
   } catch (error: any) {
     console.error("createInvoiceAction failed:", error);
     throw new Error(error?.message || "Failed to create invoice. Please check item details.");

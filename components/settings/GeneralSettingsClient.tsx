@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Save } from "lucide-react";
+import { Check, Image as ImageIcon, Loader2, Save, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { updateGeneralSettingsAction } from "@/app/(tenant)/app/settings/actions";
+import {
+  updateGeneralSettingsAction,
+  uploadClinicLogoAction,
+  removeClinicLogoAction,
+} from "@/app/(tenant)/app/settings/actions";
 
 interface Props {
   tenant: {
@@ -13,6 +17,7 @@ interface Props {
     phone: string | null;
     email: string | null;
     address: string | null;
+    logoKey: string | null;
     brandColor: string | null;
     slotGranularityMinutes: number;
     bookingBufferMinutes: number;
@@ -30,11 +35,26 @@ interface Props {
 
 export default function GeneralSettingsClient({ tenant }: Props) {
   const router = useRouter();
+  const [logoKey, setLogoKey] = useState<string | null>(tenant.logoKey || null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(() => {
+    if (!tenant.logoKey) return null;
+    if (
+      tenant.logoKey.startsWith("http://") ||
+      tenant.logoKey.startsWith("https://") ||
+      tenant.logoKey.startsWith("/")
+    ) {
+      return tenant.logoKey;
+    }
+    return `/uploads/${tenant.logoKey}`;
+  });
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
   const [formData, setFormData] = useState({
     name: tenant.name,
     phone: tenant.phone || "",
     email: tenant.email || "",
     address: tenant.address || "",
+    logoKey: tenant.logoKey || null,
     brandColor: tenant.brandColor || "#2A5CAA",
     slotGranularityMinutes: tenant.slotGranularityMinutes,
     bookingBufferMinutes: tenant.bookingBufferMinutes,
@@ -51,11 +71,53 @@ export default function GeneralSettingsClient({ tenant }: Props) {
 
   const [isSaving, setIsSaving] = useState(false);
 
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingLogo(true);
+      const fd = new FormData();
+      fd.append("logo", file);
+      const res = await uploadClinicLogoAction(fd);
+      setLogoKey(res.logoKey);
+      setLogoPreview(res.logoUrl);
+      setFormData((prev) => ({ ...prev, logoKey: res.logoKey }));
+      toast.success("Clinic logo updated successfully!");
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload logo");
+    } finally {
+      setIsUploadingLogo(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleRemoveLogo() {
+    if (!window.confirm("Are you sure you want to remove the clinic logo?")) return;
+    try {
+      setIsUploadingLogo(true);
+      await removeClinicLogoAction();
+      setLogoKey(null);
+      setLogoPreview(null);
+      setFormData((prev) => ({ ...prev, logoKey: null }));
+      toast.success("Clinic logo removed");
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove logo");
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     try {
       setIsSaving(true);
-      await updateGeneralSettingsAction(formData);
+      await updateGeneralSettingsAction({
+        ...formData,
+        logoKey,
+      });
       toast.success("Settings saved successfully!");
       router.refresh();
     } catch (err: any) {
@@ -67,6 +129,74 @@ export default function GeneralSettingsClient({ tenant }: Props) {
 
   return (
     <form onSubmit={handleSave} className="space-y-6">
+      {/* Clinic Logo & Branding */}
+      <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-[#1C1C1E] uppercase tracking-wider">
+            Clinic Logo &amp; Branding
+          </h3>
+          <p className="text-xs text-[#6B7280]">
+            This logo will automatically appear on printed prescriptions, billing invoices/receipts, and automated patient emails.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 pt-1">
+          {/* Logo Preview Card */}
+          <div className="w-40 h-24 rounded-2xl border-2 border-dashed border-[#CBD5E1] bg-white flex flex-col items-center justify-center p-2 relative overflow-hidden shrink-0 shadow-2xs group">
+            {logoPreview ? (
+              <img
+                src={logoPreview}
+                alt="Clinic Logo Preview"
+                className="max-h-full max-w-full object-contain"
+              />
+            ) : (
+              <div className="text-center text-[#9CA3AF] space-y-1">
+                <ImageIcon className="w-7 h-7 mx-auto stroke-1" />
+                <span className="text-[10px] font-semibold block">No Logo Set</span>
+              </div>
+            )}
+
+            {isUploadingLogo && (
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex items-center justify-center">
+                <Loader2 className="w-5 h-5 animate-spin text-[#2A5CAA]" />
+              </div>
+            )}
+          </div>
+
+          {/* Upload Controls */}
+          <div className="space-y-2.5 flex-1 text-center sm:text-left">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+              <label className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer">
+                <Upload className="w-3.5 h-3.5" />
+                <span>{logoKey ? "Change Logo" : "Upload Clinic Logo"}</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  onChange={handleLogoUpload}
+                  disabled={isUploadingLogo}
+                  className="hidden"
+                />
+              </label>
+
+              {logoKey && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  disabled={isUploadingLogo}
+                  className="px-3 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove</span>
+                </button>
+              )}
+            </div>
+
+            <p className="text-[11px] text-[#6B7280]">
+              Recommended: Crisp square or horizontal logo (PNG, JPG, or SVG) with transparent or white background. Max 5 MB.
+            </p>
+          </div>
+        </div>
+      </div>
       {/* Clinic Identity */}
       <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
         <h3 className="text-sm font-bold text-[#1C1C1E] uppercase tracking-wider">

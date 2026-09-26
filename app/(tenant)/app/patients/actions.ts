@@ -258,6 +258,47 @@ export async function getPatientAttachmentsAction(patientId: string) {
   }));
 }
 
+export async function deletePatientAttachmentAction(attachmentId: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  const [existing] = await db
+    .select({ id: schema.attachments.id, patientId: schema.attachments.patientId })
+    .from(schema.attachments)
+    .where(
+      and(
+        eq(schema.attachments.id, attachmentId),
+        eq(schema.attachments.tenantId, tenant.id),
+        sql`${schema.attachments.deletedAt} IS NULL`
+      )
+    )
+    .limit(1);
+
+  if (!existing) {
+    throw new Error("Attachment not found or already deleted");
+  }
+
+  await db
+    .update(schema.attachments)
+    .set({
+      deletedAt: new Date(),
+      deletedBy: user.id,
+    })
+    .where(
+      and(
+        eq(schema.attachments.id, attachmentId),
+        eq(schema.attachments.tenantId, tenant.id)
+      )
+    );
+
+  revalidatePath("/app/patients");
+  if (existing.patientId) {
+    revalidatePath(`/app/patients/${existing.patientId}`);
+  }
+  revalidatePath("/app/prescriptions");
+
+  return { success: true };
+}
+
 export async function getPatientProfileHistoryAction(patientId: string) {
   const { tenant } = await requireClinicStaff();
   const { getFileUrl } = await import("@/lib/s3");

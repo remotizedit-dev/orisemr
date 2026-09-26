@@ -5,6 +5,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { PatientHeaderActions } from "@/components/patients/PatientHeaderActions";
+import { PatientDocumentsTray } from "@/components/patients/PatientDocumentsTray";
 import { formatBdPhone, formatBdt, formatDhakaDate } from "@/lib/utils";
 import { getFileUrl } from "@/lib/s3";
 import {
@@ -407,77 +408,10 @@ export default async function PatientProfilePage({
           </div>
 
           {/* Clinical Reports, X-Rays & Uploaded Documents */}
-          <div className="glass-panel rounded-2xl border border-[#E4E4E7] overflow-hidden">
-            <div className="p-4 border-b border-[#E4E4E7] flex items-center justify-between">
-              <h2 className="text-sm font-bold text-[#1C1C1E] flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-[#2A5CAA]" />
-                <span>Clinical Reports, X-Rays &amp; Documents ({enrichedAttachments.length})</span>
-              </h2>
-            </div>
-
-            <div className="p-4">
-              {enrichedAttachments.length === 0 ? (
-                <div className="p-8 text-center text-xs text-[#6B7280] bg-[#F9FAFB] rounded-xl border border-dashed border-[#E4E4E7]">
-                  No clinical documents, X-rays, or lab reports uploaded yet for this patient.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {enrichedAttachments.map((att) => {
-                    const isImg =
-                      att.contentType?.startsWith("image/") ||
-                      /\.(jpg|jpeg|png|webp|gif)$/i.test(att.s3Key);
-
-                    return (
-                      <div
-                        key={att.id}
-                        className="p-3.5 rounded-2xl bg-white border border-[#E4E4E7] shadow-2xs space-y-3 flex flex-col justify-between hover:border-[#2A5CAA]/40 transition group"
-                      >
-                        <div className="space-y-2">
-                          {isImg && (
-                            <div className="w-full h-36 rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center relative">
-                              <img
-                                src={att.url}
-                                alt={att.title || "Clinical Report"}
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#E8EEF7] text-[#2A5CAA]">
-                              {att.kind.replace("_", " ")}
-                            </span>
-                            <span className="font-mono text-[10px] text-[#6B7280]">
-                              {att.reportCode || "DOC"}
-                            </span>
-                          </div>
-
-                          <h3 className="font-bold text-sm text-[#1C1C1E] line-clamp-1 group-hover:text-[#2A5CAA]">
-                            {att.title}
-                          </h3>
-
-                          <div className="flex items-center justify-between text-[11px] text-[#6B7280]">
-                            <span>{formatDhakaDate(att.uploadedAt, "dd MMM yyyy")}</span>
-                            {att.uploadedByName && <span>By {att.uploadedByName}</span>}
-                          </div>
-                        </div>
-
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full py-2 px-3 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#2A5CAA] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>View Full Document ↗</span>
-                        </a>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          <PatientDocumentsTray
+            patientId={patient.id}
+            initialAttachments={enrichedAttachments}
+          />
         </div>
 
         {/* Right Column (1 col): Invoices & Outstanding Due Balance */}
