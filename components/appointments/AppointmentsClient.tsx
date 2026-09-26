@@ -20,7 +20,7 @@ import {
   Check,
   Armchair,
 } from "lucide-react";
-import { formatBdt } from "@/lib/utils";
+import { formatBdt, formatDhakaTime } from "@/lib/utils";
 import {
   updateAppointmentStatusAction,
   advanceAppointmentQueueAction,
@@ -32,6 +32,7 @@ interface AppointmentItem {
   appointmentCode: string;
   startTime: string;
   endTime: string;
+  durationMinutes?: number;
   status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
   queueStatus?: "booked" | "waiting" | "in_chair" | "billing" | "done" | null;
   serialNo?: number | null;
@@ -145,13 +146,7 @@ export default function AppointmentsClient({
   }
 
   function formatTime(isoStr: string) {
-    const d = new Date(isoStr);
-    return d.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "Asia/Dhaka",
-    });
+    return formatDhakaTime(isoStr);
   }
 
   return (
@@ -287,13 +282,18 @@ export default function AppointmentsClient({
                 {/* Left: Time and Patient Info */}
                 <div className="flex items-start gap-4">
                   {/* Time Badge */}
-                  <div className="min-w-[110px] text-center p-3 rounded-2xl bg-[#F4F4F5] border border-[#E4E4E7]">
-                    <span className="text-sm font-black text-[#1C1C1E] block">
+                  <div className="min-w-[120px] text-center p-3 rounded-2xl bg-[#F4F4F5] border border-[#E4E4E7] shadow-2xs">
+                    <span className="text-sm font-black text-[#1C1C1E] block font-mono">
                       {formatTime(apt.startTime)}
                     </span>
-                    <span className="text-xs text-[#6B7280] font-semibold block mt-0.5">
+                    <span className="text-xs text-[#6B7280] font-semibold block mt-0.5 font-mono">
                       to {formatTime(apt.endTime)}
                     </span>
+                    {apt.durationMinutes ? (
+                      <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-[#E4E4E7] text-[#4B5563]">
+                        {apt.durationMinutes} mins
+                      </span>
+                    ) : null}
                   </div>
 
                   {/* Patient Details */}

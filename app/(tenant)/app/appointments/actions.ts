@@ -123,15 +123,29 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
     });
   }
 
-  const dayStart = new Date(`${dateStr}T00:00:00+06:00`);
+  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  if (dateStr < todayDhakaStr) {
+    return { slots: [] };
+  }
+
+  // If booking for today, reference time is current system time (Asia/Dhaka) so past times are hidden.
+  // If booking for a future date, reference time is start of that day.
+  const referenceTime =
+    dateStr === todayDhakaStr ? new Date() : new Date(`${dateStr}T00:00:00+06:00`);
 
   const slots = calculateAvailableSlots({
     date: dateStr,
     totalDurationMinutes: durationMinutes,
     slotGranularityMinutes: tenant.slotGranularityMinutes || 10,
     bookingBufferMinutes: 0, // Staff can book adjacent slots without artificial buffer starvation
-    minLeadMinutes: 0, // Staff can view and book all shift slots across the day
-    referenceTime: dayStart, // Reference at day start so earlier daytime slots remain visible and selectable by staff
+    minLeadMinutes: 0,
+    referenceTime,
     selectedDoctorId: doctorId,
     candidates,
   });

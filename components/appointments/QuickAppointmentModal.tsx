@@ -19,7 +19,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatBdt, formatBdPhone } from "@/lib/utils";
+import { formatBdt, formatBdPhone, formatDhakaTime, formatDhakaDate } from "@/lib/utils";
 import {
   getStaffSlotsAction,
   createStaffAppointmentAction,
@@ -675,15 +675,17 @@ export function QuickAppointmentModal({
         <div className="px-6 py-4 border-t border-[#E4E4E7] flex items-center justify-between bg-[#FAFAFA]">
           <div className="text-xs text-[#6B7280]">
             {selectedSlot ? (
-              <span className="font-semibold text-emerald-700">
-                ✓ Slot confirmed for {selectedDate}
+              <span className="font-extrabold text-emerald-800 flex items-center gap-1.5 font-mono">
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Slot: {formatDhakaTime(selectedSlot.startTime)} - {formatDhakaTime(selectedSlot.endTime)} ({selectedDate})</span>
               </span>
             ) : isOverbooking ? (
-              <span className="font-semibold text-amber-700">
-                ⚠ Overbooked for {customStartTime}
+              <span className="font-extrabold text-amber-800 flex items-center gap-1.5 font-mono">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                <span>Overbooking: {customStartTime} - {customEndTime} ({selectedDate})</span>
               </span>
             ) : (
-              <span>Select an available time slot</span>
+              <span className="text-[#64748B]">Please select an available time slot</span>
             )}
           </div>
 

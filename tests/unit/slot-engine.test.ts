@@ -162,4 +162,63 @@ describe("Slot Engine Unit Tests", () => {
       expect(slot.doctorId).toBe("doc-free");
     }
   });
+
+  it("Filters past times (10:00-11:20) when system time is 11:30, and suppresses overlapping 10-min slots", () => {
+    const testDate = "2026-09-27";
+    const doctorId = "dr-test";
+
+    const doctor: CandidateDoctor = {
+      doctorId,
+      sortOrder: 1,
+      appointmentCountToday: 1,
+      windows: [
+        { startTime: "10:00", endTime: "14:00" },
+        { startTime: "17:00", endTime: "22:00" },
+      ],
+      // Someone booked 17:00 to 17:30 (30 mins)
+      busyIntervals: [
+        {
+          startTime: parseWallClockTimeToDate(testDate, "17:00"),
+          endTime: parseWallClockTimeToDate(testDate, "17:30"),
+        },
+      ],
+    };
+
+    // System time is 11:30 AM
+    const systemTime = parseWallClockTimeToDate(testDate, "11:30");
+
+    const slots = calculateAvailableSlots({
+      date: testDate,
+      totalDurationMinutes: 30, // 30 min procedure
+      slotGranularityMinutes: 10,
+      bookingBufferMinutes: 0,
+      minLeadMinutes: 0,
+      referenceTime: systemTime, // 11:30 AM current time
+      selectedDoctorId: doctorId,
+      candidates: [doctor],
+    });
+
+    const times = slots.map((s) => s.time);
+
+    // Past times before 11:30 must NOT be returned
+    expect(times).not.toContain("10:00");
+    expect(times).not.toContain("10:30");
+    expect(times).not.toContain("11:00");
+    expect(times).not.toContain("11:20");
+
+    // Times at or after 11:30 in morning shift SHOULD be returned
+    expect(times).toContain("11:30");
+    expect(times).toContain("12:00");
+    expect(times).toContain("13:30");
+
+    // Overlapping slots with 17:00-17:30 must NOT be returned
+    expect(times).not.toContain("17:00");
+    expect(times).not.toContain("17:10");
+    expect(times).not.toContain("17:20");
+
+    // 17:30 onwards SHOULD be returned
+    expect(times).toContain("17:30");
+    expect(times).toContain("17:40");
+    expect(times).toContain("21:30");
+  });
 });
