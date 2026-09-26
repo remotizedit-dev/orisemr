@@ -31,12 +31,14 @@ interface Props {
     rxTopMarginMm: number;
     invoicePaperSize: "A4" | "A5" | "THERMAL_80MM";
   };
+  initialLogoUrl?: string | null;
 }
 
-export default function GeneralSettingsClient({ tenant }: Props) {
+export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props) {
   const router = useRouter();
   const [logoKey, setLogoKey] = useState<string | null>(tenant.logoKey || null);
   const [logoPreview, setLogoPreview] = useState<string | null>(() => {
+    if (initialLogoUrl) return initialLogoUrl;
     if (!tenant.logoKey) return null;
     if (
       tenant.logoKey.startsWith("http://") ||
@@ -45,7 +47,8 @@ export default function GeneralSettingsClient({ tenant }: Props) {
     ) {
       return tenant.logoKey;
     }
-    return `/uploads/${tenant.logoKey}`;
+    const cfDomain = process.env.NEXT_PUBLIC_CLOUDFRONT_DOMAIN || "d29nkvl0g2nqwa.cloudfront.net";
+    return `https://${cfDomain}/${tenant.logoKey}`;
   });
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
@@ -146,8 +149,16 @@ export default function GeneralSettingsClient({ tenant }: Props) {
             {logoPreview ? (
               <img
                 src={logoPreview}
-                alt="Clinic Logo Preview"
+                alt="Clinic Logo"
                 className="max-h-full max-w-full object-contain"
+                onError={() => {
+                  if (logoKey && !logoPreview.includes("cloudfront.net")) {
+                    const cfDomain =
+                      process.env.NEXT_PUBLIC_CLOUDFRONT_DOMAIN ||
+                      "d29nkvl0g2nqwa.cloudfront.net";
+                    setLogoPreview(`https://${cfDomain}/${logoKey}`);
+                  }
+                }}
               />
             ) : (
               <div className="text-center text-[#9CA3AF] space-y-1">
