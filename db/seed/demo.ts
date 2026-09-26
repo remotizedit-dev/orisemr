@@ -97,6 +97,9 @@ async function runDemoSeed() {
           doctorRegNo: "BMDC-A-51204",
           status: "active",
           emailVerified: true,
+          preferences: {
+            mustChangePassword: true,
+          },
         })
         .where(eq(schema.users.id, docRes.user.id));
     }
@@ -119,6 +122,9 @@ async function runDemoSeed() {
           isDoctor: false,
           status: "active",
           emailVerified: true,
+          preferences: {
+            mustChangePassword: true,
+          },
         })
         .where(eq(schema.users.id, recRes.user.id));
     }

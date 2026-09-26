@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-import { requireSession } from "@/lib/session";
+import { requireSession, invalidateSession } from "@/lib/session";
 
 export async function changeFirstLoginPasswordAction(input: {
   currentPassword: string;
@@ -52,6 +52,7 @@ export async function changeFirstLoginPasswordAction(input: {
     })
     .where(eq(schema.users.id, userId));
 
+  invalidateSession();
   revalidatePath("/app");
   return { success: true };
 }

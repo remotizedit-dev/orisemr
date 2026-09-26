@@ -358,6 +358,9 @@ export async function addDoctorAction(input: AddDoctorInput) {
       phone: input.phone?.trim() || null,
       calendarColor: input.calendarColor || "#2A5CAA",
       emailVerified: true,
+      preferences: {
+        mustChangePassword: true,
+      },
       updatedAt: new Date(),
     })
     .where(eq(schema.users.id, authRes.user.id));
@@ -578,6 +581,9 @@ export async function addStaffAction(input: AddStaffInput) {
       status: "active",
       phone: input.phone?.trim() || null,
       emailVerified: true,
+      preferences: {
+        mustChangePassword: true,
+      },
       updatedAt: new Date(),
     })
     .where(eq(schema.users.id, authRes.user.id));
