@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
-import SettingsTabs from "@/components/settings/SettingsTabs";
 import PrescriptionsCatalogClient from "@/components/settings/PrescriptionsCatalogClient";
 
 export default async function SettingsPrescriptionsPage() {
@@ -36,18 +35,7 @@ export default async function SettingsPrescriptionsPage() {
     .orderBy(schema.adviceTemplates.groupName, schema.adviceTemplates.textBn);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-extrabold text-[#1C1C1E] tracking-tight">
-          Chamber Settings
-        </h1>
-        <p className="text-sm text-[#6B7280]">
-          Configure clinic operational hours, chairs, prescription medicines, and clinical advice templates.
-        </p>
-      </div>
-
-      <SettingsTabs />
-
+    <div className="w-full">
       <PrescriptionsCatalogClient
         initialMedicines={medicines}
         initialAdvice={adviceList}
@@ -55,3 +43,4 @@ export default async function SettingsPrescriptionsPage() {
     </div>
   );
 }
+

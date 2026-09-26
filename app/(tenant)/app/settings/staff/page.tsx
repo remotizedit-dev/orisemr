@@ -2,7 +2,6 @@ import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
-import SettingsTabs from "@/components/settings/SettingsTabs";
 import StaffClient from "@/components/settings/StaffClient";
 
 export default async function SettingsStaffPage() {
@@ -29,19 +28,9 @@ export default async function SettingsStaffPage() {
     .orderBy(schema.users.name);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-extrabold text-[#1C1C1E] tracking-tight">
-          Chamber Settings
-        </h1>
-        <p className="text-sm text-[#6B7280]">
-          Manage front-desk staff, receptionists, and user permissions for your clinic.
-        </p>
-      </div>
-
-      <SettingsTabs />
-
+    <div className="w-full">
       <StaffClient initialStaff={staff} />
     </div>
   );
 }
+

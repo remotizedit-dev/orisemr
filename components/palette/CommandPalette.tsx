@@ -96,7 +96,7 @@ export function CommandPalette({ tenantId, tenantShortCode }: CommandPaletteProp
                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-[#1C1C1E] hover:bg-[#E8EEF7] hover:text-[#2A5CAA] cursor-pointer transition"
               >
                 <Layers className="w-4 h-4 text-[#2A5CAA]" />
-                <span>Live Patient Queue</span>
+                <span>Live Chamber Queue</span>
               </Command.Item>
 
               <Command.Item
