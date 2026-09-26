@@ -268,3 +268,194 @@ export async function revertToBookedAction(appointmentId: string) {
   return { success: true };
 }
 
+export interface QueueItem {
+  id: string;
+  appointmentId: string;
+  status: "booked" | "waiting" | "in_chair" | "billing" | "done" | "no_show" | "cancelled";
+  serialNo: number | null;
+  chairId?: string | null;
+  chairName?: string | null;
+  patientId: string;
+  patientName: string;
+  patientPhone: string;
+  patientCard: string;
+  allergyFlags: string[];
+  doctorId: string;
+  doctorName: string;
+  startTime: string;
+  startTimeRaw?: string;
+}
+
+export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[]> {
+  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  // 1. Auto-sync any confirmed/pending appointments scheduled for today into queueEntries
+  const dayStart = new Date(`${todayDhakaStr}T00:00:00+06:00`);
+  const dayEnd = new Date(`${todayDhakaStr}T23:59:59.999+06:00`);
+
+  const todayApts = await db
+    .select({
+      id: schema.appointments.id,
+      patientId: schema.appointments.patientId,
+      doctorId: schema.appointments.doctorId,
+      chairId: schema.appointments.chairId,
+    })
+    .from(schema.appointments)
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenantId),
+        sql`${schema.appointments.startTime} >= ${dayStart.toISOString()}`,
+        sql`${schema.appointments.startTime} <= ${dayEnd.toISOString()}`,
+        sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`
+      )
+    );
+
+  if (todayApts.length > 0) {
+    const existingQueueRows = await db
+      .select({ appointmentId: schema.queueEntries.appointmentId })
+      .from(schema.queueEntries)
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenantId),
+          eq(schema.queueEntries.date, todayDhakaStr)
+        )
+      );
+    const existingAptIdSet = new Set(existingQueueRows.map((q) => q.appointmentId));
+    const missingQueueApts = todayApts.filter(
+      (a) => a.patientId && !existingAptIdSet.has(a.id)
+    );
+
+    if (missingQueueApts.length > 0) {
+      await db.insert(schema.queueEntries).values(
+        missingQueueApts.map((m) => ({
+          tenantId: tenantId,
+          appointmentId: m.id,
+          patientId: m.patientId!,
+          doctorId: m.doctorId,
+          chairId: m.chairId || null,
+          date: todayDhakaStr,
+          status: "booked" as const,
+          serialNo: null,
+          queuePosition: 0,
+        }))
+      );
+    }
+  }
+
+  // 2. Fetch all queue entries for today joined with appointments, patients, doctors, and chairs
+  const entries = await db
+    .select({
+      id: schema.queueEntries.id,
+      appointmentId: schema.queueEntries.appointmentId,
+      status: schema.queueEntries.status,
+      serialNo: schema.queueEntries.serialNo,
+      chairId: schema.queueEntries.chairId,
+      chairName: schema.chairs.name,
+      patientId: schema.patients.id,
+      patientName: schema.patients.name,
+      patientPhone: schema.patients.phone,
+      patientCard: schema.patients.cardNumber,
+      allergyFlags: schema.patients.allergyFlags,
+      doctorId: schema.users.id,
+      doctorName: schema.users.name,
+      startTime: schema.appointments.startTime,
+    })
+    .from(schema.queueEntries)
+    .innerJoin(
+      schema.appointments,
+      eq(schema.queueEntries.appointmentId, schema.appointments.id)
+    )
+    .innerJoin(
+      schema.patients,
+      eq(schema.queueEntries.patientId, schema.patients.id)
+    )
+    .innerJoin(
+      schema.users,
+      eq(schema.queueEntries.doctorId, schema.users.id)
+    )
+    .leftJoin(
+      schema.chairs,
+      eq(schema.queueEntries.chairId, schema.chairs.id)
+    )
+    .where(
+      and(
+        eq(schema.queueEntries.tenantId, tenantId),
+        eq(schema.queueEntries.date, todayDhakaStr)
+      )
+    )
+    .orderBy(schema.appointments.startTime);
+
+  return entries.map((e) => ({
+    id: e.id,
+    appointmentId: e.appointmentId,
+    status: e.status,
+    serialNo: e.serialNo,
+    chairId: e.chairId,
+    chairName: e.chairName || null,
+    patientId: e.patientId,
+    patientName: e.patientName,
+    patientPhone: e.patientPhone,
+    patientCard: e.patientCard,
+    allergyFlags: e.allergyFlags || [],
+    doctorId: e.doctorId,
+    doctorName: e.doctorName,
+    startTime: new Date(e.startTime).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    startTimeRaw: e.startTime.toISOString(),
+  }));
+}
+
+export async function getLiveQueueItemsAction(): Promise<QueueItem[]> {
+  const { tenant } = await requireClinicStaff();
+  return fetchTodayQueueItems(tenant.id);
+}
+
+export async function getPublicQueueDataAction(tenantSlug: string): Promise<{
+  success: boolean;
+  tenant?: { id: string; name: string; brandColor: string | null };
+  items?: QueueItem[];
+  error?: string;
+}> {
+  const [tenant] = await db
+    .select({
+      id: schema.tenants.id,
+      name: schema.tenants.name,
+      brandColor: schema.tenants.brandColor,
+    })
+    .from(schema.tenants)
+    .where(
+      and(
+        eq(schema.tenants.slug, tenantSlug.toLowerCase().trim()),
+        eq(schema.tenants.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (!tenant) {
+    return { success: false, error: "Clinic not found or inactive" };
+  }
+
+  const items = await fetchTodayQueueItems(tenant.id);
+  // Privacy sanitization for public display screen
+  const sanitizedItems = items.map((i) => ({
+    ...i,
+    patientPhone: i.patientPhone
+      ? `${i.patientPhone.slice(0, 3)}****${i.patientPhone.slice(-4)}`
+      : "",
+    allergyFlags: [],
+  }));
+
+  return {
+    success: true,
+    tenant,
+    items: sanitizedItems,
+  };
+}
+

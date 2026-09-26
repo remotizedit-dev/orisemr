@@ -10,15 +10,20 @@ import {
   markNoShowAction,
   cancelQueueBookingAction,
   revertToBookedAction,
+  getLiveQueueItemsAction,
+  type QueueItem,
 } from "@/app/(tenant)/app/queue/actions";
 import { InactivePatientsModal } from "./InactivePatientsModal";
 import {
   AlertCircle,
   ArrowRight,
   Armchair,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
   CreditCard,
+  ExternalLink,
   FileText,
   HelpCircle,
   Info,
@@ -27,6 +32,7 @@ import {
   RotateCcw,
   Sparkles,
   Stethoscope,
+  Tv,
   User,
   Users,
   UserX,
@@ -37,22 +43,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-export interface QueueItem {
-  id: string;
-  appointmentId: string;
-  status: "booked" | "waiting" | "in_chair" | "billing" | "done" | "no_show" | "cancelled";
-  serialNo: number | null;
-  chairId?: string | null;
-  patientId: string;
-  patientName: string;
-  patientPhone: string;
-  patientCard: string;
-  allergyFlags: string[];
-  doctorId: string;
-  doctorName: string;
-  startTime: string;
-  startTimeRaw?: string;
-}
+export type { QueueItem };
 
 interface ChairOption {
   id: string;
@@ -65,6 +56,7 @@ interface QueueBoardProps {
   currentUserIsDoctor: boolean;
   doctors: { id: string; name: string }[];
   chairs?: ChairOption[];
+  tenantSlug?: string;
 }
 
 export function QueueBoard({
@@ -73,6 +65,7 @@ export function QueueBoard({
   currentUserIsDoctor,
   doctors,
   chairs = [],
+  tenantSlug,
 }: QueueBoardProps) {
   const router = useRouter();
   const [items, setItems] = useState<QueueItem[]>(initialItems);
@@ -82,11 +75,42 @@ export function QueueBoard({
   const [isCallingNext, setIsCallingNext] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [copiedTvUrl, setCopiedTvUrl] = useState(false);
 
   // Sync state whenever server revalidates and sends fresh initialItems
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
+
+  // Real-time live polling (every 4 seconds) so all screens stay synchronized without manual refresh
+  useEffect(() => {
+    let isMounted = true;
+
+    const interval = setInterval(async () => {
+      // Don't poll if document is hidden (background tab) or user is mid-action
+      if (document.hidden || processingId || isCallingNext || showInactiveModal) {
+        return;
+      }
+
+      try {
+        setIsSyncing(true);
+        const freshItems = await getLiveQueueItemsAction();
+        if (isMounted && freshItems) {
+          setItems(freshItems);
+        }
+      } catch {
+        // Silently swallow background sync network blips
+      } finally {
+        if (isMounted) setIsSyncing(false);
+      }
+    }, 4000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [processingId, isCallingNext, showInactiveModal]);
 
   const filteredItems = items.filter((item) => {
     if (selectedDoctorFilter === "all") return true;
@@ -362,6 +386,56 @@ export function QueueBoard({
               </span>
             )}
           </button>
+
+          {/* Live Sync Status Pill */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="hidden sm:inline">Live Sync</span>
+            {isSyncing && <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />}
+          </div>
+
+          {/* Dedicated Waiting Room TV Display Button */}
+          <Link
+            href="/app/queue/display"
+            target="_blank"
+            className="px-3.5 py-2.5 rounded-2xl bg-[#1C1C1E] hover:bg-black text-white text-xs font-bold flex items-center gap-2 shadow-2xs hover:shadow transition cursor-pointer"
+            title="Open Dedicated Fullscreen TV Screen for Waiting Lounge"
+          >
+            <Tv className="w-4 h-4 text-[#FF9F0A]" />
+            <span className="hidden md:inline">TV Display Screen</span>
+            <span className="md:hidden">TV Screen</span>
+          </Link>
+
+          {/* Smart TV Public Link Copy (No login required for TV browsers) */}
+          {tenantSlug && (
+            <button
+              type="button"
+              onClick={() => {
+                const url = `${window.location.origin}/display/${tenantSlug}`;
+                navigator.clipboard.writeText(url);
+                setCopiedTvUrl(true);
+                toast.success("Public Smart TV link copied to clipboard! Paste on any screen.");
+                setTimeout(() => setCopiedTvUrl(false), 2500);
+              }}
+              className="px-3 py-2.5 rounded-2xl bg-white border border-[#E4E4E7] text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#F4F4F5] transition cursor-pointer flex items-center gap-1.5 text-xs font-bold shadow-2xs"
+              title="Copy Public Smart TV Link (Zero Login Required on TV)"
+            >
+              {copiedTvUrl ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  <span className="hidden lg:inline text-emerald-600">Copied TV URL</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-[#2A5CAA]" />
+                  <span className="hidden lg:inline">Copy TV URL</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
