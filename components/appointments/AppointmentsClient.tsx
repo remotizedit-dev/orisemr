@@ -18,6 +18,7 @@ import {
   Search,
   ExternalLink,
   Check,
+  Armchair,
 } from "lucide-react";
 import { formatBdt } from "@/lib/utils";
 import {
@@ -33,6 +34,7 @@ interface AppointmentItem {
   endTime: string;
   status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
   queueStatus?: "booked" | "waiting" | "in_chair" | "billing" | "done" | null;
+  serialNo?: number | null;
   isOverbooked: boolean;
   notes: string | null;
   patientId: string;
@@ -340,13 +342,25 @@ export default function AppointmentsClient({
 
                       {/* Queue Status Badge if in chair */}
                       {apt.queueStatus === "in_chair" && (
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#EBF2FC] text-[#2A5CAA]">
-                          In Chair
+                        <span className="inline-flex items-center gap-1.5 text-xs font-black px-2.5 py-0.5 rounded-full bg-[#EBF2FC] text-[#2A5CAA] border border-[#2A5CAA]/20">
+                          <Armchair className="w-3.5 h-3.5" />
+                          <span>In Chair</span>
+                          {apt.serialNo ? (
+                            <span className="bg-[#2A5CAA] text-white text-[10px] font-black px-1.5 py-0.2 rounded-md">
+                              SL #{apt.serialNo}
+                            </span>
+                          ) : null}
                         </span>
                       )}
                       {apt.queueStatus === "waiting" && (
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FFF7EB] text-[#FF9F0A]">
-                          Waiting in Chamber
+                        <span className="inline-flex items-center gap-1.5 text-xs font-black px-2.5 py-0.5 rounded-full bg-[#FFF7EB] text-[#FF9F0A] border border-[#FF9F0A]/20">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Waiting in Chamber</span>
+                          {apt.serialNo ? (
+                            <span className="bg-[#FF9F0A] text-white text-[10px] font-black px-1.5 py-0.2 rounded-md">
+                              SL #{apt.serialNo}
+                            </span>
+                          ) : null}
                         </span>
                       )}
                     </div>

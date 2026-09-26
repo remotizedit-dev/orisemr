@@ -62,6 +62,7 @@ export default async function AppointmentsPage({ searchParams }: Props) {
         doctorName: schema.users.name,
         chairName: schema.chairs.name,
         queueStatus: schema.queueEntries.status,
+        serialNo: schema.queueEntries.serialNo,
       })
       .from(schema.appointments)
       .leftJoin(
@@ -127,6 +128,7 @@ export default async function AppointmentsPage({ searchParams }: Props) {
     endTime: apt.endTime.toISOString(),
     status: apt.status as any,
     queueStatus: apt.queueStatus as any,
+    serialNo: apt.serialNo,
     isOverbooked: apt.isOverbooked,
     notes: apt.notes,
     patientId: apt.patientId || "",

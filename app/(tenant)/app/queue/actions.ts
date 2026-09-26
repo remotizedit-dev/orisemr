@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
-import { formatDhakaTime } from "@/lib/utils";
+import { generateAutoCardNumber } from "@/lib/barcode/codes";
+import { formatDhakaTime, normalizeBdPhone } from "@/lib/utils";
 
 export async function checkInPatientAction(appointmentId: string) {
   const { tenant, user } = await requireClinicStaff();
@@ -27,6 +28,9 @@ export async function checkInPatientAction(appointmentId: string) {
       .select({
         id: schema.appointments.id,
         patientId: schema.appointments.patientId,
+        pendingPatientName: schema.appointments.pendingPatientName,
+        pendingPatientPhone: schema.appointments.pendingPatientPhone,
+        pendingPatientEmail: schema.appointments.pendingPatientEmail,
         doctorId: schema.appointments.doctorId,
         chairId: schema.appointments.chairId,
         status: schema.appointments.status,
@@ -40,8 +44,81 @@ export async function checkInPatientAction(appointmentId: string) {
       )
       .limit(1);
 
-    if (!appointment || !appointment.patientId) {
-      throw new Error("Cannot check in appointment without a registered patient");
+    if (!appointment) {
+      throw new Error("Appointment not found");
+    }
+
+    // Resolve or auto-register patient if patientId is null (e.g. pending online booking)
+    let resolvedPatientId = appointment.patientId;
+
+    if (!resolvedPatientId) {
+      const normalizedPhone = normalizeBdPhone(appointment.pendingPatientPhone || "") || appointment.pendingPatientPhone;
+
+      if (normalizedPhone) {
+        const [existingPatient] = await tx
+          .select({ id: schema.patients.id })
+          .from(schema.patients)
+          .where(
+            and(
+              eq(schema.patients.tenantId, tenant.id),
+              eq(schema.patients.phone, normalizedPhone)
+            )
+          )
+          .limit(1);
+
+        if (existingPatient) {
+          resolvedPatientId = existingPatient.id;
+        }
+      }
+
+      if (!resolvedPatientId) {
+        const [pCounter] = await tx
+          .insert(schema.tenantCounters)
+          .values({
+            tenantId: tenant.id,
+            key: "PATIENT",
+            nextValue: 2,
+          })
+          .onConflictDoUpdate({
+            target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
+            set: {
+              nextValue: sql`${schema.tenantCounters.nextValue} + 1`,
+            },
+          })
+          .returning();
+
+        const pSeq = pCounter ? pCounter.nextValue - 1 : 1;
+        const autoCard = generateAutoCardNumber(pSeq, tenant.patientIdMinLen || 6);
+
+        const [newPatient] = await tx
+          .insert(schema.patients)
+          .values({
+            tenantId: tenant.id,
+            cardNumber: autoCard,
+            name: (appointment.pendingPatientName || "Walk-in Patient").trim(),
+            phone: normalizedPhone || "01700000000",
+            email: appointment.pendingPatientEmail?.trim() || null,
+            gender: "other",
+            createdBy: user.id,
+          })
+          .returning({ id: schema.patients.id });
+
+        resolvedPatientId = newPatient.id;
+      }
+
+      // Link resolved patient back to appointment
+      await tx
+        .update(schema.appointments)
+        .set({
+          patientId: resolvedPatientId,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.id, appointmentId)
+          )
+        );
     }
 
     // 2. Fetch existing queue entry if any
@@ -63,6 +140,10 @@ export async function checkInPatientAction(appointmentId: string) {
         .update(schema.queueEntries)
         .set({
           status: "waiting",
+          patientId: resolvedPatientId,
+          doctorId: appointment.doctorId,
+          chairId: appointment.chairId || null,
+          date: todayDhakaStr,
           checkedInAt: existingEntry.checkedInAt || new Date(),
           updatedBy: user.id,
           updatedAt: new Date(),
@@ -108,6 +189,10 @@ export async function checkInPatientAction(appointmentId: string) {
           .update(schema.queueEntries)
           .set({
             status: "waiting",
+            patientId: resolvedPatientId,
+            doctorId: appointment.doctorId,
+            chairId: appointment.chairId || null,
+            date: todayDhakaStr,
             serialNo: assignedSerial,
             queuePosition: assignedSerial,
             checkedInAt: new Date(),
@@ -119,7 +204,7 @@ export async function checkInPatientAction(appointmentId: string) {
         await tx.insert(schema.queueEntries).values({
           tenantId: tenant.id,
           appointmentId: appointment.id,
-          patientId: appointment.patientId,
+          patientId: resolvedPatientId,
           doctorId: appointment.doctorId,
           chairId: appointment.chairId || null,
           date: todayDhakaStr,
@@ -133,12 +218,15 @@ export async function checkInPatientAction(appointmentId: string) {
       }
     }
 
-    // 5. Keep appointment status synced (confirm it upon check-in if pending)
+    // 5. Keep appointment status synced (confirm it upon check-in if pending or not yet confirmed)
     if (appointment.status === "pending") {
       await tx
         .update(schema.appointments)
         .set({
           status: "confirmed",
+          patientId: resolvedPatientId,
+          confirmedBy: user.id,
+          confirmedAt: new Date(),
           updatedAt: new Date(),
         })
         .where(

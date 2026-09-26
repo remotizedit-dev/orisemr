@@ -887,7 +887,9 @@ export default function NewInvoiceClient({
               type="button"
               onClick={() => {
                 setSettlementMode("partial");
-                if (customAdvance === 0) setCustomAdvance(Math.round(totalBdt / 2));
+                if (customAdvance <= 0 || customAdvance >= totalBdt) {
+                  setCustomAdvance(Math.round(totalBdt / 2));
+                }
               }}
               className={`p-3 rounded-2xl text-center border-2 transition cursor-pointer ${
                 settlementMode === "partial"
@@ -896,7 +898,11 @@ export default function NewInvoiceClient({
               }`}
             >
               <span className="block font-black text-sm">Partial</span>
-              <span className="text-xs font-bold mt-0.5 block">Part Due</span>
+              <span className="text-xs font-mono font-bold mt-0.5 block">
+                {customAdvance > 0 && settlementMode === "partial"
+                  ? formatBdt(customAdvance)
+                  : "Custom Amount"}
+              </span>
             </button>
 
             <button
@@ -915,19 +921,71 @@ export default function NewInvoiceClient({
 
           <div className="space-y-3 pt-1">
             {settlementMode === "partial" && (
-              <div>
-                <label className="text-xs font-bold text-[#4B5563] block mb-1">
-                  Custom Advance Paid Now (৳)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={totalBdt}
-                  value={customAdvance || ""}
-                  onChange={(e) => setCustomAdvance(Number(e.target.value))}
-                  placeholder="Enter amount paid today"
-                  className="w-full px-3.5 py-2.5 text-base font-black border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA] bg-white font-mono"
-                />
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-900">
+                    Partial Amount Paid Today (৳)
+                  </label>
+                  <span className="text-[11px] font-semibold text-amber-700">
+                    Total: {formatBdt(totalBdt)}
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-[#6B7280]">
+                    ৳
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalBdt}
+                    value={customAdvance || ""}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setCustomAdvance(Math.max(0, Math.min(totalBdt, val)));
+                    }}
+                    placeholder="Enter custom paid amount"
+                    className="w-full pl-8 pr-3.5 py-2.5 text-base font-black border border-amber-300 rounded-xl outline-none focus:border-[#2A5CAA] bg-white font-mono shadow-2xs"
+                  />
+                </div>
+
+                {/* Quick Preset Percentage Chips */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mr-1">
+                    Quick:
+                  </span>
+                  {[
+                    { label: "25%", pct: 0.25 },
+                    { label: "50%", pct: 0.5 },
+                    { label: "75%", pct: 0.75 },
+                  ].map((preset) => {
+                    const presetAmount = Math.round(totalBdt * preset.pct);
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setCustomAdvance(presetAmount)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                          customAdvance === presetAmount
+                            ? "bg-amber-500 text-white border-amber-500 shadow-2xs"
+                            : "bg-white text-amber-900 border-amber-200 hover:bg-amber-100/70"
+                        }`}
+                      >
+                        {preset.label} ({formatBdt(presetAmount)})
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Live Due Breakdown */}
+                <div className="flex items-center justify-between text-xs font-bold pt-1 border-t border-amber-200/80">
+                  <span className="text-emerald-700">
+                    Paid Now: {formatBdt(customAdvance || 0)}
+                  </span>
+                  <span className="text-rose-600">
+                    Due Later: {formatBdt(Math.max(0, totalBdt - (customAdvance || 0)))}
+                  </span>
+                </div>
               </div>
             )}
 

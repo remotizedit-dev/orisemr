@@ -124,6 +124,15 @@ export default function NewAppointmentClient({
   const [customEndTime, setCustomEndTime] = useState("10:30");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Check-in immediately toggle (for today's bookings)
+  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const [checkInImmediately, setCheckInImmediately] = useState(false);
+
   // Total Duration
   const totalDuration = services
     .filter((s) => selectedServices.includes(s.id))
@@ -233,6 +242,7 @@ export default function NewAppointmentClient({
         patientEmail: patientEmail.trim() || undefined,
         isOverbooked,
         notes,
+        checkInImmediately: selectedDate === todayDhakaStr && checkInImmediately,
       });
 
       if (res.error === "OVERLAP") {
@@ -240,7 +250,11 @@ export default function NewAppointmentClient({
         return;
       }
 
-      toast.success("Appointment successfully scheduled!");
+      if (res.serialNo) {
+        toast.success(`Appointment booked & patient checked in! Daily Serial #${res.serialNo}`);
+      } else {
+        toast.success("Appointment successfully scheduled!");
+      }
       if (patientEmail.trim()) {
         toast.info(`Confirmation email sent to ${patientEmail.trim()}`);
       }
@@ -579,6 +593,27 @@ export default function NewAppointmentClient({
                 </span>
               </div>
             </div>
+
+            {/* Direct Waiting Lounge Check-in Toggle for Today's Appointments */}
+            {selectedDate === todayDhakaStr && (
+              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/70 border border-amber-200 cursor-pointer hover:bg-amber-100/70 transition">
+                <input
+                  type="checkbox"
+                  checked={checkInImmediately}
+                  onChange={(e) => setCheckInImmediately(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded text-[#2A5CAA] focus:ring-0 cursor-pointer accent-[#2A5CAA]"
+                />
+                <div className="flex-1">
+                  <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Check-in to Waiting Lounge immediately</span>
+                  </span>
+                  <p className="text-[11px] text-amber-800/80 mt-0.5 leading-snug">
+                    Patient is present in clinic now. Automatically allocates next Daily Serial # (SL) and syncs to live TV queue.
+                  </p>
+                </div>
+              </label>
+            )}
 
             {/* Book Button */}
             <button

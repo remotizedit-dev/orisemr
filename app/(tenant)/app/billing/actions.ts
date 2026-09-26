@@ -192,7 +192,12 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
 
   // Verify patient belongs to this clinic
   const [patient] = await db
-    .select({ id: schema.patients.id })
+    .select({
+      id: schema.patients.id,
+      name: schema.patients.name,
+      email: schema.patients.email,
+      cardNumber: schema.patients.cardNumber,
+    })
     .from(schema.patients)
     .where(
       and(

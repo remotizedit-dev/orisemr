@@ -159,6 +159,7 @@ export interface CreateStaffAppointmentInput {
   patientEmail?: string;
   isOverbooked?: boolean;
   notes?: string;
+  checkInImmediately?: boolean;
 }
 
 export async function createStaffAppointmentAction(input: CreateStaffAppointmentInput) {
@@ -232,6 +233,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
 
   if (overlapping.length > 0) {
     return {
+      success: false,
       error: "OVERLAP",
       message: "This slot overlaps with an existing appointment for this doctor. Overbook to proceed anyway?",
     };
@@ -244,7 +246,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     day: "2-digit",
   }).format(new Date());
 
-  const { newAppointmentId, appointmentCode } = await db.transaction(async (tx) => {
+  const { newAppointmentId, appointmentCode, assignedSerial } = await db.transaction(async (tx) => {
     // Increment appointment counter
     const [counter] = await tx
       .insert(schema.tenantCounters)
@@ -299,20 +301,71 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       );
     }
 
-    // If appointment is for today (Asia/Dhaka), automatically add to queueEntries as booked
-    // NOTE: serialNo remains null until the patient physically arrives and checks in
+    let assignedSerial: number | null = null;
+
+    // If appointment is for today (Asia/Dhaka), manage queue entry
     if (input.dateStr === todayDhakaStr) {
-      await tx.insert(schema.queueEntries).values({
-        tenantId: tenant.id,
-        appointmentId: created.id,
-        patientId: input.patientId,
-        doctorId: input.doctorId,
-        chairId: input.chairId || null,
-        date: todayDhakaStr,
-        status: "booked",
-        serialNo: null,
-        queuePosition: 0,
-      });
+      if (input.checkInImmediately) {
+        // Compute collision-proof serial number
+        const counterKey = `SERIAL:${todayDhakaStr}`;
+        const [maxSerialRow] = await tx
+          .select({
+            maxSerial: sql<number>`COALESCE(MAX(${schema.queueEntries.serialNo}), 0)`,
+          })
+          .from(schema.queueEntries)
+          .where(
+            and(
+              eq(schema.queueEntries.tenantId, tenant.id),
+              eq(schema.queueEntries.date, todayDhakaStr)
+            )
+          );
+
+        const currentMax = Number(maxSerialRow?.maxSerial || 0);
+
+        const [counter] = await tx
+          .insert(schema.tenantCounters)
+          .values({
+            tenantId: tenant.id,
+            key: counterKey,
+            nextValue: currentMax + 2,
+          })
+          .onConflictDoUpdate({
+            target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
+            set: {
+              nextValue: sql`GREATEST(${schema.tenantCounters.nextValue} + 1, ${currentMax + 2})`,
+            },
+          })
+          .returning();
+
+        assignedSerial = Math.max(Number(counter.nextValue) - 1, currentMax + 1);
+
+        await tx.insert(schema.queueEntries).values({
+          tenantId: tenant.id,
+          appointmentId: created.id,
+          patientId: input.patientId,
+          doctorId: input.doctorId,
+          chairId: input.chairId || null,
+          date: todayDhakaStr,
+          status: "waiting",
+          serialNo: assignedSerial,
+          queuePosition: assignedSerial,
+          checkedInAt: new Date(),
+          updatedBy: user.id,
+          updatedAt: new Date(),
+        });
+      } else {
+        await tx.insert(schema.queueEntries).values({
+          tenantId: tenant.id,
+          appointmentId: created.id,
+          patientId: input.patientId,
+          doctorId: input.doctorId,
+          chairId: input.chairId || null,
+          date: todayDhakaStr,
+          status: "booked",
+          serialNo: null,
+          queuePosition: 0,
+        });
+      }
     }
 
     // If new or updated patient email is provided, persist it to patient profile
@@ -328,7 +381,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
         );
     }
 
-    return { newAppointmentId: created.id, appointmentCode };
+    return { newAppointmentId: created.id, appointmentCode, assignedSerial };
   });
 
   // Dispatch confirmation email asynchronously in background
@@ -360,7 +413,13 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     revalidatePath("/app/queue");
   }
 
-  return { success: true, appointmentId: newAppointmentId, appointmentCode };
+  return {
+    success: true,
+    appointmentId: newAppointmentId,
+    newAppointmentId,
+    appointmentCode,
+    serialNo: assignedSerial,
+  };
 }
 
 export async function updateAppointmentStatusAction(
