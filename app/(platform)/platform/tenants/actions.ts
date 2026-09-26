@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSuperAdmin } from "@/lib/session";
+import { requireSuperAdmin, invalidateSession } from "@/lib/session";
 import { createClinicWithMasterCatalog } from "@/lib/clinic/create-clinic";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -109,5 +109,69 @@ export async function createClinicAction(formData: FormData): Promise<{
   } catch (err: any) {
     console.error("[CREATE CLINIC ACTION ERROR]:", err);
     return { error: err?.message || "Failed to create clinic. Please try again." };
+  }
+}
+
+export async function toggleTenantStatusAction(
+  tenantId: string,
+  newStatus: "active" | "suspended",
+  reason?: string
+): Promise<{ success: boolean; error?: string }> {
+  await requireSuperAdmin();
+
+  try {
+    const [existing] = await db
+      .select({
+        id: schema.tenants.id,
+        name: schema.tenants.name,
+        status: schema.tenants.status,
+      })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenantId))
+      .limit(1);
+
+    if (!existing) {
+      return { success: false, error: "Tenant clinic not found." };
+    }
+
+    const now = new Date();
+
+    await db.transaction(async (tx) => {
+      // 1. Update tenant status and suspension metadata
+      await tx
+        .update(schema.tenants)
+        .set({
+          status: newStatus,
+          suspendedAt: newStatus === "suspended" ? now : null,
+          suspendedReason:
+            newStatus === "suspended"
+              ? reason?.trim() || "Suspended by Super Administrator"
+              : null,
+          updatedAt: now,
+        })
+        .where(eq(schema.tenants.id, tenantId));
+
+      // 2. Keep platform subscription status in sync
+      await tx
+        .update(schema.platformSubscriptions)
+        .set({
+          status: newStatus === "suspended" ? "suspended" : "active",
+          updatedAt: now,
+        })
+        .where(eq(schema.platformSubscriptions.tenantId, tenantId));
+    });
+
+    // Invalidate in-memory session cache so any active staff sessions are instantly revoked
+    invalidateSession();
+
+    revalidatePath("/platform/tenants");
+    revalidatePath(`/platform/tenants/${tenantId}`);
+    revalidatePath("/platform/subscriptions");
+    revalidatePath("/platform");
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("[TOGGLE TENANT STATUS ERROR]:", err);
+    return { success: false, error: err?.message || "Failed to update tenant status." };
   }
 }

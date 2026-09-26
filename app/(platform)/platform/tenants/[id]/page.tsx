@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Users,
 } from "lucide-react";
+import { TenantStatusToggle } from "@/components/platform/TenantStatusToggle";
 
 export default async function TenantDetailPage({
   params,
@@ -48,7 +49,7 @@ export default async function TenantDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
             href="/platform/tenants"
@@ -79,7 +80,39 @@ export default async function TenantDetailPage({
             </p>
           </div>
         </div>
+
+        {/* Super Admin Status Action: Turn Off / Reactivate Access */}
+        <TenantStatusToggle
+          tenantId={tenant.id}
+          tenantName={tenant.name}
+          currentStatus={tenant.status}
+          suspendedReason={tenant.suspendedReason}
+          suspendedAt={tenant.suspendedAt}
+        />
       </div>
+
+      {/* Suspension Alert Banner */}
+      {tenant.status === "suspended" && (
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-900 flex items-start gap-3">
+          <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <p className="font-bold text-sm">Clinic Access is Currently Suspended</p>
+            <p>
+              All staff logins and public appointment booking are currently disabled for this tenant.
+            </p>
+            {tenant.suspendedReason && (
+              <p className="text-red-800">
+                <strong>Reason:</strong> {tenant.suspendedReason}
+              </p>
+            )}
+            {tenant.suspendedAt && (
+              <p className="text-red-700 text-[11px]">
+                Suspended on: {new Date(tenant.suspendedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Grid Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

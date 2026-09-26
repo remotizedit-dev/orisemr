@@ -114,9 +114,9 @@ export default async function TenantsListPage() {
                     <td className="py-3.5 px-4 text-right">
                       <Link
                         href={`/platform/tenants/${t.id}`}
-                        className="text-xs font-semibold text-[#2A5CAA] hover:underline"
+                        className="text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] hover:bg-[#2A5CAA] hover:text-white px-3 py-1.5 rounded-xl transition inline-block shadow-2xs"
                       >
-                        Manage
+                        Manage Clinic →
                       </Link>
                     </td>
                   </tr>

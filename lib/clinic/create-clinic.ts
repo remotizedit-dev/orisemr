@@ -274,7 +274,11 @@ export async function createClinicWithMasterCatalog(input: CreateClinicInput) {
     // 13. Create initial platform subscription
     const now = new Date();
     const currentPeriodEnd = new Date(now);
-    currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+    if (input.billingCycle === "yearly") {
+      currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
+    } else {
+      currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+    }
 
     await tx.insert(schema.platformSubscriptions).values({
       tenantId,
