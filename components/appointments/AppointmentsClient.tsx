@@ -123,10 +123,13 @@ export default function AppointmentsClient({
   ) {
     try {
       setIsUpdating(true);
-      await advanceAppointmentQueueAction(appointmentId, target);
+      const res = await advanceAppointmentQueueAction(appointmentId, target);
+      const serial = (res as any)?.serialNo;
       const label =
         target === "waiting"
-          ? "Patient Checked-In"
+          ? serial
+            ? `Patient Checked-In! Assigned Daily Serial #${serial}`
+            : "Patient Checked-In"
           : target === "in_chair"
           ? "Seated in Chair"
           : "Treatment Completed";

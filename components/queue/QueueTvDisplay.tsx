@@ -21,6 +21,7 @@ import {
   getPublicQueueDataAction,
   type QueueItem,
 } from "@/app/(tenant)/app/queue/actions";
+import { formatDhakaTime } from "@/lib/utils";
 
 interface QueueTvDisplayProps {
   initialItems: QueueItem[];
@@ -418,7 +419,7 @@ export function QueueTvDisplay({
 
                     <div className="text-right shrink-0 text-xs font-mono text-[#64748B]">
                       <Clock className="w-3.5 h-3.5 inline mr-1 text-[#94A3B8]" />
-                      {item.startTime}
+                      {item.startTimeRaw ? formatDhakaTime(item.startTimeRaw) : item.startTime}
                     </div>
                   </motion.div>
                 ))

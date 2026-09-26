@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatBdPhone, formatBdt } from "@/lib/utils";
+import { formatBdPhone, formatBdt, formatDhakaDate } from "@/lib/utils";
 import { EditPatientModal } from "@/components/patients/EditPatientModal";
 
 interface PatientProfileModalProps {
@@ -472,17 +472,7 @@ export function PatientProfileModal({
                           </div>
                           <div>
                             <p className="font-bold text-sm text-[#1C1C1E]">
-                              {new Date(apt.startTime).toLocaleDateString([], {
-                                weekday: "short",
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}{" "}
-                              at{" "}
-                              {new Date(apt.startTime).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {formatDhakaDate(apt.startTime, "dd MMM yyyy, hh:mm a")}
                             </p>
                             <p className="text-xs text-[#6B7280]">
                               Dentist: Dr. {apt.doctorName} • Ref: {apt.appointmentCode}

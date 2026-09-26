@@ -15,6 +15,7 @@ import {
   renderAppointmentConfirmationHtml,
 } from "@/lib/email/mailer";
 import { formatDhakaDate } from "@/lib/utils";
+import { checkInPatientAction } from "@/app/(tenant)/app/queue/actions";
 
 export interface GetStaffSlotsInput {
   dateStr: string; // YYYY-MM-DD
@@ -73,7 +74,7 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
         )
       );
 
-    const windows =
+    let windows =
       personalSchedules.length > 0
         ? personalSchedules.map((s) => ({
             startTime: s.startTime,
@@ -83,6 +84,11 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
             startTime: h.startTime,
             endTime: h.endTime,
           }));
+
+    // If neither doctor nor clinic defined hours for this weekday, provide a sensible default day shift
+    if (windows.length === 0) {
+      windows = [{ startTime: "09:00:00", endTime: "22:00:00" }];
+    }
 
     // Fetch existing appointments on this calendar date in Asia/Dhaka (+06:00)
     const dayStart = new Date(`${dateStr}T00:00:00+06:00`);
@@ -117,13 +123,15 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
     });
   }
 
+  const dayStart = new Date(`${dateStr}T00:00:00+06:00`);
+
   const slots = calculateAvailableSlots({
     date: dateStr,
     totalDurationMinutes: durationMinutes,
-    slotGranularityMinutes: 10,
-    bookingBufferMinutes: tenant.bookingBufferMinutes ?? 0,
-    minLeadMinutes: 0, // Staff can book immediate slots
-    referenceTime: new Date(),
+    slotGranularityMinutes: tenant.slotGranularityMinutes || 10,
+    bookingBufferMinutes: 0, // Staff can book adjacent slots without artificial buffer starvation
+    minLeadMinutes: 0, // Staff can view and book all shift slots across the day
+    referenceTime: dayStart, // Reference at day start so earlier daytime slots remain visible and selectable by staff
     selectedDoctorId: doctorId,
     candidates,
   });
@@ -135,6 +143,7 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
       startTime: s.startTime.toISOString(),
       endTime: s.endTime.toISOString(),
       doctorId: s.doctorId,
+      isPast: s.startTime.getTime() < Date.now(),
     })),
   };
 }
@@ -471,6 +480,10 @@ export async function advanceAppointmentQueueAction(
   appointmentId: string,
   queueTargetStatus: "waiting" | "in_chair" | "done"
 ) {
+  if (queueTargetStatus === "waiting") {
+    return await checkInPatientAction(appointmentId);
+  }
+
   const { tenant, user } = await requireClinicStaff();
 
   await db.transaction(async (tx) => {
@@ -480,9 +493,7 @@ export async function advanceAppointmentQueueAction(
       updatedBy: user.id,
     };
 
-    if (queueTargetStatus === "waiting") {
-      patch.checkedInAt = new Date();
-    } else if (queueTargetStatus === "in_chair") {
+    if (queueTargetStatus === "in_chair") {
       patch.inChairAt = new Date();
     } else if (queueTargetStatus === "done") {
       patch.doneAt = new Date();
