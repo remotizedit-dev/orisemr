@@ -25,8 +25,9 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      const cleanEmail = email.trim().toLowerCase();
       const response = await authClient.signIn.email({
-        email,
+        email: cleanEmail,
         password,
       });
 

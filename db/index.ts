@@ -7,8 +7,14 @@ if (typeof WebSocket === "undefined") {
   neonConfig.webSocketConstructor = ws;
 }
 
-// Pipeline TLS and authentication handshake to reduce initial connection latency
-neonConfig.pipelineConnect = "password";
+import { config } from "dotenv";
+if (!process.env.DATABASE_URL) {
+  config({ path: ".env.local" });
+  config({ path: ".env" });
+}
+
+// Disable pipelineConnect to support SCRAM-SHA-256 and channel-binding over WebSocket
+neonConfig.pipelineConnect = false;
 
 const connectionString =
   process.env.DATABASE_URL ||
