@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,7 @@ import {
   Loader2,
   Stethoscope,
   Sparkles,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBdt, formatDhakaTime, formatDhakaDate } from "@/lib/utils";
@@ -91,6 +92,7 @@ export default function NewAppointmentClient({
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("any");
   const [selectedChairId, setSelectedChairId] = useState<string>("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [procedureSearchQuery, setProcedureSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Dhaka",
@@ -142,6 +144,16 @@ export default function NewAppointmentClient({
   const totalEstimatedPrice = services
     .filter((s) => selectedServices.includes(s.id))
     .reduce((acc, s) => acc + s.priceBdt, 0);
+
+  const filteredServices = useMemo(() => {
+    if (!procedureSearchQuery.trim()) return services;
+    const q = procedureSearchQuery.toLowerCase().trim();
+    return services.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.category && s.category.toLowerCase().includes(q))
+    );
+  }, [services, procedureSearchQuery]);
 
   // Search patients debounced
   useEffect(() => {
@@ -405,35 +417,63 @@ export default function NewAppointmentClient({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
-              {services.map((s) => {
-                const isSelected = selectedServices.includes(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => toggleService(s.id)}
-                    className={`p-2.5 rounded-xl border text-left transition flex items-start justify-between ${
-                      isSelected
-                        ? "bg-[#EBF2FC] border-[#2A5CAA] text-[#1C1C1E]"
-                        : "bg-white border-[#E4E4E7] hover:border-[#2A5CAA]/40 text-[#6B7280]"
-                    }`}
-                  >
-                    <div>
-                      <span className="font-bold text-xs block text-[#1C1C1E]">
-                        {s.name}
-                      </span>
-                      <span className="text-[10px] text-[#6B7280]">
-                        {s.durationMinutes} min • {formatBdt(s.priceBdt)}
-                      </span>
-                    </div>
-                    {isSelected && (
-                      <Check className="w-4 h-4 text-[#2A5CAA] shrink-0 mt-0.5" />
-                    )}
-                  </button>
-                );
-              })}
+            {/* Quick Procedure Search Bar */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={procedureSearchQuery}
+                onChange={(e) => setProcedureSearchQuery(e.target.value)}
+                placeholder="Search procedures by name or category (e.g. Veneer, Scaling, Whitening)..."
+                className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2A5CAA] focus:ring-2 focus:ring-[#2A5CAA]/20 transition"
+              />
+              {procedureSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setProcedureSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#1C1C1E] p-1 rounded-full cursor-pointer transition"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
+
+            {filteredServices.length === 0 ? (
+              <div className="py-6 text-center text-xs text-[#6B7280]">
+                No dental procedures match &quot;{procedureSearchQuery}&quot;
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                {filteredServices.map((s) => {
+                  const isSelected = selectedServices.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => toggleService(s.id)}
+                      className={`p-2.5 rounded-xl border text-left transition flex items-start justify-between cursor-pointer ${
+                        isSelected
+                          ? "bg-[#EBF2FC] border-[#2A5CAA] text-[#1C1C1E]"
+                          : "bg-white border-[#E4E4E7] hover:border-[#2A5CAA]/40 text-[#6B7280]"
+                      }`}
+                    >
+                      <div>
+                        <span className="font-bold text-xs block text-[#1C1C1E]">
+                          {s.name}
+                        </span>
+                        <span className="text-[10px] text-[#6B7280]">
+                          {s.durationMinutes} min • {formatBdt(s.priceBdt)}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-[#2A5CAA] shrink-0 mt-0.5" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Step 3: Available Slots */}

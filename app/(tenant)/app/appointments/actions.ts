@@ -105,8 +105,8 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
           eq(schema.appointments.tenantId, tenant.id),
           eq(schema.appointments.doctorId, doc.id),
           sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
-          sql`${schema.appointments.startTime} >= ${dayStart.toISOString()}`,
-          sql`${schema.appointments.startTime} <= ${dayEnd.toISOString()}`
+          sql`${schema.appointments.startTime} < ${dayEnd.toISOString()}`,
+          sql`${schema.appointments.endTime} > ${dayStart.toISOString()}`
         )
       );
 

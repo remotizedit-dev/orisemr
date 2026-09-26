@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -90,6 +90,7 @@ export function QuickAppointmentModal({
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("any");
   const [selectedChairId, setSelectedChairId] = useState<string>("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Dhaka",
@@ -194,6 +195,16 @@ export function QuickAppointmentModal({
   const totalEstimatedPrice = services
     .filter((s) => selectedServices.includes(s.id))
     .reduce((acc, s) => acc + s.priceBdt, 0);
+
+  const filteredServices = useMemo(() => {
+    if (!serviceSearchQuery.trim()) return services;
+    const q = serviceSearchQuery.toLowerCase().trim();
+    return services.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.category && s.category.toLowerCase().includes(q))
+    );
+  }, [services, serviceSearchQuery]);
 
   // Auto fetch slots when date, doctor, or services change
   useEffect(() => {
@@ -470,34 +481,62 @@ export function QuickAppointmentModal({
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1">
-                  {services.map((s) => {
-                    const isSelected = selectedServices.includes(s.id);
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => toggleService(s.id)}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-2 ${
-                          isSelected
-                            ? "bg-[#2A5CAA] text-white border-[#2A5CAA] shadow-2xs"
-                            : "bg-white text-[#4B5563] border-[#E4E4E7] hover:border-[#2A5CAA]/40"
-                        }`}
-                      >
-                        <span>{s.name}</span>
-                        <span
-                          className={`text-[11px] px-1.5 py-0.5 rounded-md ${
+                {/* Procedure Search Bar */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={serviceSearchQuery}
+                    onChange={(e) => setServiceSearchQuery(e.target.value)}
+                    placeholder="Search procedures by name or category..."
+                    className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2A5CAA] focus:ring-1 focus:ring-[#2A5CAA]/20 transition"
+                  />
+                  {serviceSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setServiceSearchQuery("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#1C1C1E] p-0.5 rounded-full cursor-pointer"
+                      title="Clear search"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {filteredServices.length === 0 ? (
+                  <p className="text-xs text-[#6B7280] py-3 text-center">
+                    No procedures match &quot;{serviceSearchQuery}&quot;
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1">
+                    {filteredServices.map((s) => {
+                      const isSelected = selectedServices.includes(s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => toggleService(s.id)}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-2 ${
                             isSelected
-                              ? "bg-white/20 text-white"
-                              : "bg-[#F4F4F5] text-[#6B7280]"
+                              ? "bg-[#2A5CAA] text-white border-[#2A5CAA] shadow-2xs"
+                              : "bg-white text-[#4B5563] border-[#E4E4E7] hover:border-[#2A5CAA]/40"
                           }`}
                         >
-                          {s.durationMinutes}m
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                          <span>{s.name}</span>
+                          <span
+                            className={`text-[11px] px-1.5 py-0.5 rounded-md ${
+                              isSelected
+                                ? "bg-white/20 text-white"
+                                : "bg-[#F4F4F5] text-[#6B7280]"
+                            }`}
+                          >
+                            {s.durationMinutes}m
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Step 3: Doctor & Date & Chair */}
