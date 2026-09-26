@@ -15,14 +15,19 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
+  Mail,
+  MapPin,
   Phone,
+  Pencil,
   Printer,
+  ShieldAlert,
   Stethoscope,
   User,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBdPhone, formatBdt } from "@/lib/utils";
+import { EditPatientModal } from "@/components/patients/EditPatientModal";
 
 interface PatientProfileModalProps {
   patientId: string;
@@ -40,6 +45,7 @@ export function PatientProfileModal({
   const [activeTab, setActiveTab] = useState<"prescriptions" | "reports" | "visits" | "billing">("prescriptions");
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<any>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !patientId) return;
@@ -125,7 +131,43 @@ export function PatientProfileModal({
                   {patient?.phone && (
                     <>
                       <span>•</span>
-                      <span className="font-mono">{formatBdPhone(patient.phone)}</span>
+                      <a
+                        href={`tel:${patient.phone}`}
+                        className="font-mono text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline flex items-center gap-1"
+                      >
+                        <Phone className="w-3 h-3 text-[#2A5CAA]" />
+                        <span>{formatBdPhone(patient.phone)}</span>
+                      </a>
+                    </>
+                  )}
+                  {patient?.email && (
+                    <>
+                      <span>•</span>
+                      <a
+                        href={`mailto:${patient.email}`}
+                        className="text-[#2A5CAA] hover:underline flex items-center gap-1"
+                      >
+                        <Mail className="w-3 h-3 text-[#2A5CAA]" />
+                        <span>{patient.email}</span>
+                      </a>
+                    </>
+                  )}
+                  {patient?.address && (
+                    <>
+                      <span>•</span>
+                      <span className="flex items-center gap-1 text-[#6B7280]">
+                        <MapPin className="w-3 h-3 text-[#6B7280]" />
+                        <span>{patient.address}</span>
+                      </span>
+                    </>
+                  )}
+                  {(patient?.emergencyContactName || patient?.emergencyContactPhone) && (
+                    <>
+                      <span>•</span>
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                        Emergency: {patient.emergencyContactName || ""}{" "}
+                        {patient.emergencyContactPhone ? `(${patient.emergencyContactPhone})` : ""}
+                      </span>
                     </>
                   )}
                 </div>
@@ -157,15 +199,50 @@ export function PatientProfileModal({
                   </span>
                 ))}
             </div>
+
+            {/* Clinical Notes & Allergy Notes (if provided) */}
+            {(patient?.medicalNotes || patient?.allergyNotes) && (
+              <div className="pt-1.5 space-y-1">
+                {patient.medicalNotes && (
+                  <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Medical Background Notes: </span>
+                      <span>{patient.medicalNotes}</span>
+                    </div>
+                  </div>
+                )}
+                {patient.allergyNotes && (
+                  <div className="p-2 rounded-xl bg-red-50/80 border border-red-200 text-xs text-red-900 flex items-start gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Allergy Precautions: </span>
+                      <span>{patient.allergyNotes}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-[#6B7280] hover:text-[#1C1C1E] hover:bg-white transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsEditOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-white border border-[#E4E4E7] text-[#2A5CAA] hover:bg-[#E8EEF7] text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+              title="Edit patient details"
+            >
+              <Pencil className="w-3.5 h-3.5 text-[#2A5CAA]" />
+              <span>Edit Profile</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl text-[#6B7280] hover:text-[#1C1C1E] hover:bg-white transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -317,44 +394,60 @@ export function PatientProfileModal({
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {attachments.map((att: any) => (
-                        <div
-                          key={att.id}
-                          className="p-3.5 rounded-2xl bg-white border border-[#E4E4E7] shadow-xs space-y-2.5 flex flex-col justify-between"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#E8EEF7] text-[#2A5CAA]">
-                                {att.kind.replace("_", " ")}
-                              </span>
-                              <span className="font-mono text-[10px] text-[#6B7280]">
-                                {att.reportCode || "DOC"}
-                              </span>
+                      {attachments.map((att: any) => {
+                        const isImg =
+                          att.contentType?.startsWith("image/") ||
+                          /\.(jpg|jpeg|png|webp|gif)$/i.test(att.s3Key || "");
+
+                        return (
+                          <div
+                            key={att.id}
+                            className="p-3.5 rounded-2xl bg-white border border-[#E4E4E7] shadow-xs space-y-2.5 flex flex-col justify-between hover:border-[#2A5CAA]/40 transition group"
+                          >
+                            <div className="space-y-2">
+                              {isImg && (
+                                <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center relative">
+                                  <img
+                                    src={att.url}
+                                    alt={att.title}
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#E8EEF7] text-[#2A5CAA]">
+                                  {att.kind.replace("_", " ")}
+                                </span>
+                                <span className="font-mono text-[10px] text-[#6B7280]">
+                                  {att.reportCode || "DOC"}
+                                </span>
+                              </div>
+
+                              <p className="font-bold text-sm text-[#1C1C1E] line-clamp-2 group-hover:text-[#2A5CAA]">
+                                {att.title}
+                              </p>
+                              <p className="text-[11px] text-[#6B7280]">
+                                {new Date(att.uploadedAt).toLocaleDateString([], {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </p>
                             </div>
 
-                            <p className="font-bold text-sm text-[#1C1C1E] mt-2 line-clamp-2">
-                              {att.title}
-                            </p>
-                            <p className="text-[11px] text-[#6B7280]">
-                              {new Date(att.uploadedAt).toLocaleDateString([], {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </p>
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="w-full py-2 px-3 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#2A5CAA] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Open Full Document ↗</span>
+                            </a>
                           </div>
-
-                          <a
-                            href={att.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-full py-2 px-3 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#2A5CAA] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Open Full Document ↗</span>
-                          </a>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -477,7 +570,20 @@ export function PatientProfileModal({
             Close &amp; Return to Prescription
           </button>
         </div>
-          </motion.div>
+
+        {/* Edit Patient Modal */}
+        {patient && (
+          <EditPatientModal
+            isOpen={isEditOpen}
+            onClose={() => setIsEditOpen(false)}
+            patientId={patient.id}
+            initialData={patient}
+            onSuccess={() => {
+              getPatientProfileHistoryAction(patientId).then(setProfileData);
+            }}
+          />
+        )}
+      </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

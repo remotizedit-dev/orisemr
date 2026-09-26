@@ -84,9 +84,9 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
             endTime: h.endTime,
           }));
 
-    // Fetch existing appointments on this date
-    const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-    const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+    // Fetch existing appointments on this calendar date in Asia/Dhaka (+06:00)
+    const dayStart = new Date(`${dateStr}T00:00:00+06:00`);
+    const dayEnd = new Date(`${dateStr}T23:59:59.999+06:00`);
 
     const existingAppointments = await db
       .select({

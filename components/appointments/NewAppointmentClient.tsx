@@ -206,13 +206,9 @@ export default function NewAppointmentClient({
     let docId = selectedSlot?.doctorId;
 
     if (isOverbooked) {
-      // Use custom time on selected date
-      const [sh, sm] = customStartTime.split(":").map(Number);
-      const [eh, em] = customEndTime.split(":").map(Number);
-      const [y, m, d] = selectedDate.split("-").map(Number);
-
-      const sDate = new Date(Date.UTC(y, m - 1, d, sh, sm, 0));
-      const eDate = new Date(Date.UTC(y, m - 1, d, eh, em, 0));
+      // Use custom time on selected date in Asia/Dhaka (+06:00)
+      const sDate = new Date(`${selectedDate}T${customStartTime}:00+06:00`);
+      const eDate = new Date(`${selectedDate}T${customEndTime}:00+06:00`);
 
       startTime = sDate.toISOString();
       endTime = eDate.toISOString();

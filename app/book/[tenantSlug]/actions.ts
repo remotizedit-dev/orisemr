@@ -26,8 +26,8 @@ export async function getPublicAvailableSlots(
   const [year, month, day] = dateStr.split("-").map(Number);
   const targetDate = new Date(Date.UTC(year, month - 1, day));
   const weekday = targetDate.getUTCDay();
-  const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-  const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+  const dayStart = new Date(`${dateStr}T00:00:00+06:00`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999+06:00`);
 
   // 2. Fetch everything in 1 single parallel round-trip
   const [
@@ -197,10 +197,8 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
     isAutoConfirmed = tenant.autoConfirmExistingPatientBookings;
   }
 
-  // Calculate start & end times
-  const [year, month, day] = input.date.split("-").map(Number);
-  const [hours, minutes] = input.time.split(":").map(Number);
-  const startTime = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+  // Calculate start & end times in Asia/Dhaka (+06:00)
+  const startTime = new Date(`${input.date}T${input.time.padStart(5, "0")}:00+06:00`);
 
   const services = await db
     .select()

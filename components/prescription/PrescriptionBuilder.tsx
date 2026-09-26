@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { ToothSelector } from "./ToothSelector";
 import { ClinicalAutocompleteInput } from "./ClinicalAutocompleteInput";
 import { PatientProfileModal } from "./PatientProfileModal";
@@ -17,15 +18,20 @@ import {
   Camera,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Copy,
   CreditCard,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
   Loader2,
+  Maximize2,
   Phone,
   Plus,
   Printer,
+  RotateCcw,
   Search,
   Sparkles,
   Stethoscope,
@@ -33,8 +39,23 @@ import {
   Upload,
   User,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { toast } from "sonner";
+
+export interface PatientAttachmentItem {
+  id: string;
+  title?: string | null;
+  kind: string;
+  reportCode?: string | null;
+  s3Key: string;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  uploadedAt: string;
+  uploadedByName?: string | null;
+  url: string;
+}
 
 interface PrescriptionBuilderProps {
   patient: {
@@ -49,6 +70,7 @@ interface PrescriptionBuilderProps {
     phone?: string | null;
   };
   appointmentId?: string;
+  initialReports?: PatientAttachmentItem[];
   catalogMedicines: {
     id: string;
     brandName: string | null;
@@ -106,6 +128,7 @@ interface SelectedMedicineItem {
 export function PrescriptionBuilder({
   patient,
   appointmentId,
+  initialReports = [],
   catalogMedicines,
   dosagePatterns,
   mealTimings,
@@ -114,6 +137,39 @@ export function PrescriptionBuilder({
   quickTexts,
 }: PrescriptionBuilderProps) {
   const router = useRouter();
+
+  // In-chair patient clinical reports state (filtered for this patient only)
+  const [reports, setReports] = useState<PatientAttachmentItem[]>(initialReports);
+  const [lightboxAttachment, setLightboxAttachment] = useState<PatientAttachmentItem | null>(null);
+  const [lightboxZoom, setLightboxZoom] = useState<number>(1);
+  const [lightboxRotation, setLightboxRotation] = useState<number>(0);
+  const [isReportsExpanded, setIsReportsExpanded] = useState<boolean>(true);
+
+  // Keyboard navigation for radiograph Lightbox
+  useEffect(() => {
+    if (!lightboxAttachment) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxAttachment(null);
+      } else if (e.key === "ArrowLeft") {
+        const idx = reports.findIndex((r) => r.id === lightboxAttachment.id);
+        if (idx > 0) {
+          setLightboxAttachment(reports[idx - 1]);
+          setLightboxZoom(1);
+          setLightboxRotation(0);
+        }
+      } else if (e.key === "ArrowRight") {
+        const idx = reports.findIndex((r) => r.id === lightboxAttachment.id);
+        if (idx < reports.length - 1) {
+          setLightboxAttachment(reports[idx + 1]);
+          setLightboxZoom(1);
+          setLightboxRotation(0);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxAttachment, reports]);
 
   // Clinical Notes State
   const [chiefComplaint, setChiefComplaint] = useState("");
@@ -421,9 +477,204 @@ export function PrescriptionBuilder({
       {/* Upload Report / Camera Capture Modal */}
       <UploadReportModal
         patientId={patient.id}
+        prescriptionId={savedPrescription?.id}
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
+        onUploaded={(newDoc) => {
+          setReports((prev) => [
+            {
+              id: newDoc.id,
+              title: newDoc.title,
+              kind: newDoc.kind,
+              reportCode: newDoc.reportCode,
+              s3Key: newDoc.s3Key,
+              contentType: newDoc.contentType,
+              sizeBytes: newDoc.sizeBytes,
+              uploadedAt:
+                newDoc.uploadedAt instanceof Date
+                  ? newDoc.uploadedAt.toISOString()
+                  : String(newDoc.uploadedAt || new Date().toISOString()),
+              uploadedByName: newDoc.uploadedByName,
+              url: newDoc.url,
+            },
+            ...prev,
+          ]);
+        }}
       />
+
+      {/* High-Resolution In-Chair Radiograph Lightbox Modal */}
+      <AnimatePresence>
+        {lightboxAttachment && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setLightboxAttachment(null)}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-between p-3 sm:p-5"
+          >
+            {/* Top Header Bar */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-5xl flex flex-wrap items-center justify-between gap-3 py-2.5 px-4 rounded-2xl bg-white/10 backdrop-blur-md text-white border border-white/10"
+            >
+              <div className="flex items-center gap-3">
+                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#2A5CAA] text-white">
+                  {lightboxAttachment.kind.replace("_", " ")}
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    <span>{lightboxAttachment.title}</span>
+                    {lightboxAttachment.reportCode && (
+                      <span className="font-mono text-xs text-white/70 font-normal">
+                        ({lightboxAttachment.reportCode})
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-white/70">
+                    Patient: {patient.name} ({patient.cardNumber}) • Uploaded:{" "}
+                    {new Date(lightboxAttachment.uploadedAt).toLocaleDateString([], {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Toolbar Controls */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setLightboxZoom((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                  className="p-2 rounded-xl hover:bg-white/15 text-white/90 hover:text-white transition cursor-pointer"
+                  title="Zoom Out (-25%)"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-mono font-bold px-1 text-white/80 min-w-[48px] text-center">
+                  {Math.round(lightboxZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLightboxZoom((z) => Math.min(3.0, Number((z + 0.25).toFixed(2))))}
+                  className="p-2 rounded-xl hover:bg-white/15 text-white/90 hover:text-white transition cursor-pointer"
+                  title="Zoom In (+25%)"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLightboxRotation((r) => (r + 90) % 360)}
+                  className="p-2 rounded-xl hover:bg-white/15 text-white/90 hover:text-white transition cursor-pointer flex items-center gap-1"
+                  title="Rotate 90° Clockwise"
+                >
+                  <RotateCcw className="w-4 h-4 -scale-x-100" />
+                  <span className="text-xs font-mono">{lightboxRotation}°</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLightboxZoom(1);
+                    setLightboxRotation(0);
+                  }}
+                  className="px-2.5 py-1 rounded-xl hover:bg-white/15 text-white/80 hover:text-white text-xs font-bold transition cursor-pointer"
+                >
+                  Reset
+                </button>
+
+                <a
+                  href={lightboxAttachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-2 rounded-xl hover:bg-white/15 text-white/90 hover:text-white transition cursor-pointer"
+                  title="Open in Full Tab ↗"
+                >
+                  <ArrowRight className="w-4 h-4 -rotate-45" />
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setLightboxAttachment(null)}
+                  className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition cursor-pointer ml-1"
+                  title="Close Lightbox (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Image Canvas */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full flex-1 max-w-5xl my-4 flex items-center justify-center overflow-auto relative select-none"
+            >
+              <img
+                src={lightboxAttachment.url}
+                alt={lightboxAttachment.title || "Radiograph"}
+                style={{
+                  transform: `scale(${lightboxZoom}) rotate(${lightboxRotation}deg)`,
+                  transition: "transform 0.18s ease-out",
+                }}
+                className="max-h-[72vh] max-w-full object-contain rounded-lg shadow-2xl"
+                draggable={false}
+              />
+            </div>
+
+            {/* Bottom Navigation Strip */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md flex items-center justify-between gap-3 py-1.5 px-4 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/10"
+            >
+              {(() => {
+                const currentIdx = reports.findIndex((r) => r.id === lightboxAttachment.id);
+                const hasPrev = currentIdx > 0;
+                const hasNext = currentIdx < reports.length - 1;
+
+                return (
+                  <>
+                    <button
+                      type="button"
+                      disabled={!hasPrev}
+                      onClick={() => {
+                        if (hasPrev) {
+                          setLightboxAttachment(reports[currentIdx - 1]);
+                          setLightboxZoom(1);
+                          setLightboxRotation(0);
+                        }
+                      }}
+                      className="px-3 py-1 rounded-full text-xs font-bold hover:bg-white/20 disabled:opacity-30 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Previous</span>
+                    </button>
+                    <span className="text-xs font-mono text-white/80">
+                      {currentIdx + 1} of {reports.length}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!hasNext}
+                      onClick={() => {
+                        if (hasNext) {
+                          setLightboxAttachment(reports[currentIdx + 1]);
+                          setLightboxZoom(1);
+                          setLightboxRotation(0);
+                        }
+                      }}
+                      className="px-3 py-1 rounded-full text-xs font-bold hover:bg-white/20 disabled:opacity-30 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Next</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ==================================================================== */}
       {/* ROW 1: FULL-WIDTH STICKY PATIENT CLINICAL BANNER                     */}
@@ -522,6 +773,198 @@ export function PrescriptionBuilder({
             )}
           </div>
         </div>
+      </div>
+
+      {/* ==================================================================== */}
+      {/* IN-CHAIR PATIENT RADIOGRAPHS & CLINICAL DOCUMENTS TRAY               */}
+      {/* Strictly filtered for this patient only                               */}
+      {/* ==================================================================== */}
+      <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] shadow-sm bg-white space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#E8EEF7] text-[#2A5CAA] flex items-center justify-center font-bold">
+              <ImageIcon className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-black text-[#1C1C1E] tracking-tight">
+                  Patient Radiographs &amp; Clinical Documents
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-[#E8EEF7] text-[#2A5CAA] text-xs font-black">
+                  {reports.length}
+                </span>
+              </div>
+              <p className="text-[11px] font-medium text-[#6B7280]">
+                Instant in-chair access to {patient.name}&apos;s X-rays, OPG scans, and lab reports while prescribing
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsUploadModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>+ Upload / Take Photo</span>
+            </button>
+
+            {reports.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsReportsExpanded((prev) => !prev)}
+                className="px-2.5 py-1.5 rounded-xl border border-[#E4E4E7] hover:bg-[#F4F4F5] text-xs font-bold text-[#4B5563] transition flex items-center gap-1 cursor-pointer"
+              >
+                <span>{isReportsExpanded ? "Collapse" : "Show All"}</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isReportsExpanded ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Document Cards Display */}
+        {isReportsExpanded && (
+          <>
+            {reports.length === 0 ? (
+              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-dashed border-[#E4E4E7] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-[#1C1C1E]">
+                      No radiographs or clinical documents uploaded for this patient yet
+                    </p>
+                    <p className="text-[11px] text-[#6B7280]">
+                      Capture intraoral photos with dental camera/webcam or upload X-ray images (stored in S3)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-[#E8EEF7] text-[#2A5CAA] border border-[#2A5CAA]/30 text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-2xs"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Capture / Upload Now</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pt-1">
+                {reports.map((report) => {
+                  const isImg =
+                    report.contentType?.startsWith("image/") ||
+                    /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(report.s3Key || "");
+
+                  return (
+                    <div
+                      key={report.id}
+                      className="group relative rounded-2xl border border-[#E4E4E7] hover:border-[#2A5CAA] bg-white p-2.5 transition shadow-2xs hover:shadow-md flex flex-col justify-between overflow-hidden"
+                    >
+                      {/* Thumbnail */}
+                      <div
+                        onClick={() => {
+                          if (isImg) {
+                            setLightboxAttachment(report);
+                            setLightboxZoom(1);
+                            setLightboxRotation(0);
+                          } else {
+                            window.open(report.url, "_blank");
+                          }
+                        }}
+                        className="w-full h-24 rounded-xl bg-[#0F172A] relative overflow-hidden flex items-center justify-center cursor-pointer group/thumb"
+                      >
+                        {isImg ? (
+                          <>
+                            <img
+                              src={report.url}
+                              alt={report.title || "Report Thumbnail"}
+                              className="w-full h-full object-contain transition-transform duration-300 group-hover/thumb:scale-105"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white">
+                              <Search className="w-4 h-4" />
+                              <span className="text-[10px] font-bold">Inspect</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-slate-300 gap-1 p-2">
+                            <FileText className="w-6 h-6 text-[#2A5CAA]" />
+                            <span className="text-[9px] uppercase font-bold text-center line-clamp-1">
+                              {report.contentType?.split("/")[1] || "DOC"}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Kind Badge Tag */}
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
+                          {report.kind.replace("_", " ")}
+                        </span>
+                      </div>
+
+                      {/* Details */}
+                      <div className="pt-2 space-y-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="font-mono text-[#2A5CAA] font-bold">
+                            {report.reportCode || "DOC"}
+                          </span>
+                          <span className="text-[#8E8E93]">
+                            {new Date(report.uploadedAt).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                        <p
+                          className="text-xs font-bold text-[#1C1C1E] line-clamp-1 group-hover:text-[#2A5CAA] transition"
+                          title={report.title || "Document"}
+                        >
+                          {report.title || "Document"}
+                        </p>
+
+                        <div className="pt-1 flex items-center justify-between gap-1 border-t border-[#F4F4F5]">
+                          {isImg ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLightboxAttachment(report);
+                                setLightboxZoom(1);
+                                setLightboxRotation(0);
+                              }}
+                              className="text-[11px] font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Search className="w-3 h-3" />
+                              <span>Inspect</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-[#6B7280]">
+                              {report.sizeBytes ? `${Math.round(report.sizeBytes / 1024)} KB` : "File"}
+                            </span>
+                          )}
+
+                          <a
+                            href={report.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1 rounded-md text-[#8E8E93] hover:text-[#2A5CAA] hover:bg-[#E8EEF7] transition"
+                            title="Open in new window ↗"
+                          >
+                            <ArrowRight className="w-3 h-3 -rotate-45" />
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* ==================================================================== */}

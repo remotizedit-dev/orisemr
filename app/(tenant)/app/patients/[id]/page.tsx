@@ -1,18 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
+import { PatientHeaderActions } from "@/components/patients/PatientHeaderActions";
 import { formatBdPhone, formatBdt, formatDhakaDate } from "@/lib/utils";
+import { getFileUrl } from "@/lib/s3";
 import {
   AlertCircle,
   Calendar,
   CreditCard,
+  ExternalLink,
   FileText,
+  Image as ImageIcon,
+  Mail,
+  MapPin,
   Paperclip,
+  Phone,
   Plus,
   Printer,
+  ShieldAlert,
   Stethoscope,
   User,
 } from "lucide-react";
@@ -32,7 +40,8 @@ export default async function PatientProfilePage({
     .where(
       and(
         eq(schema.patients.tenantId, tenant.id),
-        eq(schema.patients.id, id)
+        eq(schema.patients.id, id),
+        isNull(schema.patients.deletedAt)
       )
     )
     .limit(1);
@@ -41,8 +50,8 @@ export default async function PatientProfilePage({
     notFound();
   }
 
-  // Fetch patient clinical records, billing invoices, and appointment history in parallel
-  const [prescriptions, invoices, appointments] = await Promise.all([
+  // Fetch patient clinical records, billing invoices, appointment history, and uploaded reports in parallel
+  const [prescriptions, invoices, appointments, attachments] = await Promise.all([
     // 2. Fetch Prescriptions
     db
       .select({
@@ -98,7 +107,36 @@ export default async function PatientProfilePage({
         )
       )
       .orderBy(desc(schema.appointments.startTime)),
+
+    // 5. Fetch Attachments / Reports
+    db
+      .select({
+        id: schema.attachments.id,
+        title: schema.attachments.title,
+        kind: schema.attachments.kind,
+        reportCode: schema.attachments.reportCode,
+        s3Key: schema.attachments.s3Key,
+        contentType: schema.attachments.contentType,
+        sizeBytes: schema.attachments.sizeBytes,
+        uploadedAt: schema.attachments.uploadedAt,
+        uploadedByName: schema.users.name,
+      })
+      .from(schema.attachments)
+      .leftJoin(schema.users, eq(schema.attachments.uploadedBy, schema.users.id))
+      .where(
+        and(
+          eq(schema.attachments.tenantId, tenant.id),
+          eq(schema.attachments.patientId, id),
+          sql`${schema.attachments.deletedAt} IS NULL`
+        )
+      )
+      .orderBy(desc(schema.attachments.uploadedAt)),
   ]);
+
+  const enrichedAttachments = attachments.map((att) => ({
+    ...att,
+    url: getFileUrl(att.s3Key),
+  }));
 
   const totalOutstanding = invoices
     .filter((inv) => inv.status === "due" || inv.status === "partial")
@@ -108,7 +146,7 @@ export default async function PatientProfilePage({
     <div className="space-y-6">
       {/* Patient Header Banner */}
       <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-extrabold text-[#1C1C1E] tracking-tight">
               {patient.name}
@@ -128,14 +166,59 @@ export default async function PatientProfilePage({
               {patient.approxAge ? `${patient.approxAge} years` : "Age —"} •{" "}
               <span className="capitalize">{patient.gender}</span>
             </span>
+
             <span>•</span>
-            <span className="font-mono text-[#1C1C1E] font-semibold">
-              {formatBdPhone(patient.phone)}
-            </span>
+            <a
+              href={`tel:${patient.phone}`}
+              className="font-mono text-[#1C1C1E] font-semibold hover:text-[#2A5CAA] hover:underline flex items-center gap-1"
+            >
+              <Phone className="w-3.5 h-3.5 text-[#2A5CAA]" />
+              <span>{formatBdPhone(patient.phone)}</span>
+            </a>
+
+            <span>•</span>
+            {patient.email ? (
+              <a
+                href={`mailto:${patient.email}`}
+                className="text-[#2A5CAA] font-semibold hover:underline flex items-center gap-1"
+              >
+                <Mail className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                <span>{patient.email}</span>
+              </a>
+            ) : (
+              <span className="text-[#9CA3AF] flex items-center gap-1">
+                <Mail className="w-3.5 h-3.5 text-[#9CA3AF]" />
+                <span>No email</span>
+              </span>
+            )}
+
             {patient.address && (
               <>
                 <span>•</span>
-                <span>{patient.address}</span>
+                <span className="flex items-center gap-1 text-[#4B5563]">
+                  <MapPin className="w-3.5 h-3.5 text-[#6B7280]" />
+                  <span>{patient.address}</span>
+                </span>
+              </>
+            )}
+
+            {patient.dateOfBirth && (
+              <>
+                <span>•</span>
+                <span className="flex items-center gap-1 text-[#6B7280]">
+                  <Calendar className="w-3.5 h-3.5 text-[#6B7280]" />
+                  <span>DOB: {formatDhakaDate(patient.dateOfBirth, "dd MMM yyyy")}</span>
+                </span>
+              </>
+            )}
+
+            {(patient.emergencyContactName || patient.emergencyContactPhone) && (
+              <>
+                <span>•</span>
+                <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
+                  Emergency: {patient.emergencyContactName || ""}
+                  {patient.emergencyContactPhone ? ` (${patient.emergencyContactPhone})` : ""}
+                </span>
               </>
             )}
           </div>
@@ -160,45 +243,56 @@ export default async function PatientProfilePage({
               </span>
             ))}
           </div>
-        </div>
 
-        {/* Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {(user.isDoctor || user.role === "DOCTOR" || user.role === "TENANT_ADMIN") && (
-            <Link
-              href={`/app/prescriptions/new?patientId=${patient.id}`}
-              className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
-            >
-              <FileText className="w-4 h-4" />
-              <span>New Prescription</span>
-            </Link>
+          {/* Clinical Notes & Allergy Notes (if provided) */}
+          {(patient.medicalNotes || patient.allergyNotes) && (
+            <div className="pt-2 space-y-1.5">
+              {patient.medicalNotes && (
+                <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/70 text-xs text-amber-900 flex items-start gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Medical Background Notes: </span>
+                    <span>{patient.medicalNotes}</span>
+                  </div>
+                </div>
+              )}
+              {patient.allergyNotes && (
+                <div className="p-2.5 rounded-xl bg-red-50/70 border border-red-200/70 text-xs text-red-900 flex items-start gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Allergy Details &amp; Precautions: </span>
+                    <span>{patient.allergyNotes}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
-
-          <Link
-            href={`/app/appointments/new?patientId=${patient.id}`}
-            className="px-3.5 py-2 rounded-xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F4F4F5] font-semibold text-xs flex items-center gap-1.5 shadow-xs transition"
-          >
-            <Calendar className="w-3.5 h-3.5 text-[#2A5CAA]" />
-            <span>Book Visit</span>
-          </Link>
-
-          <Link
-            href={`/app/billing/new?patientId=${patient.id}`}
-            className="px-3.5 py-2 rounded-xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F4F4F5] font-semibold text-xs flex items-center gap-1.5 shadow-xs transition"
-          >
-            <CreditCard className="w-3.5 h-3.5 text-[#FF9F0A]" />
-            <span>New Invoice</span>
-          </Link>
-
-          <Link
-            href={`/print/card/${patient.id}`}
-            target="_blank"
-            className="px-3.5 py-2 rounded-xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F4F4F5] font-semibold text-xs flex items-center gap-1.5 shadow-xs transition"
-          >
-            <Printer className="w-3.5 h-3.5 text-[#6B7280]" />
-            <span>Print Card</span>
-          </Link>
         </div>
+
+        {/* Action Buttons including Edit & Delete */}
+        <PatientHeaderActions
+          patient={{
+            id: patient.id,
+            name: patient.name,
+            phone: patient.phone,
+            cardNumber: patient.cardNumber,
+            email: patient.email,
+            gender: patient.gender,
+            approxAge: patient.approxAge,
+            dateOfBirth: patient.dateOfBirth,
+            bloodGroup: patient.bloodGroup,
+            address: patient.address,
+            emergencyContactName: patient.emergencyContactName,
+            emergencyContactPhone: patient.emergencyContactPhone,
+            allergyFlags: patient.allergyFlags || [],
+            medicalConditions: patient.medicalConditions || [],
+            allergyNotes: patient.allergyNotes,
+            medicalNotes: patient.medicalNotes,
+          }}
+          canPrescribe={Boolean(
+            user.isDoctor || user.role === "DOCTOR" || user.role === "TENANT_ADMIN"
+          )}
+        />
       </div>
 
       {/* Profile Sections Grid */}
@@ -308,6 +402,79 @@ export default async function PatientProfilePage({
                     </span>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+
+          {/* Clinical Reports, X-Rays & Uploaded Documents */}
+          <div className="glass-panel rounded-2xl border border-[#E4E4E7] overflow-hidden">
+            <div className="p-4 border-b border-[#E4E4E7] flex items-center justify-between">
+              <h2 className="text-sm font-bold text-[#1C1C1E] flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-[#2A5CAA]" />
+                <span>Clinical Reports, X-Rays &amp; Documents ({enrichedAttachments.length})</span>
+              </h2>
+            </div>
+
+            <div className="p-4">
+              {enrichedAttachments.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[#6B7280] bg-[#F9FAFB] rounded-xl border border-dashed border-[#E4E4E7]">
+                  No clinical documents, X-rays, or lab reports uploaded yet for this patient.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {enrichedAttachments.map((att) => {
+                    const isImg =
+                      att.contentType?.startsWith("image/") ||
+                      /\.(jpg|jpeg|png|webp|gif)$/i.test(att.s3Key);
+
+                    return (
+                      <div
+                        key={att.id}
+                        className="p-3.5 rounded-2xl bg-white border border-[#E4E4E7] shadow-2xs space-y-3 flex flex-col justify-between hover:border-[#2A5CAA]/40 transition group"
+                      >
+                        <div className="space-y-2">
+                          {isImg && (
+                            <div className="w-full h-36 rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center relative">
+                              <img
+                                src={att.url}
+                                alt={att.title || "Clinical Report"}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#E8EEF7] text-[#2A5CAA]">
+                              {att.kind.replace("_", " ")}
+                            </span>
+                            <span className="font-mono text-[10px] text-[#6B7280]">
+                              {att.reportCode || "DOC"}
+                            </span>
+                          </div>
+
+                          <h3 className="font-bold text-sm text-[#1C1C1E] line-clamp-1 group-hover:text-[#2A5CAA]">
+                            {att.title}
+                          </h3>
+
+                          <div className="flex items-center justify-between text-[11px] text-[#6B7280]">
+                            <span>{formatDhakaDate(att.uploadedAt, "dd MMM yyyy")}</span>
+                            {att.uploadedByName && <span>By {att.uploadedByName}</span>}
+                          </div>
+                        </div>
+
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full py-2 px-3 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#2A5CAA] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>View Full Document ↗</span>
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>

@@ -16,9 +16,8 @@ export default async function LiveQueuePage() {
 
   // 1. Auto-sync any confirmed/pending appointments scheduled for today into queueEntries
   // (guarantees advance bookings made days ago appear in Booked Today)
-  const [year, month, day] = todayDhakaStr.split("-").map(Number);
-  const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-  const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+  const dayStart = new Date(`${todayDhakaStr}T00:00:00+06:00`);
+  const dayEnd = new Date(`${todayDhakaStr}T23:59:59.999+06:00`);
 
   const todayApts = await db
     .select({

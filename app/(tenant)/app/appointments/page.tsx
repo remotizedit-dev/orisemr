@@ -21,10 +21,9 @@ export default async function AppointmentsPage({ searchParams }: Props) {
 
   const targetDateStr = params.date || todayDhakaStr;
 
-  // Range in UTC for target date
-  const [year, month, day] = targetDateStr.split("-").map(Number);
-  const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-  const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59));
+  // Range in Asia/Dhaka (+06:00) for target calendar date
+  const dayStart = new Date(`${targetDateStr}T00:00:00+06:00`);
+  const dayEnd = new Date(`${targetDateStr}T23:59:59.999+06:00`);
 
   // Fetch doctors and appointments concurrently
   const [doctors, aptRows] = await Promise.all([

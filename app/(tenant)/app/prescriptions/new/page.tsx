@@ -6,6 +6,7 @@ import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { PrescriptionBuilder } from "@/components/prescription/PrescriptionBuilder";
 import { SelectPatientForPrescription } from "@/components/prescription/SelectPatientForPrescription";
+import { getPatientAttachmentsAction } from "@/app/(tenant)/app/patients/actions";
 
 /**
  * Cache chamber clinical catalogs (medicines, dosage patterns, timings, durations, advice, quick texts)
@@ -203,6 +204,21 @@ export default async function NewPrescriptionPage({
     return <SelectPatientForPrescription recentPatients={recentPatients} />;
   }
 
+  // Fetch patient clinical attachments (radiographs, scans, reports) for this patient only
+  const patientReports = (await getPatientAttachmentsAction(patient.id)).map((r) => ({
+    id: r.id,
+    title: r.title,
+    kind: r.kind,
+    reportCode: r.reportCode,
+    s3Key: r.s3Key,
+    contentType: r.contentType,
+    sizeBytes: r.sizeBytes,
+    uploadedAt:
+      r.uploadedAt instanceof Date ? r.uploadedAt.toISOString() : String(r.uploadedAt),
+    uploadedByName: r.uploadedByName,
+    url: r.url,
+  }));
+
   return (
     <div className="space-y-6">
       <PrescriptionBuilder
@@ -218,6 +234,7 @@ export default async function NewPrescriptionPage({
           phone: patient.phone || null,
         }}
         appointmentId={appointmentId}
+        initialReports={patientReports}
         catalogMedicines={catalog.catalogMedicines}
         dosagePatterns={catalog.dosagePatterns}
         mealTimings={catalog.mealTimings}

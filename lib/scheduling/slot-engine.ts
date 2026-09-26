@@ -37,37 +37,41 @@ export interface AvailableSlot {
 }
 
 /**
- * Parses "HH:MM" string and returns a Date in UTC representing that wall clock time on the target date.
+ * Parses "HH:MM" string and returns a Date in UTC representing that wall clock time in Asia/Dhaka on the target date.
+ * Asia/Dhaka is constant UTC+6 (Bangladesh Standard Time).
+ * Example: 17:00 in Dhaka on 2026-09-26 -> 2026-09-26T17:00:00+06:00 (which is 11:00 UTC).
  */
 export function parseWallClockTimeToDate(dateStr: string, timeStr: string): Date {
-  const [hours, minutes] = timeStr.split(":").map(Number);
-  const [year, month, day] = dateStr.split("-").map(Number);
-  
-  // Create UTC date representation for stable slot calculations
-  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
+  const [hStr, mStr] = timeStr.split(":");
+  const pad = (n: string | number) => String(n).padStart(2, "0");
+  return new Date(`${dateStr}T${pad(hStr)}:${pad(mStr)}:00+06:00`);
 }
 
 /**
- * Formats a Date to 12-hour display string (e.g. "05:30 PM").
+ * Formats a Date to 12-hour display string in Asia/Dhaka (e.g. "05:30 PM").
  */
 export function formatDisplayTime(date: Date): string {
-  const hours = date.getUTCHours();
-  const minutes = date.getUTCMinutes();
-  const ampm = hours >= 12 ? "PM" : "AM";
-  const formattedHours = hours % 12 === 0 ? 12 : hours % 12;
-  const formattedMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
-  return `${formattedHours < 10 ? `0${formattedHours}` : formattedHours}:${formattedMinutes} ${ampm}`;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Dhaka",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
 }
 
 /**
- * Formats a Date to "HH:MM" 24h string.
+ * Formats a Date to "HH:MM" 24h string in Asia/Dhaka.
  */
 export function format24hTime(date: Date): string {
-  const hours = date.getUTCHours();
-  const minutes = date.getUTCMinutes();
-  const hStr = hours < 10 ? `0${hours}` : `${hours}`;
-  const mStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
-  return `${hStr}:${mStr}`;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dhaka",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const hour = parts.find((p) => p.type === "hour")?.value || "00";
+  const minute = parts.find((p) => p.type === "minute")?.value || "00";
+  return `${hour}:${minute}`;
 }
 
 /**

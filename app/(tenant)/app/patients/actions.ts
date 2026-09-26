@@ -1,6 +1,7 @@
 "use server";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -386,4 +387,190 @@ export async function getPatientProfileHistoryAction(patientId: string) {
     invoices,
     attachments: enrichedAttachments,
   };
+}
+
+export interface UpdatePatientInput {
+  patientId: string;
+  name: string;
+  phone: string;
+  cardNumber?: string;
+  email?: string | null;
+  approxAge?: number | null;
+  dateOfBirth?: string | null;
+  gender: "male" | "female" | "other";
+  bloodGroup?: string | null;
+  address?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  medicalConditions: string[];
+  allergyFlags: string[];
+  allergyNotes?: string | null;
+  medicalNotes?: string | null;
+}
+
+export async function getPatientForEditAction(patientId: string) {
+  const { tenant } = await requireClinicStaff();
+
+  const [patient] = await db
+    .select()
+    .from(schema.patients)
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        eq(schema.patients.id, patientId),
+        isNull(schema.patients.deletedAt)
+      )
+    )
+    .limit(1);
+
+  if (!patient) {
+    throw new Error("Patient not found or already deleted");
+  }
+
+  return patient;
+}
+
+export async function updatePatientAction(input: UpdatePatientInput) {
+  const { tenant, user } = await requireClinicStaff();
+
+  const normalizedPhone = normalizeBdPhone(input.phone);
+  if (!normalizedPhone) {
+    throw new Error("Invalid Bangladeshi phone number (must be 01XXXXXXXXX)");
+  }
+
+  // Verify patient exists and belongs to tenant
+  const [existingPatient] = await db
+    .select()
+    .from(schema.patients)
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        eq(schema.patients.id, input.patientId),
+        isNull(schema.patients.deletedAt)
+      )
+    )
+    .limit(1);
+
+  if (!existingPatient) {
+    throw new Error("Patient not found or already deleted");
+  }
+
+  // If card number is being changed, ensure uniqueness within this clinic
+  if (input.cardNumber && input.cardNumber.trim() !== existingPatient.cardNumber) {
+    const [cardConflict] = await db
+      .select({ id: schema.patients.id, name: schema.patients.name })
+      .from(schema.patients)
+      .where(
+        and(
+          eq(schema.patients.tenantId, tenant.id),
+          eq(schema.patients.cardNumber, input.cardNumber.trim()),
+          ne(schema.patients.id, input.patientId),
+          isNull(schema.patients.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (cardConflict) {
+      throw new Error(`Card number ${input.cardNumber} is already assigned to ${cardConflict.name}`);
+    }
+  }
+
+  const [updated] = await db
+    .update(schema.patients)
+    .set({
+      name: input.name.trim(),
+      phone: normalizedPhone,
+      cardNumber: input.cardNumber?.trim() || existingPatient.cardNumber,
+      email: input.email?.trim() || null,
+      approxAge: input.approxAge !== undefined ? input.approxAge : existingPatient.approxAge,
+      dateOfBirth: input.dateOfBirth || null,
+      gender: input.gender,
+      bloodGroup: input.bloodGroup || null,
+      address: input.address?.trim() || null,
+      emergencyContactName: input.emergencyContactName?.trim() || null,
+      emergencyContactPhone: input.emergencyContactPhone?.trim() || null,
+      medicalConditions: input.medicalConditions,
+      allergyFlags: input.allergyFlags,
+      allergyNotes: input.allergyNotes?.trim() || null,
+      medicalNotes: input.medicalNotes?.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        eq(schema.patients.id, input.patientId)
+      )
+    )
+    .returning();
+
+  revalidatePath("/app/patients");
+  revalidatePath(`/app/patients/${input.patientId}`);
+  revalidatePath("/app/appointments");
+  revalidatePath("/app/queue");
+  revalidatePath("/app/prescriptions/new");
+
+  return { success: true, patient: updated };
+}
+
+export async function deletePatientAction(patientId: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  // Verify patient exists and belongs to tenant
+  const [existing] = await db
+    .select({
+      id: schema.patients.id,
+      name: schema.patients.name,
+      cardNumber: schema.patients.cardNumber,
+    })
+    .from(schema.patients)
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        eq(schema.patients.id, patientId),
+        isNull(schema.patients.deletedAt)
+      )
+    )
+    .limit(1);
+
+  if (!existing) {
+    throw new Error("Patient not found or already deleted");
+  }
+
+  // Soft-delete the patient record
+  await db
+    .update(schema.patients)
+    .set({
+      deletedAt: new Date(),
+      deletedBy: user.id,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        eq(schema.patients.id, patientId)
+      )
+    );
+
+  // Cancel any active queue entries for today
+  await db
+    .update(schema.queueEntries)
+    .set({
+      status: "cancelled",
+      updatedBy: user.id,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.queueEntries.tenantId, tenant.id),
+        eq(schema.queueEntries.patientId, patientId),
+        sql`${schema.queueEntries.status} IN ('booked', 'waiting', 'in_chair')`
+      )
+    );
+
+  revalidatePath("/app/patients");
+  revalidatePath(`/app/patients/${patientId}`);
+  revalidatePath("/app/queue");
+  revalidatePath("/app/appointments");
+
+  return { success: true, name: existing.name, cardNumber: existing.cardNumber };
 }

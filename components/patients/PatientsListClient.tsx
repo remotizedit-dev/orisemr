@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatBdPhone } from "@/lib/utils";
-import { AlertCircle, Search, UserPlus, Users, ArrowRight } from "lucide-react";
+import { AlertCircle, Search, UserPlus, Users, ArrowRight, Pencil, Trash2 } from "lucide-react";
+import { EditPatientModal } from "./EditPatientModal";
+import { DeletePatientModal } from "./DeletePatientModal";
 
 export interface PatientRow {
   id: string;
@@ -22,9 +25,19 @@ interface PatientsListClientProps {
 }
 
 export default function PatientsListClient({ initialPatients }: PatientsListClientProps) {
+  const router = useRouter();
+  const [patients, setPatients] = useState<PatientRow[]>(initialPatients);
   const [search, setSearch] = useState("");
 
-  const filteredPatients = initialPatients.filter((p) => {
+  // Modals state
+  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
+  const [deletingPatient, setDeletingPatient] = useState<{
+    id: string;
+    name: string;
+    cardNumber: string;
+  } | null>(null);
+
+  const filteredPatients = patients.filter((p) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase().trim();
     return (
@@ -52,7 +65,7 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
         </div>
 
         <span className="text-sm text-[#4B5563] self-end sm:self-center font-medium">
-          Showing <strong>{filteredPatients.length}</strong> of {initialPatients.length} patients
+          Showing <strong>{filteredPatients.length}</strong> of {patients.length} patients
         </span>
       </div>
 
@@ -132,13 +145,40 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
                       </div>
                     </td>
                     <td className="py-4 px-5 text-right">
-                      <Link
-                        href={`/app/patients/${p.id}`}
-                        className="px-3.5 py-2 rounded-xl bg-[#F4F4F5] hover:bg-[#2A5CAA] hover:text-white text-sm font-bold text-[#1C1C1E] inline-flex items-center gap-1.5 transition shadow-2xs"
-                      >
-                        <span>Open File</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          href={`/app/patients/${p.id}`}
+                          className="px-3 py-1.5 rounded-xl bg-[#F4F4F5] hover:bg-[#2A5CAA] hover:text-white text-xs font-bold text-[#1C1C1E] inline-flex items-center gap-1 transition shadow-2xs"
+                          title="Open patient medical record"
+                        >
+                          <span>Open</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingPatientId(p.id)}
+                          className="p-1.5 rounded-xl bg-white border border-[#E4E4E7] text-[#2A5CAA] hover:bg-[#E8EEF7] transition cursor-pointer"
+                          title="Edit patient details"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDeletingPatient({
+                              id: p.id,
+                              name: p.name,
+                              cardNumber: p.cardNumber,
+                            })
+                          }
+                          className="p-1.5 rounded-xl bg-white border border-[#E4E4E7] text-red-500 hover:bg-red-50 hover:border-red-200 transition cursor-pointer"
+                          title="Delete/archive patient"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -147,6 +187,51 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
           </table>
         </div>
       </div>
+
+      {/* Edit Patient Modal */}
+      {editingPatientId && (
+        <EditPatientModal
+          isOpen={Boolean(editingPatientId)}
+          onClose={() => setEditingPatientId(null)}
+          patientId={editingPatientId}
+          onSuccess={(updated) => {
+            setPatients((prev) =>
+              prev.map((item) =>
+                item.id === updated.id
+                  ? {
+                      ...item,
+                      name: updated.name,
+                      phone: updated.phone,
+                      cardNumber: updated.cardNumber,
+                      gender: updated.gender,
+                      approxAge: updated.approxAge,
+                      allergyFlags: updated.allergyFlags || [],
+                      medicalConditions: updated.medicalConditions || [],
+                    }
+                  : item
+              )
+            );
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* Delete Patient Modal */}
+      {deletingPatient && (
+        <DeletePatientModal
+          isOpen={Boolean(deletingPatient)}
+          onClose={() => setDeletingPatient(null)}
+          patientId={deletingPatient.id}
+          patientName={deletingPatient.name}
+          cardNumber={deletingPatient.cardNumber}
+          onDeleted={() => {
+            setPatients((prev) =>
+              prev.filter((item) => item.id !== deletingPatient.id)
+            );
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
