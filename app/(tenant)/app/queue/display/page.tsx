@@ -7,7 +7,7 @@ export default async function StaffQueueDisplayPage() {
   const items = await fetchTodayQueueItems(tenant.id);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-[#0A0E1A]">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-[#F8FAFC]">
       <QueueTvDisplay
         initialItems={items}
         tenantName={tenant.name}
