@@ -143,24 +143,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Seed accounts helper hint */}
-          <div className="mt-8 pt-6 border-t border-[#E4E4E7] text-xs text-[#6B7280] space-y-1 bg-[#F4F4F5]/60 p-3 rounded-xl">
-            <span className="font-semibold text-[#1C1C1E] block">
-              Default Seed Accounts:
-            </span>
-            <div className="flex justify-between">
-              <span>Super Admin:</span>
-              <code className="text-[#2A5CAA]">admin@orisemr.com</code>
-            </div>
-            <div className="flex justify-between">
-              <span>Demo Dentist:</span>
-              <code className="text-[#2A5CAA]">admin@demo.test</code>
-            </div>
-            <div className="flex justify-between">
-              <span>Password:</span>
-              <code className="text-[#1C1C1E]">SuperAdmin123! / Demo@12345</code>
-            </div>
-          </div>
         </div>
       </div>
 

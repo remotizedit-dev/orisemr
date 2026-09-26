@@ -12,6 +12,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx db/seed/seed.ts",
+    "superadmin:update": "tsx scripts/update-superadmin.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
