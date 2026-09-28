@@ -20,6 +20,7 @@ import {
   Phone,
   Pencil,
   Printer,
+  Eye,
   ShieldAlert,
   Stethoscope,
   User,
@@ -28,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { formatBdPhone, formatBdt, formatDhakaDate } from "@/lib/utils";
 import { EditPatientModal } from "@/components/patients/EditPatientModal";
+import { PrescriptionViewModal } from "./PrescriptionViewModal";
 
 interface PatientProfileModalProps {
   patientId: string;
@@ -46,6 +48,7 @@ export function PatientProfileModal({
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<any>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [viewingRxId, setViewingRxId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !patientId) return;
@@ -388,6 +391,14 @@ export function PatientProfileModal({
                         )}
 
                         <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setViewingRxId(rx.id)}
+                            className="px-3 py-1.5 rounded-xl border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] hover:bg-[#F4F4F5] flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                            <span>View Rx</span>
+                          </button>
                           <a
                             href={`/print/prescription/${rx.id}`}
                             target="_blank"
@@ -620,6 +631,16 @@ export function PatientProfileModal({
             }}
           />
         )}
+
+        {/* Prescription View & Quick Edit Modal */}
+        <PrescriptionViewModal
+          prescriptionId={viewingRxId}
+          isOpen={!!viewingRxId}
+          onClose={() => setViewingRxId(null)}
+          onUpdated={() => {
+            getPatientProfileHistoryAction(patientId).then(setProfileData);
+          }}
+        />
       </motion.div>
         </motion.div>
       )}
