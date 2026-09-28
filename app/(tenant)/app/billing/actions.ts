@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -475,4 +475,196 @@ export async function voidInvoiceAction(invoiceId: string, voidReason: string) {
   revalidatePath("/app");
 
   return { success: true };
+}
+
+export async function getPatientBillingContextAction(patientIdOrCard: string) {
+  const { tenant } = await requireClinicStaff();
+
+  const clean = patientIdOrCard.trim();
+  const isUuid = /^[0-9a-fA-F-]{36}$/.test(clean);
+
+  const [patient] = await db
+    .select({
+      id: schema.patients.id,
+      name: schema.patients.name,
+      cardNumber: schema.patients.cardNumber,
+      phone: schema.patients.phone,
+    })
+    .from(schema.patients)
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        isUuid
+          ? eq(schema.patients.id, clean)
+          : eq(schema.patients.cardNumber, clean)
+      )
+    )
+    .limit(1);
+
+  if (!patient) {
+    return null;
+  }
+
+  // Find recent appointment for this patient with booked services
+  const recentAppointments = await db
+    .select({
+      id: schema.appointments.id,
+      status: schema.appointments.status,
+      startTime: schema.appointments.startTime,
+    })
+    .from(schema.appointments)
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenant.id),
+        eq(schema.appointments.patientId, patient.id)
+      )
+    )
+    .orderBy(desc(schema.appointments.startTime))
+    .limit(5);
+
+  let targetAppointmentId: string | null = null;
+  let bookedServices: {
+    id: string;
+    serviceId: string;
+    description: string;
+    toothCodes: string[];
+    quantity: number;
+    unitPriceBdt: number;
+  }[] = [];
+
+  for (const apt of recentAppointments) {
+    const services = await db
+      .select({
+        id: schema.appointmentServices.id,
+        serviceId: schema.appointmentServices.serviceId,
+        serviceNameSnapshot: schema.appointmentServices.serviceNameSnapshot,
+        priceBdtSnapshot: schema.appointmentServices.priceBdtSnapshot,
+        toothCodes: schema.appointmentServices.toothCodes,
+      })
+      .from(schema.appointmentServices)
+      .where(
+        and(
+          eq(schema.appointmentServices.tenantId, tenant.id),
+          eq(schema.appointmentServices.appointmentId, apt.id)
+        )
+      );
+
+    if (services.length > 0) {
+      targetAppointmentId = apt.id;
+      bookedServices = services.map((s, idx) => ({
+        id: `line-${idx + 1}`,
+        serviceId: s.serviceId,
+        description: s.serviceNameSnapshot,
+        toothCodes: s.toothCodes || [],
+        quantity: 1,
+        unitPriceBdt: s.priceBdtSnapshot,
+      }));
+      break;
+    }
+  }
+
+  if (!targetAppointmentId && recentAppointments.length > 0) {
+    targetAppointmentId = recentAppointments[0].id;
+  }
+
+  // Check for prescription
+  let prescriptionInfo: {
+    rxCode: string;
+    diagnosis?: string | null;
+    toothCodes?: string[];
+  } | null = null;
+
+  if (targetAppointmentId) {
+    const [rx] = await db
+      .select({
+        rxCode: schema.prescriptions.rxCode,
+        diagnosis: schema.prescriptions.diagnosis,
+        toothCodes: schema.prescriptions.toothCodes,
+      })
+      .from(schema.prescriptions)
+      .where(
+        and(
+          eq(schema.prescriptions.tenantId, tenant.id),
+          eq(schema.prescriptions.appointmentId, targetAppointmentId)
+        )
+      )
+      .limit(1);
+
+    if (rx) {
+      prescriptionInfo = {
+        rxCode: rx.rxCode,
+        diagnosis: rx.diagnosis,
+        toothCodes: rx.toothCodes || [],
+      };
+    }
+  }
+
+  // If still no rx found from appointment, check patient's latest prescription
+  if (!prescriptionInfo) {
+    const [latestRx] = await db
+      .select({
+        rxCode: schema.prescriptions.rxCode,
+        diagnosis: schema.prescriptions.diagnosis,
+        toothCodes: schema.prescriptions.toothCodes,
+      })
+      .from(schema.prescriptions)
+      .where(
+        and(
+          eq(schema.prescriptions.tenantId, tenant.id),
+          eq(schema.prescriptions.patientId, patient.id)
+        )
+      )
+      .orderBy(desc(schema.prescriptions.createdAt))
+      .limit(1);
+
+    if (latestRx) {
+      prescriptionInfo = {
+        rxCode: latestRx.rxCode,
+        diagnosis: latestRx.diagnosis,
+        toothCodes: latestRx.toothCodes || [],
+      };
+    }
+  }
+
+  // Fetch unpaid past invoices for patient
+  const pastInvoices = await db
+    .select({
+      id: schema.invoices.id,
+      invoiceCode: schema.invoices.invoiceCode,
+      totalBdt: schema.invoices.totalBdt,
+      paidBdt: schema.invoices.paidBdt,
+      status: schema.invoices.status,
+      createdAt: schema.invoices.createdAt,
+    })
+    .from(schema.invoices)
+    .where(
+      and(
+        eq(schema.invoices.tenantId, tenant.id),
+        eq(schema.invoices.patientId, patient.id),
+        inArray(schema.invoices.status, ["due", "partial"])
+      )
+    )
+    .orderBy(desc(schema.invoices.createdAt));
+
+  const unpaid = pastInvoices
+    .filter((inv) => inv.totalBdt > inv.paidBdt)
+    .map((inv) => ({
+      id: inv.id,
+      invoiceCode: inv.invoiceCode || "DRAFT",
+      totalBdt: inv.totalBdt,
+      paidBdt: inv.paidBdt,
+      dueBdt: inv.totalBdt - inv.paidBdt,
+      createdAt: inv.createdAt.toISOString(),
+    }));
+
+  return {
+    patient,
+    appointmentId: targetAppointmentId,
+    bookedServices,
+    prescriptionInfo,
+    patientDues: {
+      totalDueBdt: unpaid.reduce((sum, it) => sum + it.dueBdt, 0),
+      unpaidInvoices: unpaid,
+    },
+  };
 }

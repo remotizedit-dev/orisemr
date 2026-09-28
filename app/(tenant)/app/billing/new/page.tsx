@@ -189,6 +189,79 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     }
   }
 
+  // 2b. If appointmentId was not explicitly passed, but patient is preselected, auto-load booked services from latest appointment
+  if (!appointmentId && resolvedPatientId && initialLineItems.length === 0) {
+    const recentAppointments = await db
+      .select({
+        id: schema.appointments.id,
+      })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.patientId, resolvedPatientId)
+        )
+      )
+      .orderBy(desc(schema.appointments.startTime))
+      .limit(5);
+
+    for (const apt of recentAppointments) {
+      const bookedServices = await db
+        .select({
+          id: schema.appointmentServices.id,
+          serviceId: schema.appointmentServices.serviceId,
+          serviceNameSnapshot: schema.appointmentServices.serviceNameSnapshot,
+          priceBdtSnapshot: schema.appointmentServices.priceBdtSnapshot,
+          toothCodes: schema.appointmentServices.toothCodes,
+        })
+        .from(schema.appointmentServices)
+        .where(
+          and(
+            eq(schema.appointmentServices.tenantId, tenant.id),
+            eq(schema.appointmentServices.appointmentId, apt.id)
+          )
+        );
+
+      if (bookedServices.length > 0) {
+        initialLineItems = bookedServices.map((bs, idx) => ({
+          id: `line-${idx + 1}`,
+          serviceId: bs.serviceId,
+          description: bs.serviceNameSnapshot,
+          toothCodes: bs.toothCodes || [],
+          quantity: 1,
+          unitPriceBdt: bs.priceBdtSnapshot,
+        }));
+        break;
+      }
+    }
+
+    if (!prescriptionInfo) {
+      const [latestRx] = await db
+        .select({
+          rxCode: schema.prescriptions.rxCode,
+          diagnosis: schema.prescriptions.diagnosis,
+          toothCodes: schema.prescriptions.toothCodes,
+        })
+        .from(schema.prescriptions)
+        .where(
+          and(
+            eq(schema.prescriptions.tenantId, tenant.id),
+            eq(schema.prescriptions.patientId, resolvedPatientId)
+          )
+        )
+        .orderBy(desc(schema.prescriptions.createdAt))
+        .limit(1);
+
+      if (latestRx) {
+        prescriptionInfo = {
+          rxCode: latestRx.rxCode,
+          diagnosis: latestRx.diagnosis,
+          toothCodes: latestRx.toothCodes || [],
+        };
+      }
+    }
+  }
+
   // 3. Fetch patient's previous unpaid dues
   interface UnpaidInvoice {
     id: string;

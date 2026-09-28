@@ -222,3 +222,137 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
     throw new Error(error?.message || "Failed to save prescription. Please check input data.");
   }
 }
+
+export async function getPrescriptionDetailsAction(prescriptionId: string) {
+  const { tenant } = await requireClinicStaff();
+
+  const [prescription] = await db
+    .select({
+      id: schema.prescriptions.id,
+      rxCode: schema.prescriptions.rxCode,
+      patientId: schema.prescriptions.patientId,
+      doctorId: schema.prescriptions.doctorId,
+      appointmentId: schema.prescriptions.appointmentId,
+      chiefComplaint: schema.prescriptions.chiefComplaint,
+      examination: schema.prescriptions.examination,
+      diagnosis: schema.prescriptions.diagnosis,
+      investigations: schema.prescriptions.investigations,
+      toothCodes: schema.prescriptions.toothCodes,
+      nextVisitDate: schema.prescriptions.nextVisitDate,
+      notes: schema.prescriptions.notes,
+      allergyOverride: schema.prescriptions.allergyOverride,
+      createdAt: schema.prescriptions.createdAt,
+      patientName: schema.patients.name,
+      patientCardNumber: schema.patients.cardNumber,
+      patientPhone: schema.patients.phone,
+      patientGender: schema.patients.gender,
+      patientApproxAge: schema.patients.approxAge,
+      doctorName: schema.users.name,
+      doctorTitle: schema.users.doctorTitle,
+      doctorDegrees: schema.users.doctorDegrees,
+      doctorSpecialty: schema.users.doctorSpecialty,
+    })
+    .from(schema.prescriptions)
+    .innerJoin(
+      schema.patients,
+      eq(schema.prescriptions.patientId, schema.patients.id)
+    )
+    .innerJoin(
+      schema.users,
+      eq(schema.prescriptions.doctorId, schema.users.id)
+    )
+    .where(
+      and(
+        eq(schema.prescriptions.tenantId, tenant.id),
+        eq(schema.prescriptions.id, prescriptionId)
+      )
+    )
+    .limit(1);
+
+  if (!prescription) {
+    throw new Error("Prescription not found");
+  }
+
+  const items = await db
+    .select()
+    .from(schema.prescriptionItems)
+    .where(
+      and(
+        eq(schema.prescriptionItems.tenantId, tenant.id),
+        eq(schema.prescriptionItems.prescriptionId, prescriptionId)
+      )
+    )
+    .orderBy(schema.prescriptionItems.sortOrder);
+
+  const adviceList = await db
+    .select()
+    .from(schema.prescriptionAdvice)
+    .where(
+      and(
+        eq(schema.prescriptionAdvice.tenantId, tenant.id),
+        eq(schema.prescriptionAdvice.prescriptionId, prescriptionId)
+      )
+    )
+    .orderBy(schema.prescriptionAdvice.sortOrder);
+
+  return {
+    prescription,
+    items,
+    adviceList,
+  };
+}
+
+export interface UpdatePrescriptionDetailsInput {
+  notes?: string;
+  chiefComplaint?: string;
+  examination?: string;
+  diagnosis?: string;
+  investigations?: string;
+  nextVisitDate?: string | null;
+  toothCodes?: string[];
+}
+
+export async function updatePrescriptionDetailsAction(
+  prescriptionId: string,
+  input: UpdatePrescriptionDetailsInput
+) {
+  const { tenant } = await requireClinicStaff();
+
+  let cleanNextVisitDate: string | null = null;
+  if (input.nextVisitDate && typeof input.nextVisitDate === "string") {
+    const trimmed = input.nextVisitDate.trim();
+    if (trimmed !== "" && /^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      cleanNextVisitDate = trimmed;
+    }
+  }
+
+  const [updated] = await db
+    .update(schema.prescriptions)
+    .set({
+      notes: input.notes !== undefined ? input.notes.trim() || null : undefined,
+      chiefComplaint: input.chiefComplaint !== undefined ? input.chiefComplaint.trim() || null : undefined,
+      examination: input.examination !== undefined ? input.examination.trim() || null : undefined,
+      diagnosis: input.diagnosis !== undefined ? input.diagnosis.trim() || null : undefined,
+      investigations: input.investigations !== undefined ? input.investigations.trim() || null : undefined,
+      nextVisitDate: cleanNextVisitDate,
+      toothCodes: input.toothCodes !== undefined ? input.toothCodes : undefined,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.prescriptions.tenantId, tenant.id),
+        eq(schema.prescriptions.id, prescriptionId)
+      )
+    )
+    .returning();
+
+  if (!updated) {
+    throw new Error("Prescription not found or failed to update");
+  }
+
+  revalidatePath("/app/prescriptions");
+  revalidatePath("/app/queue");
+  revalidatePath(`/app/patients/${updated.patientId}`);
+
+  return updated;
+}

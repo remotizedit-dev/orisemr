@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -27,6 +27,7 @@ import { formatBdt } from "@/lib/utils";
 import {
   createInvoiceAction,
   recordPaymentAction,
+  getPatientBillingContextAction,
 } from "@/app/(tenant)/app/billing/actions";
 import { searchPatientsForBookingAction } from "@/app/(tenant)/app/appointments/actions";
 import { QuickRegisterPatientModal } from "@/components/patients/QuickRegisterPatientModal";
@@ -92,6 +93,8 @@ export default function NewInvoiceClient({
   const [isSearchingPatient, setIsSearchingPatient] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [currentPatientDues, setCurrentPatientDues] = useState(patientDues);
+  const [currentPrescriptionInfo, setCurrentPrescriptionInfo] = useState(prescriptionInfo);
 
   // Line items state
   const [items, setItems] = useState<InvoiceLine[]>(
@@ -203,35 +206,49 @@ export default function NewInvoiceClient({
     }
   }
 
-  function handleQuickAddCatalogService(srv: ServiceOption) {
-    setItems((prev) => {
-      // If only 1 empty line item exists, replace it
-      if (prev.length === 1 && !prev[0].description) {
-        return [
-          {
-            id: `line-${Date.now()}`,
-            serviceId: srv.id,
-            description: srv.name,
-            toothCodes: [],
-            quantity: 1,
-            unitPriceBdt: srv.priceBdt,
-          },
-        ];
+  async function handleSelectPatient(p: any) {
+    setSelectedPatient(p);
+    setPatientQuery(p.name);
+    setPatientResults([]);
+
+    try {
+      const context = await getPatientBillingContextAction(p.id);
+      if (context) {
+        if (context.bookedServices && context.bookedServices.length > 0) {
+          setItems(context.bookedServices);
+          toast.success(`Auto-populated ${context.bookedServices.length} booked service(s) from appointment`);
+        }
+        if (context.prescriptionInfo) {
+          setCurrentPrescriptionInfo(context.prescriptionInfo);
+        }
+        if (context.patientDues) {
+          setCurrentPatientDues(context.patientDues);
+        }
       }
-      return [
-        ...prev,
-        {
-          id: `line-${Date.now()}`,
-          serviceId: srv.id,
-          description: srv.name,
-          toothCodes: [],
-          quantity: 1,
-          unitPriceBdt: srv.priceBdt,
-        },
-      ];
-    });
-    toast.success(`Added ${srv.name} to bill`);
+    } catch (err) {
+      console.error("Failed to load patient billing context:", err);
+    }
   }
+
+  useEffect(() => {
+    if (preselectedPatient && (!initialItems || initialItems.length === 0)) {
+      getPatientBillingContextAction(preselectedPatient.id)
+        .then((context) => {
+          if (context) {
+            if (context.bookedServices && context.bookedServices.length > 0) {
+              setItems(context.bookedServices);
+            }
+            if (context.prescriptionInfo) {
+              setCurrentPrescriptionInfo(context.prescriptionInfo);
+            }
+            if (context.patientDues) {
+              setCurrentPatientDues(context.patientDues);
+            }
+          }
+        })
+        .catch(console.error);
+    }
+  }, [preselectedPatient, initialItems]);
 
   async function handleSettlePastDue() {
     if (!dueModalInvoice || duePayAmount <= 0) {
@@ -528,7 +545,7 @@ export default function NewInvoiceClient({
       </div>
 
       {/* Previous Outstanding Dues Alert */}
-      {patientDues && patientDues.totalDueBdt > 0 && (
+      {currentPatientDues && currentPatientDues.totalDueBdt > 0 && (
         <div className="p-5 rounded-3xl bg-[#FFF7EB] border-2 border-[#FF9F0A]/40 space-y-3 animate-in fade-in shadow-2xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -537,10 +554,10 @@ export default function NewInvoiceClient({
               </div>
               <div>
                 <h3 className="text-base font-black text-[#92400E]">
-                  Patient Has Previous Outstanding Due: {formatBdt(patientDues.totalDueBdt)}
+                  Patient Has Previous Outstanding Due: {formatBdt(currentPatientDues.totalDueBdt)}
                 </h3>
                 <p className="text-xs text-[#B45309]">
-                  {patientDues.unpaidInvoices.length} unpaid / partial invoice(s) on record for this patient.
+                  {currentPatientDues.unpaidInvoices.length} unpaid / partial invoice(s) on record for this patient.
                 </p>
               </div>
             </div>
@@ -554,7 +571,7 @@ export default function NewInvoiceClient({
           </div>
 
           <div className="divide-y divide-amber-200/60 pt-1">
-            {patientDues.unpaidInvoices.slice(0, 3).map((dueInv) => (
+            {currentPatientDues.unpaidInvoices.slice(0, 3).map((dueInv) => (
               <div key={dueInv.id} className="py-2 flex items-center justify-between text-xs">
                 <div>
                   <span className="font-mono font-bold text-[#1C1C1E] mr-2">
@@ -586,14 +603,14 @@ export default function NewInvoiceClient({
       )}
 
       {/* Prescription / Appointment Source Badge */}
-      {prescriptionInfo && (
+      {currentPrescriptionInfo && (
         <div className="p-4 rounded-2xl bg-[#EBF2FC] border border-[#2A5CAA]/30 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#2A5CAA]" />
             <span className="text-[#2A5CAA] font-bold">
-              Linked to Prescription <strong className="font-mono font-black">{prescriptionInfo.rxCode}</strong>
-              {prescriptionInfo.diagnosis && ` • Diagnosis: ${prescriptionInfo.diagnosis}`}
-              {prescriptionInfo.toothCodes && prescriptionInfo.toothCodes.length > 0 && ` • Teeth: ${prescriptionInfo.toothCodes.join(", ")}`}
+              Linked to Prescription <strong className="font-mono font-black">{currentPrescriptionInfo.rxCode}</strong>
+              {currentPrescriptionInfo.diagnosis && ` • Diagnosis: ${currentPrescriptionInfo.diagnosis}`}
+              {currentPrescriptionInfo.toothCodes && currentPrescriptionInfo.toothCodes.length > 0 && ` • Teeth: ${currentPrescriptionInfo.toothCodes.join(", ")}`}
             </span>
           </div>
           <span className="text-[#2A5CAA] bg-white px-2.5 py-0.5 rounded-md font-bold text-[11px] shadow-2xs">
@@ -637,6 +654,17 @@ export default function NewInvoiceClient({
               onClick={() => {
                 setSelectedPatient(null);
                 setPatientQuery("");
+                setCurrentPatientDues({ totalDueBdt: 0, unpaidInvoices: [] });
+                setCurrentPrescriptionInfo(null);
+                setItems([
+                  {
+                    id: "line-1",
+                    description: "",
+                    toothCodes: [],
+                    quantity: 1,
+                    unitPriceBdt: 0,
+                  },
+                ]);
               }}
               className="px-3.5 py-1.5 text-xs font-bold text-[#FF453A] hover:bg-white rounded-xl transition cursor-pointer border border-rose-200"
             >
@@ -663,11 +691,7 @@ export default function NewInvoiceClient({
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => {
-                      setSelectedPatient(p);
-                      setPatientQuery(p.name);
-                      setPatientResults([]);
-                    }}
+                    onClick={() => handleSelectPatient(p)}
                     className="w-full p-3 text-left hover:bg-[#F4F4F5] transition flex items-center justify-between cursor-pointer"
                   >
                     <div>
@@ -707,36 +731,12 @@ export default function NewInvoiceClient({
           isOpen={isRegisterModalOpen}
           onClose={() => setIsRegisterModalOpen(false)}
           onSuccess={(newPatient) => {
-            setSelectedPatient(newPatient);
-            setPatientQuery(newPatient.name);
-            setPatientResults([]);
+            handleSelectPatient(newPatient);
             setIsRegisterModalOpen(false);
           }}
           initialName={patientQuery}
         />
       </div>
-
-      {/* Quick Catalog Procedure Chips */}
-      {services.length > 0 && (
-        <div className="glass-panel p-4 rounded-3xl border border-[#E4E4E7] space-y-2 shadow-2xs">
-          <span className="text-xs font-black uppercase text-[#4B5563] tracking-wide block">
-            Quick Add Chamber Procedure:
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {services.map((srv) => (
-              <button
-                key={srv.id}
-                type="button"
-                onClick={() => handleQuickAddCatalogService(srv)}
-                className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#E8EEF7] border border-[#E4E4E7] hover:border-[#2A5CAA] text-xs font-bold text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-              >
-                <span>+ {srv.name}</span>
-                <span className="text-xs text-[#2A5CAA] font-mono">({formatBdt(srv.priceBdt)})</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Billable Line Items */}
       <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] space-y-4 shadow-2xs">

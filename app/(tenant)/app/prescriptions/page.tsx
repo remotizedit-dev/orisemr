@@ -27,6 +27,7 @@ export default async function PrescriptionsPage() {
       chiefComplaint: schema.prescriptions.chiefComplaint,
       toothCodes: schema.prescriptions.toothCodes,
       nextVisitDate: schema.prescriptions.nextVisitDate,
+      notes: schema.prescriptions.notes,
       createdAt: schema.prescriptions.createdAt,
     })
     .from(schema.prescriptions)

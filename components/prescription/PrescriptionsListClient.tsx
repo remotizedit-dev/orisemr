@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatDhakaDate } from "@/lib/utils";
 import {
   FileText,
   Search,
   Printer,
+  Eye,
   User,
   Calendar,
   Sparkles,
@@ -14,6 +16,7 @@ import {
   ChevronRight,
   ExternalLink,
 } from "lucide-react";
+import { PrescriptionViewModal } from "./PrescriptionViewModal";
 
 interface PrescriptionSummary {
   id: string;
@@ -31,6 +34,7 @@ interface PrescriptionSummary {
   chiefComplaint: string | null;
   toothCodes: string[];
   nextVisitDate: string | null;
+  notes?: string | null;
   createdAt: Date;
 }
 
@@ -39,7 +43,9 @@ interface Props {
 }
 
 export function PrescriptionsListClient({ initialPrescriptions }: Props) {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [viewingRxId, setViewingRxId] = useState<string | null>(null);
 
   const filtered = initialPrescriptions.filter((rx) => {
     if (!searchTerm.trim()) return true;
@@ -195,6 +201,14 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
                     {/* Actions */}
                     <td className="py-4 px-5 align-top text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setViewingRxId(rx.id)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-[#F4F4F5] border border-[#E4E4E7] text-[#1C1C1E] font-bold text-xs transition shadow-2xs cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                          <span>View</span>
+                        </button>
                         <Link
                           href={`/print/prescription/${rx.id}`}
                           target="_blank"
@@ -213,6 +227,14 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
           </div>
         )}
       </div>
+
+      {/* Prescription View & Quick Edit Modal */}
+      <PrescriptionViewModal
+        prescriptionId={viewingRxId}
+        isOpen={!!viewingRxId}
+        onClose={() => setViewingRxId(null)}
+        onUpdated={() => router.refresh()}
+      />
     </div>
   );
 }
