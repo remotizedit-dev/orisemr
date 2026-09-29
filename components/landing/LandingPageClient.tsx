@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import Lenis from "lenis";
 import {
   Stethoscope,
   Calendar,
@@ -31,7 +34,7 @@ import {
 } from "lucide-react";
 
 /**
- * Robust Logo component that attempts to load a custom logo (/logo.svg or /logo.png)
+ * Robust Logo component that loads custom SVG logo (/logo.svg or /logo.png)
  * and falls back gracefully to the signature Oris EMR dental stethoscope emblem.
  */
 function BrandLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
@@ -59,7 +62,6 @@ function BrandLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
             alt="ORIS EMR"
             className="w-full h-full object-contain"
             onError={(e) => {
-              // Try PNG if SVG fails, else trigger fallback
               const target = e.currentTarget;
               if (target.src.endsWith(".svg")) {
                 target.src = "/logo.png";
@@ -95,19 +97,194 @@ function BrandLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
 
 export default function LandingPageClient() {
   const [activeTab, setActiveTab] = useState<"rx" | "slots" | "queue" | "billing">("rx");
+  const [selectedTooth, setSelectedTooth] = useState<string>("16");
+
+  // DOM Refs for GSAP Scroll Animations
+  const containerRef = useRef<HTMLDivElement>(null);
+  const heroGlowRef = useRef<HTMLDivElement>(null);
+  const previewScreenRef = useRef<HTMLDivElement>(null);
+  const featuresGridRef = useRef<HTMLDivElement>(null);
+  const workflowTrackRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const creatorKitRef = useRef<HTMLDivElement>(null);
+
+  // Initialize Lenis Smooth Scrolling and GSAP ScrollTrigger
+  useEffect(() => {
+    gsap.registerPlugin(ScrollTrigger);
+
+    // 1. Initialize Lenis for smooth momentum scrolling
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+      touchMultiplier: 1.5,
+    });
+
+    // 2. Synchronize Lenis with GSAP ScrollTrigger
+    lenis.on("scroll", ScrollTrigger.update);
+
+    const updateLenis = (time: number) => {
+      lenis.raf(time * 1000);
+    };
+
+    gsap.ticker.add(updateLenis);
+    gsap.ticker.lagSmoothing(0);
+
+    const ctx = gsap.context(() => {
+      // Animation A: Hero Parallax Ambient Glow
+      if (heroGlowRef.current) {
+        gsap.to(heroGlowRef.current, {
+          scrollTrigger: {
+            trigger: heroGlowRef.current,
+            start: "top top",
+            end: "bottom top",
+            scrub: true,
+          },
+          y: 180,
+          scale: 1.2,
+          opacity: 0.15,
+          ease: "none",
+        });
+      }
+
+      // Animation B: Chamber Demo 3D Perspective Tilt on Scroll
+      if (previewScreenRef.current) {
+        gsap.fromTo(
+          previewScreenRef.current,
+          {
+            rotateX: 14,
+            scale: 0.92,
+            opacity: 0.8,
+            transformPerspective: 1000,
+          },
+          {
+            scrollTrigger: {
+              trigger: previewScreenRef.current,
+              start: "top 80%",
+              end: "top 35%",
+              scrub: 1,
+            },
+            rotateX: 0,
+            scale: 1,
+            opacity: 1,
+            ease: "power2.out",
+          }
+        );
+      }
+
+      // Animation C: 6 Features Grid Staggered Reveal
+      if (featuresGridRef.current) {
+        const cards = featuresGridRef.current.querySelectorAll(".feature-card-item");
+        gsap.fromTo(
+          cards,
+          {
+            y: 50,
+            opacity: 0,
+          },
+          {
+            scrollTrigger: {
+              trigger: featuresGridRef.current,
+              start: "top 75%",
+              once: true,
+            },
+            y: 0,
+            opacity: 1,
+            duration: 0.8,
+            stagger: 0.12,
+            ease: "power3.out",
+          }
+        );
+      }
+
+      // Animation D: 5-Phase Workflow Scrubbed Progress Bar
+      if (workflowTrackRef.current && progressBarRef.current) {
+        gsap.fromTo(
+          progressBarRef.current,
+          { scaleX: 0 },
+          {
+            scrollTrigger: {
+              trigger: workflowTrackRef.current,
+              start: "top 75%",
+              end: "bottom 60%",
+              scrub: 0.5,
+            },
+            scaleX: 1,
+            transformOrigin: "left center",
+            ease: "none",
+          }
+        );
+
+        const workflowCards = workflowTrackRef.current.querySelectorAll(".workflow-step-card");
+        gsap.fromTo(
+          workflowCards,
+          { y: 30, opacity: 0 },
+          {
+            scrollTrigger: {
+              trigger: workflowTrackRef.current,
+              start: "top 70%",
+              once: true,
+            },
+            y: 0,
+            opacity: 1,
+            duration: 0.6,
+            stagger: 0.15,
+            ease: "power2.out",
+          }
+        );
+      }
+
+      // Animation E: Creator Kit Showcase Zoom Reveal
+      if (creatorKitRef.current) {
+        gsap.fromTo(
+          creatorKitRef.current,
+          {
+            scale: 0.95,
+            opacity: 0.7,
+            y: 40,
+          },
+          {
+            scrollTrigger: {
+              trigger: creatorKitRef.current,
+              start: "top 80%",
+              end: "top 45%",
+              scrub: 1,
+            },
+            scale: 1,
+            opacity: 1,
+            y: 0,
+            ease: "power2.out",
+          }
+        );
+      }
+    }, containerRef);
+
+    return () => {
+      ctx.revert();
+      gsap.ticker.remove(updateLenis);
+      lenis.destroy();
+      ScrollTrigger.getAll().forEach((t) => t.kill());
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#1C1C1E] selection:bg-[#2A5CAA] selection:text-white flex flex-col justify-between overflow-x-hidden">
+    <div
+      ref={containerRef}
+      className="min-h-screen bg-[#F8FAFC] text-[#1C1C1E] selection:bg-[#2A5CAA] selection:text-white flex flex-col justify-between overflow-x-hidden"
+    >
       {/* Top Floating Announcement Bar */}
-      <div className="bg-[#1C1C1E] text-white py-2 px-4 text-center text-xs font-medium border-b border-white/10 flex items-center justify-center gap-2">
-        <span className="inline-block w-2 h-2 rounded-full bg-[#30D158] animate-pulse" />
-        <span>Content Creator Kit &amp; Full Workflow PDF Guide v2.0 is now live</span>
+      <div className="bg-[#1C1C1E] text-white py-2 px-4 text-center text-xs font-medium border-b border-white/10 flex items-center justify-center gap-2 flex-wrap">
+        <motion.span
+          animate={{ scale: [1, 1.3, 1] }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+          className="inline-block w-2 h-2 rounded-full bg-[#30D158]"
+        />
+        <span>Official Client Product Brochure (PDF) &amp; Creator Video Script are now live</span>
         <a
-          href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
-          download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
-          className="ml-2 underline text-[#60A5FA] hover:text-[#93C5FD] font-semibold inline-flex items-center gap-1"
+          href="/ORIS_EMR_Client_Product_Guide.pdf"
+          download="ORIS_EMR_Client_Product_Guide.pdf"
+          className="ml-2 underline text-[#60A5FA] hover:text-[#93C5FD] font-semibold inline-flex items-center gap-1 transition"
         >
-          Download PDF Guide <Download className="w-3 h-3" />
+          Download Client Brochure (PDF) <Download className="w-3 h-3" />
         </a>
       </div>
 
@@ -136,37 +313,56 @@ export default function LandingPageClient() {
           </nav>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-3">
-            <a
+          <div className="flex items-center gap-2.5">
+            <motion.a
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              href="/ORIS_EMR_Client_Product_Guide.pdf"
+              download="ORIS_EMR_Client_Product_Guide.pdf"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] hover:bg-[#F4F4F5] transition shadow-xs cursor-pointer"
+              title="Download Buyer's Guide & Client Evaluation PDF"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#2A5CAA]" />
+              Client Brochure
+            </motion.a>
+            <motion.a
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
               href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
               download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] hover:bg-[#F4F4F5] transition shadow-xs"
+              className="hidden lg:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#F8FAFC] border border-[#E4E4E7] text-xs font-bold text-[#4B5563] hover:text-[#1C1C1E] transition shadow-xs cursor-pointer"
+              title="Download Full Workflow Guide & Video Script"
             >
               <Download className="w-3.5 h-3.5 text-[#2A5CAA]" />
-              PDF Guide
-            </a>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs sm:text-sm transition-all duration-150 shadow-md shadow-[#2A5CAA]/25 hover:shadow-lg hover:shadow-[#2A5CAA]/35 cursor-pointer"
-            >
-              <span>Access Chamber</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+              Workflow Kit
+            </motion.a>
+            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs sm:text-sm transition-all duration-150 shadow-md shadow-[#2A5CAA]/25 hover:shadow-lg hover:shadow-[#2A5CAA]/35 cursor-pointer"
+              >
+                <span>Access Chamber</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </motion.div>
           </div>
         </div>
       </header>
 
       {/* HERO SECTION */}
       <section className="relative pt-16 pb-20 md:pt-24 md:pb-28 overflow-hidden bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9]">
-        {/* Ambient Glows */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-[#2A5CAA]/10 blur-[130px] rounded-full pointer-events-none -z-10" />
+        {/* Parallax Ambient Glow */}
+        <div
+          ref={heroGlowRef}
+          className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[360px] bg-gradient-to-r from-[#2A5CAA]/20 via-[#38BDF8]/15 to-[#34D399]/20 blur-[130px] rounded-full pointer-events-none -z-10"
+        />
 
         <div className="max-w-6xl mx-auto px-6 text-center">
-          {/* Badge */}
+          {/* Badge with Framer Motion entry */}
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#E8EEF7] border border-[#2A5CAA]/20 text-[#2A5CAA] text-xs font-bold mb-8 shadow-xs"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#2A5CAA]" />
@@ -175,9 +371,9 @@ export default function LandingPageClient() {
 
           {/* Headline */}
           <motion.h1
-            initial={{ opacity: 0, y: 15 }}
+            initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
             className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-[#1C1C1E] tracking-tight leading-[1.12]"
           >
             Sub-60s Bangla Rx, Anti-Collision Slots &amp;{" "}
@@ -188,9 +384,9 @@ export default function LandingPageClient() {
 
           {/* Subtitle */}
           <motion.p
-            initial={{ opacity: 0, y: 15 }}
+            initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
             className="mt-6 text-lg sm:text-xl text-[#4B5563] max-w-3xl mx-auto leading-relaxed font-normal"
           >
             Engineered exclusively for Bangladesh dental chambers. Eliminate waiting room chaos with
@@ -198,49 +394,58 @@ export default function LandingPageClient() {
             charting, and multi-channel bKash / Cash settlements.
           </motion.p>
 
-          {/* CTAs */}
+          {/* Interactive CTAs */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 22 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
             className="mt-10 flex flex-wrap items-center justify-center gap-4"
           >
-            <Link
-              href="/login"
-              className="px-8 py-4 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-base shadow-xl shadow-[#2A5CAA]/30 hover:shadow-2xl hover:scale-[1.01] transition-all duration-200 flex items-center gap-2.5"
-            >
-              <span>Access Chamber Portal</span>
-              <ArrowRight className="w-5 h-5" />
-            </Link>
+            <motion.div whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}>
+              <Link
+                href="/login"
+                className="px-8 py-4 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-base shadow-xl shadow-[#2A5CAA]/30 hover:shadow-2xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer"
+              >
+                <span>Access Chamber Portal</span>
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </motion.div>
 
-            <a
+            <motion.a
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              href="/ORIS_EMR_Client_Product_Guide.pdf"
+              download="ORIS_EMR_Client_Product_Guide.pdf"
+              className="px-7 py-4 rounded-xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F8FAFC] hover:border-[#CBD5E1] font-bold text-base shadow-sm hover:shadow transition-all duration-150 flex items-center gap-2 cursor-pointer"
+            >
+              <FileText className="w-5 h-5 text-[#2A5CAA]" />
+              <span>Client Product Brochure (PDF)</span>
+            </motion.a>
+
+            <motion.a
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.97 }}
               href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
               download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
-              className="px-7 py-4 rounded-xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F8FAFC] hover:border-[#CBD5E1] font-bold text-base shadow-sm hover:shadow transition-all duration-150 flex items-center gap-2"
+              className="px-6 py-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[#334155] hover:text-[#0F172A] hover:bg-[#E2E8F0] font-semibold text-sm transition-all duration-150 flex items-center gap-2 cursor-pointer"
             >
-              <Download className="w-5 h-5 text-[#2A5CAA]" />
-              <span>Download PDF Guide (1.3 MB)</span>
-            </a>
-
-            <a
-              href="/oris-features-guide.html"
-              target="_blank"
-              rel="noreferrer"
-              className="px-5 py-4 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] text-[#334155] hover:text-[#0F172A] hover:bg-[#E2E8F0] font-semibold text-sm transition-all duration-150 flex items-center gap-1.5"
-            >
-              <span>Interactive Web Guide</span>
-              <ExternalLink className="w-4 h-4 text-[#64748B]" />
-            </a>
+              <Download className="w-4 h-4 text-[#2A5CAA]" />
+              <span>Workflow &amp; Creator Kit</span>
+            </motion.a>
           </motion.div>
 
           {/* Trust Highlights */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.45 }}
+            transition={{ duration: 0.8, delay: 0.45 }}
             className="mt-14 pt-8 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto text-left"
           >
-            <div className="flex items-start gap-3">
+            <motion.div
+              whileHover={{ y: -3 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-start gap-3 p-2 rounded-xl transition"
+            >
               <div className="p-2 rounded-lg bg-[#E8EEF7] text-[#2A5CAA] shrink-0">
                 <Clock className="w-5 h-5" />
               </div>
@@ -248,9 +453,13 @@ export default function LandingPageClient() {
                 <h4 className="text-sm font-bold text-[#1C1C1E]">&lt; 60s Prescription</h4>
                 <p className="text-xs text-[#6B7280]">FDI chart &amp; Bangla dosages</p>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="flex items-start gap-3">
+            <motion.div
+              whileHover={{ y: -3 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-start gap-3 p-2 rounded-xl transition"
+            >
               <div className="p-2 rounded-lg bg-[#E8F8EE] text-[#30D158] shrink-0">
                 <ShieldCheck className="w-5 h-5" />
               </div>
@@ -258,9 +467,13 @@ export default function LandingPageClient() {
                 <h4 className="text-sm font-bold text-[#1C1C1E]">0 Overbooking</h4>
                 <p className="text-xs text-[#6B7280]">GIST exclusion database locks</p>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="flex items-start gap-3">
+            <motion.div
+              whileHover={{ y: -3 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-start gap-3 p-2 rounded-xl transition"
+            >
               <div className="p-2 rounded-lg bg-[#FFF7EB] text-[#FF9F0A] shrink-0">
                 <CreditCard className="w-5 h-5" />
               </div>
@@ -268,9 +481,13 @@ export default function LandingPageClient() {
                 <h4 className="text-sm font-bold text-[#1C1C1E]">Whole-BDT Ledger</h4>
                 <p className="text-xs text-[#6B7280]">Zero fractional paisa errors</p>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="flex items-start gap-3">
+            <motion.div
+              whileHover={{ y: -3 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-start gap-3 p-2 rounded-xl transition"
+            >
               <div className="p-2 rounded-lg bg-[#F3E8FF] text-[#9333EA] shrink-0">
                 <QrCode className="w-5 h-5" />
               </div>
@@ -278,18 +495,18 @@ export default function LandingPageClient() {
                 <h4 className="text-sm font-bold text-[#1C1C1E]">CR80 Card Scan</h4>
                 <p className="text-xs text-[#6B7280]">1D Barcode instant recognition</p>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         </div>
       </section>
 
-      {/* INTERACTIVE CHAMBER SHOWCASE / DEMO PREVIEW */}
+      {/* INTERACTIVE CHAMBER SHOWCASE / DEMO PREVIEW (GSAP 3D Scroll Perspective) */}
       <section id="preview" className="py-16 md:py-24 bg-white border-y border-[#E4E4E7]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-12">
-            <h2 className="text-xs uppercase tracking-widest font-extrabold text-[#2A5CAA]">
+            <span className="text-xs uppercase tracking-widest font-extrabold text-[#2A5CAA] bg-[#E8EEF7] px-3 py-1 rounded-full border border-[#2A5CAA]/20 inline-block mb-2">
               Live Software Experience
-            </h2>
+            </span>
             <p className="mt-2 text-3xl sm:text-4xl font-black text-[#1C1C1E] tracking-tight">
               A Complete Chamber in Four Powerful Modules
             </p>
@@ -297,57 +514,37 @@ export default function LandingPageClient() {
               Click through the modules to see how ORIS EMR operates during real patient consultations.
             </p>
 
-            {/* Interactive Tab Switcher */}
+            {/* Interactive Tab Switcher with Framer Motion indicator */}
             <div className="mt-8 flex flex-wrap items-center justify-center gap-2 p-1.5 bg-[#F4F4F5] rounded-2xl max-w-xl mx-auto border border-[#E4E4E7]">
-              <button
-                type="button"
-                onClick={() => setActiveTab("rx")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === "rx"
-                    ? "bg-white text-[#2A5CAA] shadow-sm border border-[#E4E4E7]"
-                    : "text-[#6B7280] hover:text-[#1C1C1E]"
-                }`}
-              >
-                1. Clinical Rx &amp; FDI
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("slots")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === "slots"
-                    ? "bg-white text-[#2A5CAA] shadow-sm border border-[#E4E4E7]"
-                    : "text-[#6B7280] hover:text-[#1C1C1E]"
-                }`}
-              >
-                2. Anti-Collision Slots
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("queue")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === "queue"
-                    ? "bg-white text-[#2A5CAA] shadow-sm border border-[#E4E4E7]"
-                    : "text-[#6B7280] hover:text-[#1C1C1E]"
-                }`}
-              >
-                3. Cards &amp; TV Queue
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("billing")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === "billing"
-                    ? "bg-white text-[#2A5CAA] shadow-sm border border-[#E4E4E7]"
-                    : "text-[#6B7280] hover:text-[#1C1C1E]"
-                }`}
-              >
-                4. Whole-BDT Billing
-              </button>
+              {(
+                [
+                  { id: "rx", label: "1. Clinical Rx & FDI" },
+                  { id: "slots", label: "2. Anti-Collision Slots" },
+                  { id: "queue", label: "3. Cards & TV Queue" },
+                  { id: "billing", label: "4. Whole-BDT Billing" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
+                    activeTab === tab.id
+                      ? "bg-white text-[#2A5CAA] shadow-sm border border-[#E4E4E7]"
+                      : "text-[#6B7280] hover:text-[#1C1C1E]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Interactive Screen Preview Container */}
-          <div className="rounded-3xl border border-[#CBD5E1] bg-[#1E293B] shadow-2xl p-3 sm:p-5 overflow-hidden">
+          {/* Interactive Screen Preview Container with GSAP 3D Perspective Tilt on Scroll */}
+          <div
+            ref={previewScreenRef}
+            className="rounded-3xl border border-[#CBD5E1] bg-[#1E293B] shadow-2xl p-3 sm:p-5 overflow-hidden transition-transform will-change-transform"
+          >
             {/* Window Chrome Header */}
             <div className="flex items-center justify-between pb-4 px-2 border-b border-white/10 text-xs text-white/60">
               <div className="flex items-center gap-2">
@@ -360,31 +557,31 @@ export default function LandingPageClient() {
               </div>
               <div className="hidden sm:flex items-center gap-3 font-mono text-[11px]">
                 <span className="text-[#30D158] flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#30D158]" /> Neon Postgres Active
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#30D158] animate-ping" /> Neon Postgres Active
                 </span>
                 <span>Tenant: Dhanmondi Dental Care</span>
               </div>
             </div>
 
-            {/* Dynamic Interactive Body */}
+            {/* Dynamic Interactive Body with AnimatePresence */}
             <div className="pt-5 pb-2 text-white">
               <AnimatePresence mode="wait">
                 {activeTab === "rx" && (
                   <motion.div
                     key="rx"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
                     className="grid grid-cols-1 lg:grid-cols-12 gap-6"
                   >
-                    {/* Left Column: FDI Tooth Chart */}
+                    {/* Left Column: Interactive FDI Tooth Chart */}
                     <div className="lg:col-span-7 bg-[#0F172A] rounded-2xl p-5 border border-white/10">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                           <Stethoscope className="w-4 h-4 text-[#60A5FA]" />
                           <h4 className="text-sm font-bold text-white">
-                            Interactive 2-Digit FDI Tooth Chart
+                            Interactive 2-Digit FDI Tooth Chart (Click Any Tooth)
                           </h4>
                         </div>
                         <span className="text-[11px] font-mono bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">
@@ -392,44 +589,66 @@ export default function LandingPageClient() {
                         </span>
                       </div>
 
-                      {/* Mockup Quadrant Grid */}
+                      {/* Upper Quadrant Grid */}
                       <div className="grid grid-cols-8 gap-1.5 text-center text-xs font-mono mb-3">
                         {["18", "17", "16", "15", "14", "13", "12", "11"].map((tooth) => (
-                          <div
+                          <motion.button
                             key={tooth}
-                            className={`p-2 rounded border transition ${
-                              tooth === "16"
-                                ? "bg-red-500/30 border-red-500 text-red-200 font-bold"
+                            whileHover={{ scale: 1.12 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setSelectedTooth(tooth)}
+                            className={`p-2 rounded border transition cursor-pointer ${
+                              selectedTooth === tooth
+                                ? "bg-red-500/30 border-red-500 text-red-200 font-bold ring-2 ring-red-400"
+                                : tooth === "16"
+                                ? "bg-red-500/20 border-red-500/50 text-red-300"
                                 : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
                             }`}
                           >
                             {tooth}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="grid grid-cols-8 gap-1.5 text-center text-xs font-mono mb-4">
-                        {["21", "22", "23", "24", "25", "26", "27", "28"].map((tooth) => (
-                          <div
-                            key={tooth}
-                            className={`p-2 rounded border transition ${
-                              tooth === "26"
-                                ? "bg-amber-500/30 border-amber-500 text-amber-200 font-bold"
-                                : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
-                            }`}
-                          >
-                            {tooth}
-                          </div>
+                          </motion.button>
                         ))}
                       </div>
 
-                      {/* Clinical Condition Legend */}
+                      {/* Lower Quadrant Grid */}
+                      <div className="grid grid-cols-8 gap-1.5 text-center text-xs font-mono mb-4">
+                        {["21", "22", "23", "24", "25", "26", "27", "28"].map((tooth) => (
+                          <motion.button
+                            key={tooth}
+                            whileHover={{ scale: 1.12 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setSelectedTooth(tooth)}
+                            className={`p-2 rounded border transition cursor-pointer ${
+                              selectedTooth === tooth
+                                ? "bg-amber-500/30 border-amber-500 text-amber-200 font-bold ring-2 ring-amber-400"
+                                : tooth === "26"
+                                ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                                : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                            }`}
+                          >
+                            {tooth}
+                          </motion.button>
+                        ))}
+                      </div>
+
+                      {/* Dynamic Clinical Condition Legend based on Selected Tooth */}
                       <div className="flex flex-wrap gap-2 text-[11px] pt-3 border-t border-white/10">
-                        <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
-                          Tooth 16: Deep Caries (Root Canal Recommended)
+                        <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
+                          Selected Tooth: {selectedTooth}
                         </span>
-                        <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          Tooth 26: Composite Restoration
-                        </span>
+                        {selectedTooth === "16" ? (
+                          <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
+                            Deep Caries &bull; Root Canal Therapy Indicated
+                          </span>
+                        ) : selectedTooth === "26" ? (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Class II Mesial-Occlusal Composite Restoration
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Healthy Sound Tooth Structure
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -500,10 +719,10 @@ export default function LandingPageClient() {
                 {activeTab === "slots" && (
                   <motion.div
                     key="slots"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
                     className="p-6 bg-[#0F172A] rounded-2xl border border-white/10"
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -545,14 +764,20 @@ export default function LandingPageClient() {
                         <span className="text-xs font-mono block">11:20 AM</span>
                         <span className="text-[10px] text-white/50">Overlaps 30m slot</span>
                       </div>
-                      <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-center hover:bg-emerald-500/30 cursor-pointer">
+                      <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-center hover:bg-emerald-500/30 cursor-pointer"
+                      >
                         <span className="text-xs font-mono text-emerald-300 font-bold block">11:40 AM</span>
                         <span className="text-[10px] text-emerald-200">Open (Chair 1 &amp; 2)</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-center hover:bg-emerald-500/30 cursor-pointer">
+                      </motion.div>
+                      <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-center hover:bg-emerald-500/30 cursor-pointer"
+                      >
                         <span className="text-xs font-mono text-emerald-300 font-bold block">12:10 PM</span>
                         <span className="text-[10px] text-emerald-200">Open (Chair 1)</span>
-                      </div>
+                      </motion.div>
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-white/70">
@@ -570,10 +795,10 @@ export default function LandingPageClient() {
                 {activeTab === "queue" && (
                   <motion.div
                     key="queue"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
                     className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5 bg-[#0F172A] rounded-2xl border border-white/10"
                   >
                     {/* Column 1: Waiting Room */}
@@ -659,10 +884,10 @@ export default function LandingPageClient() {
                 {activeTab === "billing" && (
                   <motion.div
                     key="billing"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
                     className="p-6 bg-[#0F172A] rounded-2xl border border-white/10"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
@@ -733,11 +958,11 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      {/* CORE 6 FEATURES GRID */}
+      {/* CORE 6 FEATURES GRID (GSAP ScrollTrigger Staggered Reveal) */}
       <section id="features" className="py-20 bg-[#F8FAFC]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="px-3.5 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider">
+            <span className="px-3.5 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
               Architecture &amp; Capability
             </span>
             <h2 className="mt-3 text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#1C1C1E] tracking-tight">
@@ -749,9 +974,13 @@ export default function LandingPageClient() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div ref={featuresGridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Feature 1 */}
-            <div className="bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm hover:shadow-md hover:border-[#2A5CAA]/40 transition-all flex flex-col justify-between">
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#E8EEF7] text-[#2A5CAA] flex items-center justify-center mb-5">
                   <QrCode className="w-6 h-6" />
@@ -768,10 +997,14 @@ export default function LandingPageClient() {
                 <span>1D Barcode standard</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
-            </div>
+            </motion.div>
 
             {/* Feature 2 */}
-            <div className="bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm hover:shadow-md hover:border-[#2A5CAA]/40 transition-all flex flex-col justify-between">
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#E8F8EE] text-[#30D158] flex items-center justify-center mb-5">
                   <Calendar className="w-6 h-6" />
@@ -788,10 +1021,14 @@ export default function LandingPageClient() {
                 <span>Zero double bookings</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
-            </div>
+            </motion.div>
 
             {/* Feature 3 */}
-            <div className="bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm hover:shadow-md hover:border-[#2A5CAA]/40 transition-all flex flex-col justify-between">
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#F3E8FF] text-[#9333EA] flex items-center justify-center mb-5">
                   <FileText className="w-6 h-6" />
@@ -808,10 +1045,14 @@ export default function LandingPageClient() {
                 <span>FDI 2-digit standard</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
-            </div>
+            </motion.div>
 
             {/* Feature 4 */}
-            <div className="bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm hover:shadow-md hover:border-[#2A5CAA]/40 transition-all flex flex-col justify-between">
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#FFF7EB] text-[#FF9F0A] flex items-center justify-center mb-5">
                   <Eye className="w-6 h-6" />
@@ -828,10 +1069,14 @@ export default function LandingPageClient() {
                 <span>Doctor privacy guaranteed</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
-            </div>
+            </motion.div>
 
             {/* Feature 5 */}
-            <div className="bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm hover:shadow-md hover:border-[#2A5CAA]/40 transition-all flex flex-col justify-between">
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center mb-5">
                   <Tv className="w-6 h-6" />
@@ -848,10 +1093,14 @@ export default function LandingPageClient() {
                 <span>Live token callout</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
-            </div>
+            </motion.div>
 
             {/* Feature 6 */}
-            <div className="bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm hover:shadow-md hover:border-[#2A5CAA]/40 transition-all flex flex-col justify-between">
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#ECFDF5] text-[#059669] flex items-center justify-center mb-5">
                   <CreditCard className="w-6 h-6" />
@@ -868,16 +1117,16 @@ export default function LandingPageClient() {
                 <span>Bangladeshi Taka native</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* 5-PHASE CLINICAL WORKFLOW TIMELINE */}
+      {/* 5-PHASE CLINICAL WORKFLOW TIMELINE (GSAP Scrubbed Progress Bar) */}
       <section id="workflow" className="py-20 bg-white border-t border-[#E4E4E7]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="px-3.5 py-1 rounded-full bg-[#E8F8EE] text-[#30D158] font-bold text-xs uppercase tracking-wider">
+            <span className="px-3.5 py-1 rounded-full bg-[#E8F8EE] text-[#30D158] font-bold text-xs uppercase tracking-wider border border-[#30D158]/30">
               Operational Sequence
             </span>
             <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-[#1C1C1E] tracking-tight">
@@ -888,69 +1137,98 @@ export default function LandingPageClient() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative">
-            {/* Step 1 */}
-            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative">
-              <span className="text-xs font-mono font-extrabold text-[#2A5CAA] bg-[#E8EEF7] px-2.5 py-1 rounded-md">
-                Phase 01
-              </span>
-              <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Reception &amp; Card Scan</h4>
-              <p className="text-xs text-[#6B7280] leading-relaxed">
-                Scan pre-printed CR80 card or generate unique patient ID. Instant search by mobile number.
-              </p>
+          <div ref={workflowTrackRef} className="relative">
+            {/* GSAP Scrubbed Progress Track Line */}
+            <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-[#E2E8F0] -translate-y-1/2 -z-0">
+              <div
+                ref={progressBarRef}
+                className="h-full bg-gradient-to-r from-[#2A5CAA] via-[#3B82F6] to-[#0D9488] will-change-transform"
+                style={{ transform: "scaleX(0)" }}
+              />
             </div>
 
-            {/* Step 2 */}
-            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative">
-              <span className="text-xs font-mono font-extrabold text-[#3B82F6] bg-[#EFF6FF] px-2.5 py-1 rounded-md">
-                Phase 02
-              </span>
-              <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Queue &amp; Lounge Token</h4>
-              <p className="text-xs text-[#6B7280] leading-relaxed">
-                Patient enters waiting room. TV screen displays active token number and designated chair.
-              </p>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative z-10">
+              {/* Step 1 */}
+              <motion.div
+                whileHover={{ y: -4 }}
+                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
+              >
+                <span className="text-xs font-mono font-extrabold text-[#2A5CAA] bg-[#E8EEF7] px-2.5 py-1 rounded-md">
+                  Phase 01
+                </span>
+                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Reception &amp; Card Scan</h4>
+                <p className="text-xs text-[#6B7280] leading-relaxed">
+                  Scan pre-printed CR80 card or generate unique patient ID. Instant search by mobile number.
+                </p>
+              </motion.div>
 
-            {/* Step 3 */}
-            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative">
-              <span className="text-xs font-mono font-extrabold text-[#9333EA] bg-[#F3E8FF] px-2.5 py-1 rounded-md">
-                Phase 03
-              </span>
-              <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">FDI Exam &amp; Bangla Rx</h4>
-              <p className="text-xs text-[#6B7280] leading-relaxed">
-                Dentist marks tooth conditions, adds Bangla dosages, attaches X-rays, and logs private notes.
-              </p>
-            </div>
+              {/* Step 2 */}
+              <motion.div
+                whileHover={{ y: -4 }}
+                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
+              >
+                <span className="text-xs font-mono font-extrabold text-[#3B82F6] bg-[#EFF6FF] px-2.5 py-1 rounded-md">
+                  Phase 02
+                </span>
+                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Queue &amp; Lounge Token</h4>
+                <p className="text-xs text-[#6B7280] leading-relaxed">
+                  Patient enters waiting room. TV screen displays active token number and designated chair.
+                </p>
+              </motion.div>
 
-            {/* Step 4 */}
-            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative">
-              <span className="text-xs font-mono font-extrabold text-[#059669] bg-[#ECFDF5] px-2.5 py-1 rounded-md">
-                Phase 04
-              </span>
-              <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Whole-BDT Billing</h4>
-              <p className="text-xs text-[#6B7280] leading-relaxed">
-                Services auto-populate on invoice. Front desk collects payment via bKash/Cash and prints receipt.
-              </p>
-            </div>
+              {/* Step 3 */}
+              <motion.div
+                whileHover={{ y: -4 }}
+                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
+              >
+                <span className="text-xs font-mono font-extrabold text-[#9333EA] bg-[#F3E8FF] px-2.5 py-1 rounded-md">
+                  Phase 03
+                </span>
+                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">FDI Exam &amp; Bangla Rx</h4>
+                <p className="text-xs text-[#6B7280] leading-relaxed">
+                  Dentist marks tooth conditions, adds Bangla dosages, attaches X-rays, and logs private notes.
+                </p>
+              </motion.div>
 
-            {/* Step 5 */}
-            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative">
-              <span className="text-xs font-mono font-extrabold text-[#D97706] bg-[#FEF3C7] px-2.5 py-1 rounded-md">
-                Phase 05
-              </span>
-              <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Follow-up &amp; Retention</h4>
-              <p className="text-xs text-[#6B7280] leading-relaxed">
-                Next visit auto-scheduled. Patient receives appointment reminder emails with chamber details.
-              </p>
+              {/* Step 4 */}
+              <motion.div
+                whileHover={{ y: -4 }}
+                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
+              >
+                <span className="text-xs font-mono font-extrabold text-[#059669] bg-[#ECFDF5] px-2.5 py-1 rounded-md">
+                  Phase 04
+                </span>
+                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Whole-BDT Billing</h4>
+                <p className="text-xs text-[#6B7280] leading-relaxed">
+                  Services auto-populate on invoice. Front desk collects payment via bKash/Cash and prints receipt.
+                </p>
+              </motion.div>
+
+              {/* Step 5 */}
+              <motion.div
+                whileHover={{ y: -4 }}
+                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
+              >
+                <span className="text-xs font-mono font-extrabold text-[#D97706] bg-[#FEF3C7] px-2.5 py-1 rounded-md">
+                  Phase 05
+                </span>
+                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Follow-up &amp; Retention</h4>
+                <p className="text-xs text-[#6B7280] leading-relaxed">
+                  Next visit auto-scheduled. Patient receives appointment reminder emails with chamber details.
+                </p>
+              </motion.div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CONTENT CREATOR VIDEO PRODUCTION KIT SECTION */}
+      {/* CONTENT CREATOR VIDEO PRODUCTION KIT SECTION (GSAP Reveal) */}
       <section id="creator-kit" className="py-20 bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-purple-900/40 p-8 sm:p-12 relative overflow-hidden">
+          <div
+            ref={creatorKitRef}
+            className="rounded-3xl border border-white/10 bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-purple-900/40 p-8 sm:p-12 relative overflow-hidden will-change-transform"
+          >
             {/* Ambient Graphic */}
             <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -987,14 +1265,27 @@ export default function LandingPageClient() {
                 </div>
 
                 <div className="mt-8 flex flex-wrap items-center gap-4">
-                  <a
+                  <motion.a
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
                     href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
                     download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
                     className="px-6 py-3.5 rounded-xl bg-white text-[#0F172A] hover:bg-[#F1F5F9] font-bold text-sm transition-all shadow-lg hover:shadow-xl flex items-center gap-2 cursor-pointer"
                   >
                     <Download className="w-4 h-4 text-[#2A5CAA]" />
                     <span>Download Production PDF (1.3 MB)</span>
-                  </a>
+                  </motion.a>
+
+                  <motion.a
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    href="/ORIS_EMR_Client_Product_Guide.pdf"
+                    download="ORIS_EMR_Client_Product_Guide.pdf"
+                    className="px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-all shadow-lg flex items-center gap-2 cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Download Client Brochure (PDF)</span>
+                  </motion.a>
 
                   <a
                     href="/oris-features-guide.html"
@@ -1003,16 +1294,20 @@ export default function LandingPageClient() {
                     className="px-5 py-3.5 rounded-xl bg-white/10 border border-white/20 hover:bg-white/15 text-white font-semibold text-sm transition-all flex items-center gap-2"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    <span>View Interactive HTML Guide</span>
+                    <span>View Interactive HTML</span>
                   </a>
                 </div>
               </div>
 
               {/* Graphic Showcase */}
               <div className="lg:col-span-4 bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-[#2A5CAA] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
+                <motion.div
+                  whileHover={{ rotate: 10, scale: 1.08 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                  className="w-16 h-16 rounded-2xl bg-[#2A5CAA] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20 cursor-pointer"
+                >
                   <Play className="w-8 h-8 ml-1" />
-                </div>
+                </motion.div>
                 <h4 className="text-base font-bold text-white">6-Minute Video Script</h4>
                 <p className="text-xs text-white/60 mt-1">
                   Introduction &bull; Smart Cards &bull; FDI Tooth Chart &bull; Anti-Collision Slots &bull;
@@ -1062,7 +1357,7 @@ export default function LandingPageClient() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <BrandLogo size="sm" />
 
-          <div className="flex items-center gap-6 text-xs text-[#6B7280]">
+          <div className="flex items-center gap-6 text-xs text-[#6B7280] flex-wrap">
             <a href="#features" className="hover:text-[#1C1C1E] transition">
               Features
             </a>
@@ -1070,11 +1365,18 @@ export default function LandingPageClient() {
               Workflow
             </a>
             <a
-              href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
-              download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
+              href="/ORIS_EMR_Client_Product_Guide.pdf"
+              download="ORIS_EMR_Client_Product_Guide.pdf"
               className="hover:text-[#2A5CAA] font-bold transition"
             >
-              PDF Guide
+              Client Brochure (PDF)
+            </a>
+            <a
+              href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
+              download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
+              className="hover:text-[#2A5CAA] font-medium transition"
+            >
+              Creator &amp; Workflow Kit
             </a>
             <Link href="/login" className="hover:text-[#1C1C1E] transition">
               Staff Login
