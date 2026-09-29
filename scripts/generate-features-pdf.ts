@@ -1,0 +1,773 @@
+import fs from "fs";
+import path from "path";
+import { execSync } from "child_process";
+
+const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ORIS EMR - Complete Features & Workflow Master Guide</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+    @page {
+      size: A4;
+      margin: 14mm 14mm 16mm 14mm;
+      @bottom-right {
+        content: "Page " counter(page);
+        font-family: 'Inter', sans-serif;
+        font-size: 8pt;
+        color: #8E8E93;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1C1C1E;
+      background: #FFFFFF;
+      line-height: 1.5;
+      font-size: 10pt;
+      margin: 0;
+      padding: 0;
+    }
+
+    .cover {
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 90vh;
+      padding: 40px 20px 20px 20px;
+    }
+
+    .cover-badge {
+      display: inline-block;
+      background: #EBF2FC;
+      color: #2A5CAA;
+      font-size: 9pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(42, 92, 170, 0.25);
+    }
+
+    .cover-title {
+      font-size: 34pt;
+      font-weight: 900;
+      line-height: 1.1;
+      color: #0F172A;
+      margin: 20px 0 10px 0;
+      letter-spacing: -1px;
+    }
+
+    .cover-title span {
+      color: #2A5CAA;
+    }
+
+    .cover-subtitle {
+      font-size: 15pt;
+      font-weight: 500;
+      color: #475569;
+      max-width: 600px;
+      line-height: 1.4;
+      margin-bottom: 30px;
+    }
+
+    .cover-meta {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 16px;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 40px;
+    }
+
+    .cover-meta-item h4 {
+      margin: 0 0 4px 0;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748B;
+      font-weight: 700;
+    }
+
+    .cover-meta-item p {
+      margin: 0;
+      font-size: 11pt;
+      font-weight: 800;
+      color: #0F172A;
+    }
+
+    .page {
+      page-break-after: always;
+      padding-top: 10px;
+    }
+
+    .page:last-child {
+      page-break-after: avoid;
+    }
+
+    h1, h2, h3, h4 {
+      color: #0F172A;
+      letter-spacing: -0.3px;
+    }
+
+    h2.section-header {
+      font-size: 17pt;
+      font-weight: 900;
+      border-bottom: 2px solid #2A5CAA;
+      padding-bottom: 6px;
+      margin-top: 0;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    h2.section-header span.tag {
+      font-size: 8pt;
+      font-weight: 700;
+      background: #E2E8F0;
+      color: #334155;
+      padding: 3px 10px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    h3.sub-header {
+      font-size: 12pt;
+      font-weight: 800;
+      margin: 16px 0 6px 0;
+      color: #1E293B;
+    }
+
+    p {
+      margin: 0 0 10px 0;
+      color: #334155;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .card-highlight {
+      background: #F8FAFC;
+      border-left: 4px solid #2A5CAA;
+    }
+
+    .card-title {
+      font-weight: 800;
+      font-size: 10.5pt;
+      color: #0F172A;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-body {
+      font-size: 9pt;
+      color: #475569;
+    }
+
+    ul {
+      margin: 4px 0 10px 18px;
+      padding: 0;
+    }
+
+    li {
+      margin-bottom: 4px;
+      font-size: 9pt;
+      color: #334155;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px 0;
+      font-size: 8.5pt;
+    }
+
+    .table th {
+      background: #F1F5F9;
+      color: #0F172A;
+      font-weight: 800;
+      text-align: left;
+      padding: 8px 10px;
+      border: 1px solid #CBD5E1;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 7.5pt;
+    }
+
+    .table td {
+      padding: 8px 10px;
+      border: 1px solid #E2E8F0;
+      color: #334155;
+    }
+
+    .table tr:nth-child(even) td {
+      background: #F8FAFC;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-weight: 800;
+      font-size: 7.5pt;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .badge-blue { background: #EBF2FC; color: #2A5CAA; border: 1px solid #BFDBFE; }
+    .badge-green { background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; }
+    .badge-amber { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+    .badge-rose { background: #FFE4E6; color: #9F1239; border: 1px solid #FECDD3; }
+
+    .workflow-step {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .step-num {
+      width: 32px;
+      height: 32px;
+      background: #2A5CAA;
+      color: #FFFFFF;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 11pt;
+      flex-shrink: 0;
+    }
+
+    .step-content h4 {
+      margin: 0 0 2px 0;
+      font-size: 10pt;
+      font-weight: 800;
+      color: #0F172A;
+    }
+
+    .step-content p {
+      margin: 0;
+      font-size: 8.5pt;
+      color: #475569;
+    }
+
+    .script-box {
+      background: #0F172A;
+      color: #F8FAFC;
+      border-radius: 12px;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8pt;
+      line-height: 1.6;
+      margin: 10px 0;
+    }
+
+    .script-box .tag-time {
+      color: #38BDF8;
+      font-weight: 700;
+    }
+
+    .script-box .tag-action {
+      color: #4ADE80;
+    }
+
+    .script-box .tag-voiceover {
+      color: #FCD34D;
+    }
+
+    .callout {
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 8.5pt;
+    }
+
+    .callout-info {
+      background: #EFF6FF;
+      border-left: 4px solid #3B82F6;
+      color: #1E40AF;
+    }
+
+    .callout-tip {
+      background: #F0FDF4;
+      border-left: 4px solid #22C55E;
+      color: #15803D;
+    }
+
+    .callout-warning {
+      background: #FFFBEB;
+      border-left: 4px solid #F59E0B;
+      color: #B45309;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- COVER PAGE -->
+  <div class="cover">
+    <div>
+      <div class="cover-badge">Official Video Creator &amp; Feature Master Guide</div>
+      <h1 class="cover-title">ORIS <span>EMR</span></h1>
+      <p class="cover-subtitle">
+        Next-Generation Dental Chamber Management &amp; Clinical Operating System purpose-built for Bangladesh Dental Practices.
+      </p>
+
+      <div style="margin-top: 30px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <span class="badge badge-blue">✓ Sub-60s Bangla Prescriptions</span>
+        <span class="badge badge-green">✓ Barcode Scanning ID</span>
+        <span class="badge badge-amber">✓ Smart Slot Anti-Collision</span>
+        <span class="badge badge-blue">✓ Live Waiting TV Lounge</span>
+        <span class="badge badge-green">✓ Whole-BDT Dental Billing</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="cover-meta">
+        <div class="cover-meta-item">
+          <h4>Target Audience</h4>
+          <p>Dental Surgeons, Clinic Owners &amp; Content Creators</p>
+        </div>
+        <div class="cover-meta-item">
+          <h4>Document Version</h4>
+          <p>2.0 Production Ready</p>
+        </div>
+        <div class="cover-meta-item">
+          <h4>Video Production Length</h4>
+          <p>Suggested: 5 to 7 Minutes</p>
+        </div>
+      </div>
+      <p style="text-align: center; font-size: 8pt; color: #94A3B8; margin-top: 20px;">
+        Generated by Oris Health Systems Engineering • © 2026 All Rights Reserved
+      </p>
+    </div>
+  </div>
+
+  <!-- SECTION 1: ARCHITECTURAL OVERVIEW & ROLES -->
+  <div class="page">
+    <h2 class="section-header">
+      <span>1. Platform Architecture &amp; Role Hierarchy</span>
+      <span class="tag">Foundation</span>
+    </h2>
+
+    <p>
+      ORIS EMR is structured as a high-security, multi-tenant cloud application. Each dental chamber operates in strict tenant isolation, with its own operational schedules, doctor rosters, patient records, catalog procedures, and letterhead configurations.
+    </p>
+
+    <div class="grid-2">
+      <div class="card card-highlight">
+        <div class="card-title">🏢 Superadmin (Platform Owner)</div>
+        <div class="card-body">
+          Manages chamber onboardings at <code>/platform</code>. Controls clinic subscription tiers, feature flags, global doctor catalogs, and tenant suspension status.
+        </div>
+      </div>
+
+      <div class="card card-highlight">
+        <div class="card-title">🩺 Tenant Admin (Chamber Owner / Lead Dentist)</div>
+        <div class="card-body">
+          Full ownership of the chamber: configs clinic logo, working hours, doctor personal schedules, physical chair count, letterhead margins, and staff user logins.
+        </div>
+      </div>
+
+      <div class="card card-highlight">
+        <div class="card-title">👨‍⚕️ Clinical Dentist (Doctor)</div>
+        <div class="card-body">
+          Access to in-chair queue, patient history, FDI tooth chart, Bangla prescription builder, in-chair radiograph Lightbox, and confidential doctor's private clinical notes.
+        </div>
+      </div>
+
+      <div class="card card-highlight">
+        <div class="card-title">👩‍💼 Front Desk / Receptionist</div>
+        <div class="card-body">
+          Rapid barcode card scanning, new patient registration, appointment booking, chair queue management, bill settlement, payment collection, and dues recording.
+        </div>
+      </div>
+    </div>
+
+    <h3 class="sub-header">Unique Regional Adaptations for Bangladesh Dental Chambers</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>Standard Global EMR</th>
+          <th>ORIS EMR Bangladesh Specialization</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Prescription Printout</strong></td>
+          <td>Generic English names &amp; instructions</td>
+          <td>Localized Bangla instruction bullets (e.g. <em>১+০+১ (ভরা পেটে)</em>) with printed BMDC Registration.</td>
+        </tr>
+        <tr>
+          <td><strong>Payment Currencies</strong></td>
+          <td>Cents/Decimals, credit card only</td>
+          <td>Whole BDT (৳) rounded amounts with native support for <strong>bKash, Nagad, Rocket, Cash</strong>.</td>
+        </tr>
+        <tr>
+          <td><strong>Patient Card Numbers</strong></td>
+          <td>Random UUID / arbitrary numbers</td>
+          <td>Pre-printed batch barcode cards (scannable via 1D/2D reader) or collision-proof auto-increment cards.</td>
+        </tr>
+        <tr>
+          <td><strong>Phone Validation</strong></td>
+          <td>International E.164 only</td>
+          <td>Native 11-digit Bangladeshi mobile format (<code>01XXXXXXXXX</code>) with automatic sanitization.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION 2: END-TO-END CLINICAL WORKFLOW -->
+  <div class="page">
+    <h2 class="section-header">
+      <span>2. The 5-Phase End-to-End Clinic Workflow</span>
+      <span class="tag">Core Journey</span>
+    </h2>
+
+    <p>
+      Content creators should anchor their video around this smooth, friction-free journey showing a patient from arrival to billing.
+    </p>
+
+    <div class="workflow-step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h4>Patient Check-In &amp; Barcode Identification (Reception)</h4>
+        <p>
+          Patient enters chamber. Receptionist scans the physical chamber card barcode (or searches by mobile number). System instantly opens the record, confirms active appointment, and places them into the <strong>Live Waiting Queue</strong>.
+        </p>
+      </div>
+    </div>
+
+    <div class="workflow-step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h4>Live TV Waiting Lounge &amp; Audio Chime</h4>
+        <p>
+          Lobby TV screen displays the live queue with estimated waiting times. When the dentist clicks <em>"Call to Chair"</em>, a pleasant audio chime sounds, guiding the patient to their designated Dental Chair (Chair 1, Chair 2, etc.).
+        </p>
+      </div>
+    </div>
+
+    <div class="workflow-step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h4>In-Chair Consultation &amp; Radiograph Lightbox (Doctor Workspace)</h4>
+        <p>
+          Dentist accesses patient dossier right from the dental chair. Inspects previous X-rays and OPGs via the built-in Lightbox (with 360° rotation and zoom). Checks drug allergies (Penicillin, Sulfa) flagged prominently in red.
+        </p>
+      </div>
+    </div>
+
+    <div class="workflow-step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h4>Sub-60-Second Bangla Prescription Issuance</h4>
+        <p>
+          Doctor clicks affected teeth on the <strong>FDI Two-Digit Dental Arch</strong>, selects diagnosis via typeahead autocomplete, picks catalog medicines with Bangla dosage templates, writes confidential internal notes, and prints the official prescription.
+        </p>
+      </div>
+    </div>
+
+    <div class="workflow-step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <h4>Automated Settlement &amp; Billing (Whole-BDT)</h4>
+        <p>
+          Patient automatically moves from in-chair to <strong>Billing</strong>. Line items for performed procedures are auto-populated. Cashier settles full or partial balance (Cash/bKash), records previous dues, and prints a branded receipt with barcode.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: DEEP DIVE: PRESCRIPTION BUILDER & TOOTH CHART -->
+  <div class="page">
+    <h2 class="section-header">
+      <span>3. Clinical Prescription Builder Deep Dive</span>
+      <span class="tag">Dentist Favorite</span>
+    </h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">🦷 FDI Dental Arch (32-Tooth Selector)</div>
+        <div class="card-body">
+          <ul>
+            <li>Upper Right (11-18), Upper Left (21-28)</li>
+            <li>Lower Left (31-38), Lower Right (41-48)</li>
+            <li>Multi-select teeth with visual highlighted badges</li>
+            <li>Prints explicitly on patient prescription paper</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">⚡ Typeahead Clinical Autocomplete</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>C/C:</strong> Toothache, Cavity, Bleeding gum</li>
+            <li><strong>O/E:</strong> Deep caries, Percussion positive</li>
+            <li><strong>Diagnosis:</strong> Irreversible pulpitis, Gingivitis</li>
+            <li><strong>Investigations:</strong> IOPA X-Ray, OPG Panoramic</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-highlight">
+      <div class="card-title">🔒 Doctor's Private Clinical Notes (Confidential)</div>
+      <div class="card-body">
+        <p>
+          A high-demand feature added specifically for dentists. Doctors can type internal thoughts, diagnostic suspicions, or procedural notes that are <strong>strictly stored in the EMR</strong>.
+        </p>
+        <div class="callout callout-tip" style="margin: 4px 0 0 0;">
+          <strong>Security Guarantee:</strong> This note is visible in the internal EMR via the <strong>"View"</strong> modal, but is <em>never</em> printed onto the patient's paper prescription or receipt.
+        </div>
+      </div>
+    </div>
+
+    <h3 class="sub-header">Drug Allergy Safety Radar</h3>
+    <p>
+      When prescribing, the system cross-references patient allergies (e.g. Penicillin, NSAIDs) with the active ingredient and drug class of catalog medicines in real-time.
+    </p>
+
+    <div class="grid-2">
+      <div class="callout callout-warning">
+        <strong>⚠️ Warning Notice:</strong> Displays an alert banner when prescribing a medication with mild or moderate potential cross-reactivity.
+      </div>
+      <div class="callout callout-info" style="border-left-color: #EF4444; background: #FEF2F2; color: #991B1B;">
+        <strong>🛑 Hard Allergy Block:</strong> Halts prescription submission if prescribing a known severe allergen, requiring intentional override logging.
+      </div>
+    </div>
+
+    <h3 class="sub-header">Bangla Advice &amp; Post-Op Guidelines</h3>
+    <p>
+      Pre-configured standard advice blocks for extraction, RCT, scaling, and orthodontic care that paste into the prescription in 1 click (e.g., <em>তুলা ১ ঘণ্টা শক্ত করে চেপে রাখবেন, গরম বা শক্ত খাবার খাবেন না</em>).
+    </p>
+  </div>
+
+  <!-- SECTION 4: SMART SLOT ENGINE & PUBLIC BOOKING -->
+  <div class="page">
+    <h2 class="section-header">
+      <span>4. Precision Scheduling &amp; Online Booking</span>
+      <span class="tag">Anti-Collision</span>
+    </h2>
+
+    <p>
+      ORIS EMR replaces manual appointment notebooks with a mathematical slot calculation engine that prevents double-booking and wasted chair time.
+    </p>
+
+    <div class="card">
+      <div class="card-title">⚙️ Dynamic Slot Engine Algorithm</div>
+      <div class="card-body">
+        <ul>
+          <li><strong>Split Shifts Support:</strong> Morning Shift (10:00 AM - 02:00 PM) &amp; Evening Shift (05:00 PM - 09:00 PM). Automatically blocks lunch/break windows.</li>
+          <li><strong>Dynamic Duration by Procedure:</strong> Tooth Extraction (30 mins), Scaling (45 mins), Consultation (15 mins). Timeslots adapt based on selected procedure combo.</li>
+          <li><strong>Buffer Spaces:</strong> Configurable 5-15 minute sterilization buffer between consecutive appointments.</li>
+          <li><strong>Real-time Clock Check:</strong> When booking for today, slots earlier than current time are automatically removed.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 class="sub-header">Public Booking Portal (<code>/book/[tenantSlug]</code>)</h3>
+    <div class="grid-2">
+      <div class="card card-highlight">
+        <div class="card-title">🆕 New Patient Online Booking</div>
+        <div class="card-body">
+          Patients booking online enter Name and Phone. The system <strong>automatically registers them into the EMR</strong> with a collision-proof digital card sequence. They show up across all appointment lists and queues with full name and patient card!
+        </div>
+      </div>
+
+      <div class="card card-highlight">
+        <div class="card-title">💳 Existing Cardholders Auto-Fill</div>
+        <div class="card-body">
+          Existing patients simply enter their <strong>Chamber Card ID</strong>. The system instantly verifies their record, auto-populates their full name and mobile phone, and confirms their booking in seconds.
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-tip">
+      <strong>Public Waiting Lounge (<code>/lounge/[tenantSlug]</code>):</strong> A dedicated URL designed to run fullscreen on a TV in the clinic waiting area, showing currently serving token numbers, patient initials, and upcoming queue.
+    </div>
+  </div>
+
+  <!-- SECTION 5: VIDEO CREATOR STEP-BY-STEP SCRIPT -->
+  <div class="page">
+    <h2 class="section-header">
+      <span>5. Video Creator Script &amp; Production Blueprint</span>
+      <span class="tag">YouTube / Promo Ready</span>
+    </h2>
+
+    <p>
+      Use this timestamped sequence for recording a high-converting software review or tutorial video.
+    </p>
+
+    <div class="script-box">
+      <span class="tag-time">[00:00 - 00:45] INTRO &amp; THE PROBLEM</span><br>
+      <span class="tag-action">Visual:</span> Fast-paced B-roll of paper prescriptions, cluttered registers, waiting room confusion.<br>
+      <span class="tag-voiceover">Voiceover:</span> "Running a dental chamber in Bangladesh shouldn't mean drowning in paper notes, conflicting appointments, and lost medical histories. Today we're reviewing ORIS EMR — the dental operating system built specifically for modern dental clinics in Bangladesh."
+    </div>
+
+    <div class="script-box">
+      <span class="tag-time">[00:45 - 01:45] BARCODE CHECK-IN &amp; LIVE QUEUE</span><br>
+      <span class="tag-action">Visual:</span> Screen capture of scanning patient card barcode. Live queue updates instantly.<br>
+      <span class="tag-voiceover">Voiceover:</span> "Watch this: A patient walks in. With one beep of the barcode scanner, their profile is pulled up. Reception assigns them to Dental Chair 1. Over in the waiting lobby, the TV lounge screen updates with an audio chime!"
+    </div>
+
+    <div class="script-box">
+      <span class="tag-time">[01:45 - 03:30] CLINICAL DENTIST WORKSPACE &amp; PRESCRIPTION</span><br>
+      <span class="tag-action">Visual:</span> Dentist screen: opening in-chair X-ray lightbox, clicking teeth on FDI chart, typeahead suggestions.<br>
+      <span class="tag-voiceover">Voiceover:</span> "Now the doctor's perspective: X-rays can be inspected right in chair. The interactive FDI arch lets you click affected teeth. Medicine dosages appear in clear Bangla. And look at this — confidential private notes the doctor can save that never print on the patient's paper."
+    </div>
+
+    <div class="script-box">
+      <span class="tag-time">[03:30 - 04:45] DENTAL BILLING &amp; BDT SETTLEMENT</span><br>
+      <span class="tag-action">Visual:</span> Move patient to billing. Procedures auto-populate. Record bKash payment.<br>
+      <span class="tag-voiceover">Voiceover:</span> "As soon as the prescription is saved, the patient moves to billing. Notice how the billable procedures are already loaded. You can collect full payment or record outstanding dues in whole Taka. Professional printout with barcodes in one click."
+    </div>
+
+    <div class="script-box">
+      <span class="tag-time">[04:45 - 06:00] ONLINE BOOKING &amp; SUMMARY</span><br>
+      <span class="tag-action">Visual:</span> Mobile view of public booking page. Demonstrating anti-collision slots.<br>
+      <span class="tag-voiceover">Voiceover:</span> "Patients can also book appointments online from home. The smart slot engine handles split shifts so double bookings are literally impossible. ORIS EMR is lightning-fast, paperless, and purpose-built."
+    </div>
+  </div>
+
+  <!-- SECTION 6: TECHNICAL SPECS & SHORTCUTS -->
+  <div class="page">
+    <h2 class="section-header">
+      <span>6. Technical Summary &amp; Branding Assets</span>
+      <span class="tag">Reference</span>
+    </h2>
+
+    <h3 class="sub-header">Where to Place Clinic &amp; Application Logos</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Logo Destination</th>
+          <th>Supported Formats</th>
+          <th>File Location / Upload Path</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Global Application / Platform Branding</strong><br>(Landing Page, Login, App Bar)</td>
+          <td><code>.png</code>, <code>.svg</code></td>
+          <td>
+            Keep file in <code>/public/logo.png</code> or <code>/public/logo.svg</code>.<br>
+            Next.js automatically serves this at <code>/logo.png</code>.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Chamber Print Letterhead &amp; Email Logo</strong><br>(Prescriptions, Invoices, Patient Emails)</td>
+          <td><code>.jpg</code>, <code>.png</code>, <code>.webp</code>, <code>.svg</code><br>(Max 5MB)</td>
+          <td>
+            Upload directly in web app:<br>
+            <strong>Chamber Settings</strong> (<code>/app/settings</code>) &rarr; <strong>Clinic Logo Upload</strong>.<br>
+            Stored securely in MinIO/S3 with instant print preview.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 class="sub-header">Technology Stack Highlights</h3>
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">Frontend</div>
+        <div class="card-body">Next.js 15 (App Router), TypeScript, Tailwind CSS, Framer Motion animations.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Database &amp; ORM</div>
+        <div class="card-body">PostgreSQL (Supabase/Neon), Drizzle ORM, GIST exclusion constraints.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Storage &amp; Barcodes</div>
+        <div class="card-body">S3 / MinIO Cloud Storage for X-rays, JsBarcode Code-128 SVG generator.</div>
+      </div>
+    </div>
+
+    <div class="card card-highlight" style="margin-top: 20px;">
+      <div class="card-title">📞 Contact &amp; Support</div>
+      <div class="card-body">
+        For technical assistance, chamber onboarding, or feature inquiries, reach out to the ORIS EMR Development Team.
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>`;
+
+const publicDir = path.join(process.cwd(), "public");
+const htmlPath = path.join(publicDir, "oris-features-guide.html");
+const pdfPathRoot = path.join(process.cwd(), "ORIS_EMR_Features_and_Workflow_Guide.pdf");
+const pdfPathPublic = path.join(publicDir, "ORIS_EMR_Features_and_Workflow_Guide.pdf");
+
+fs.writeFileSync(htmlPath, htmlContent, "utf8");
+console.log("Written HTML to:", htmlPath);
+
+// Locate Chrome or Edge
+const chromePaths = [
+  "C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe",
+  "C:\\\\Program Files (x86)\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe",
+  "C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe",
+  "C:\\\\Program Files\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe",
+];
+
+let browserPath = chromePaths.find((p) => fs.existsSync(p));
+
+if (!browserPath) {
+  console.error("Neither Chrome nor Edge found on standard paths.");
+  process.exit(1);
+}
+
+console.log("Using browser for PDF generation:", browserPath);
+
+try {
+  const fileUrl = "file:///" + htmlPath.replace(/\\/g, "/");
+  const cmd = `"${browserPath}" --headless --disable-gpu --no-pdf-header-footer --print-to-pdf="${pdfPathRoot}" "${fileUrl}"`;
+  console.log("Running command:", cmd);
+  execSync(cmd, { stdio: "inherit" });
+  
+  // Copy to public directory as well
+  fs.copyFileSync(pdfPathRoot, pdfPathPublic);
+  console.log("Successfully generated PDF at:", pdfPathRoot);
+  console.log("Successfully copied PDF to:", pdfPathPublic);
+} catch (err) {
+  console.error("Failed to generate PDF:", err);
+  process.exit(1);
+}
