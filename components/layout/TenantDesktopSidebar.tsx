@@ -18,9 +18,14 @@ interface TenantDesktopSidebarProps {
     shortCode: string;
     brandColor?: string | null;
   };
+  tenantLogoUrl?: string | null;
 }
 
-export function TenantDesktopSidebar({ user, tenant }: TenantDesktopSidebarProps) {
+export function TenantDesktopSidebar({
+  user,
+  tenant,
+  tenantLogoUrl,
+}: TenantDesktopSidebarProps) {
   const [isPinned, setIsPinned] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -91,12 +96,22 @@ export function TenantDesktopSidebar({ user, tenant }: TenantDesktopSidebarProps
           {/* Clinic Brand Header with Pin/Unpin Toggle */}
           <div className="p-4 border-b border-[#E4E4E7] flex items-center justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
-              <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shadow-sm shrink-0"
-                style={{ backgroundColor: tenant.brandColor || "#2A5CAA" }}
-              >
-                <Stethoscope className="w-5 h-5" />
-              </div>
+              {tenantLogoUrl ? (
+                <div className="w-10 h-10 rounded-2xl bg-white border border-[#E4E4E7] p-1 flex items-center justify-center shadow-xs shrink-0 overflow-hidden">
+                  <img
+                    src={tenantLogoUrl}
+                    alt={tenant.name}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shadow-sm shrink-0"
+                  style={{ backgroundColor: tenant.brandColor || "#2A5CAA" }}
+                >
+                  <Stethoscope className="w-5 h-5" />
+                </div>
+              )}
               <div className="overflow-hidden min-w-0">
                 <span className="text-sm font-extrabold text-[#1C1C1E] tracking-tight block truncate">
                   {tenant.name}

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { PublicBookingClient } from "./PublicBookingClient";
 import { Stethoscope } from "lucide-react";
+import { getFileUrl } from "@/lib/s3";
 
 export default async function PublicBookingPage({
   params,
@@ -101,12 +102,22 @@ export default async function PublicBookingPage({
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Chamber Header */}
         <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] flex items-center gap-4">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold shadow-md shrink-0"
-            style={{ backgroundColor: tenant.brandColor || "#2A5CAA" }}
-          >
-            <Stethoscope className="w-8 h-8" />
-          </div>
+          {tenant.logoKey ? (
+            <div className="w-14 h-14 rounded-2xl bg-white border border-[#E4E4E7] p-1.5 flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
+              <img
+                src={getFileUrl(tenant.logoKey)}
+                alt={tenant.name}
+                className="w-full h-full object-contain"
+              />
+            </div>
+          ) : (
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold shadow-md shrink-0"
+              style={{ backgroundColor: tenant.brandColor || "#2A5CAA" }}
+            >
+              <Stethoscope className="w-8 h-8" />
+            </div>
+          )}
           <div>
             <h1 className="text-xl font-extrabold text-[#1C1C1E] tracking-tight">
               {tenant.name}

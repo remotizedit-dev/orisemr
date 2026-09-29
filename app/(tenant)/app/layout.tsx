@@ -11,6 +11,7 @@ import { SidebarHeaderTrigger } from "@/components/layout/SidebarHeaderTrigger";
 import { GlobalActionDock } from "@/components/layout/GlobalActionDock";
 import { FirstLoginPasswordModal } from "@/components/auth/FirstLoginPasswordModal";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { getFileUrl } from "@/lib/s3";
 
 export default async function TenantAppLayout({
   children,
@@ -19,6 +20,7 @@ export default async function TenantAppLayout({
 }) {
   const { user, tenant } = await requireClinicStaff();
   const mustChangePassword = Boolean((user.preferences as Record<string, unknown>)?.mustChangePassword);
+  const tenantLogoUrl = tenant.logoKey ? getFileUrl(tenant.logoKey) : null;
 
   return (
     <div className="min-h-screen bg-[#F4F4F5] flex">
@@ -30,7 +32,7 @@ export default async function TenantAppLayout({
       <CommandPalette tenantId={tenant.id} tenantShortCode={tenant.shortCode} />
 
       {/* Interactive Auto-Hide & Hover Desktop Sidebar */}
-      <TenantDesktopSidebar user={user} tenant={tenant} />
+      <TenantDesktopSidebar user={user} tenant={tenant} tenantLogoUrl={tenantLogoUrl} />
 
       {/* Main Workspace Frame */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -48,6 +50,7 @@ export default async function TenantAppLayout({
               tenantShortCode={tenant.shortCode}
               brandColor={tenant.brandColor || "#2A5CAA"}
               tenantSlug={tenant.slug}
+              tenantLogoUrl={tenantLogoUrl}
             />
             <div className="flex-1 min-w-0">
               <SearchTrigger />

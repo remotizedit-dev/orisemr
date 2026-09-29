@@ -4,6 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { BarcodeSvg } from "@/components/barcode/BarcodeSvg";
 import { AutoPrintTrigger } from "@/components/print/AutoPrintTrigger";
+import { getFileUrl } from "@/lib/s3";
 
 export default async function PrintCardPage({
   params,
@@ -35,16 +36,25 @@ export default async function PrintCardPage({
       {/* CR80 Card Dimensions: 85.6mm x 54mm (approx 324px x 204px at 96dpi, or exact in print) */}
       <div className="w-[325px] h-[204px] bg-white border border-gray-300 rounded-xl p-4 shadow-lg flex flex-col justify-between text-black select-none print:shadow-none print:border-black">
         {/* Card Header */}
-        <div className="border-b border-gray-200 pb-2 flex items-center justify-between">
-          <div>
-            <h1 className="font-extrabold text-sm tracking-tight text-[#1C1C1E]">
-              {tenant.name}
-            </h1>
-            <span className="text-[10px] text-gray-500 block">
-              Patient Identification Card
-            </span>
+        <div className="border-b border-gray-200 pb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {tenant.logoKey && (
+              <img
+                src={getFileUrl(tenant.logoKey)}
+                alt={tenant.name}
+                className="w-8 h-8 object-contain shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <h1 className="font-extrabold text-sm tracking-tight text-[#1C1C1E] truncate">
+                {tenant.name}
+              </h1>
+              <span className="text-[10px] text-gray-500 block">
+                Patient Identification Card
+              </span>
+            </div>
           </div>
-          <span className="font-mono text-[10px] uppercase font-bold text-[#2A5CAA] bg-[#E8EEF7] px-1.5 py-0.5 rounded">
+          <span className="font-mono text-[10px] uppercase font-bold text-[#2A5CAA] bg-[#E8EEF7] px-1.5 py-0.5 rounded shrink-0">
             {tenant.shortCode}
           </span>
         </div>
