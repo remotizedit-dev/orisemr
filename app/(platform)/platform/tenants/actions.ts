@@ -5,7 +5,8 @@ import { requireSuperAdmin, invalidateSession } from "@/lib/session";
 import { createClinicWithMasterCatalog } from "@/lib/clinic/create-clinic";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
+import { hashPassword } from "better-auth/crypto";
 
 export async function createClinicAction(formData: FormData): Promise<{
   success?: boolean;
@@ -175,3 +176,245 @@ export async function toggleTenantStatusAction(
     return { success: false, error: err?.message || "Failed to update tenant status." };
   }
 }
+
+export interface UpdateTenantDetailsInput {
+  tenantId: string;
+  name: string;
+  slug: string;
+  shortCode: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  // Primary Tenant Admin fields
+  adminUserId?: string | null;
+  adminName?: string | null;
+  adminEmail?: string | null;
+  adminIsDoctor?: boolean;
+  adminDoctorTitle?: string | null;
+  adminDoctorSpecialty?: string | null;
+  adminDoctorRegNo?: string | null;
+  newPassword?: string | null;
+}
+
+export async function updateTenantDetailsAction(input: UpdateTenantDetailsInput): Promise<{
+  success: boolean;
+  error?: string;
+  updatedSlug?: string;
+}> {
+  await requireSuperAdmin();
+
+  const cleanName = (input.name || "").trim();
+  const cleanSlug = (input.slug || "").toLowerCase().trim();
+  const cleanShortCode = (input.shortCode || "").toUpperCase().trim();
+  const cleanPhone = (input.phone || "").trim() || null;
+  const cleanEmail = (input.email || "").trim() || null;
+  const cleanAddress = (input.address || "").trim() || null;
+
+  if (!cleanName) {
+    return { success: false, error: "Clinic Name is required." };
+  }
+  if (!cleanSlug) {
+    return { success: false, error: "Public URL Slug is required." };
+  }
+  if (!/^[a-z0-9-]+$/.test(cleanSlug)) {
+    return {
+      success: false,
+      error: "Public URL Slug can only contain lowercase letters, numbers, and hyphens.",
+    };
+  }
+  if (!cleanShortCode) {
+    return { success: false, error: "Short Code is required." };
+  }
+  if (cleanShortCode.length < 2 || cleanShortCode.length > 6) {
+    return { success: false, error: "Short Code must be between 2 and 6 characters." };
+  }
+
+  try {
+    const [tenant] = await db
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, input.tenantId))
+      .limit(1);
+
+    if (!tenant) {
+      return { success: false, error: "Clinic chamber not found." };
+    }
+
+    // 1. Check slug uniqueness if changed
+    if (cleanSlug !== tenant.slug) {
+      const [slugClash] = await db
+        .select({ id: schema.tenants.id })
+        .from(schema.tenants)
+        .where(and(eq(schema.tenants.slug, cleanSlug), ne(schema.tenants.id, tenant.id)))
+        .limit(1);
+
+      if (slugClash) {
+        return {
+          success: false,
+          error: `The URL slug "/book/${cleanSlug}" is already in use by another clinic.`,
+        };
+      }
+    }
+
+    // 2. Check short code uniqueness if changed
+    if (cleanShortCode !== tenant.shortCode) {
+      const [codeClash] = await db
+        .select({ id: schema.tenants.id })
+        .from(schema.tenants)
+        .where(and(eq(schema.tenants.shortCode, cleanShortCode), ne(schema.tenants.id, tenant.id)))
+        .limit(1);
+
+      if (codeClash) {
+        return {
+          success: false,
+          error: `The short code "${cleanShortCode}" is already in use by another clinic.`,
+        };
+      }
+    }
+
+    // 3. Inspect target admin user if provided
+    let targetAdminUser: typeof schema.users.$inferSelect | null = null;
+    let cleanAdminEmail: string | null = null;
+
+    if (input.adminUserId) {
+      const [u] = await db
+        .select()
+        .from(schema.users)
+        .where(and(eq(schema.users.id, input.adminUserId), eq(schema.users.tenantId, tenant.id)))
+        .limit(1);
+
+      if (u) {
+        targetAdminUser = u;
+        cleanAdminEmail = (input.adminEmail || "").toLowerCase().trim() || u.email;
+
+        // Check email uniqueness if changing email
+        if (cleanAdminEmail !== u.email) {
+          const [emailClash] = await db
+            .select({ id: schema.users.id })
+            .from(schema.users)
+            .where(and(eq(schema.users.email, cleanAdminEmail), ne(schema.users.id, u.id)))
+            .limit(1);
+
+          if (emailClash) {
+            return {
+              success: false,
+              error: `The email "${cleanAdminEmail}" is already used by another account.`,
+            };
+          }
+        }
+      }
+    }
+
+    if (
+      input.newPassword &&
+      input.newPassword.trim().length > 0 &&
+      input.newPassword.trim().length < 8
+    ) {
+      return { success: false, error: "New password must be at least 8 characters long." };
+    }
+
+    const now = new Date();
+
+    await db.transaction(async (tx) => {
+      // A. Update clinic profile
+      await tx
+        .update(schema.tenants)
+        .set({
+          name: cleanName,
+          slug: cleanSlug,
+          shortCode: cleanShortCode,
+          phone: cleanPhone,
+          email: cleanEmail,
+          address: cleanAddress,
+          updatedAt: now,
+        })
+        .where(eq(schema.tenants.id, tenant.id));
+
+      // B. Update primary admin user if provided
+      if (targetAdminUser) {
+        const cleanAdminName = (input.adminName || "").trim() || targetAdminUser.name;
+        const isDoctor =
+          input.adminIsDoctor !== undefined ? input.adminIsDoctor : targetAdminUser.isDoctor;
+        const doctorTitle = (input.adminDoctorTitle || "").trim() || (isDoctor ? "Dr." : null);
+        const doctorSpecialty = (input.adminDoctorSpecialty || "").trim() || null;
+        const doctorRegNo = (input.adminDoctorRegNo || "").trim() || null;
+
+        await tx
+          .update(schema.users)
+          .set({
+            name: cleanAdminName,
+            email: cleanAdminEmail || targetAdminUser.email,
+            isDoctor,
+            doctorTitle,
+            doctorSpecialty,
+            doctorRegNo,
+            updatedAt: now,
+          })
+          .where(eq(schema.users.id, targetAdminUser.id));
+
+        // C. Update password in accounts table if new password specified
+        if (input.newPassword && input.newPassword.trim().length >= 8) {
+          const hashedPassword = await hashPassword(input.newPassword.trim());
+
+          const [existingAccount] = await tx
+            .select()
+            .from(schema.accounts)
+            .where(eq(schema.accounts.userId, targetAdminUser.id))
+            .limit(1);
+
+          if (existingAccount) {
+            await tx
+              .update(schema.accounts)
+              .set({
+                password: hashedPassword,
+                accountId: cleanAdminEmail || existingAccount.accountId,
+                updatedAt: now,
+              })
+              .where(eq(schema.accounts.id, existingAccount.id));
+          } else {
+            await tx.insert(schema.accounts).values({
+              id: crypto.randomUUID(),
+              userId: targetAdminUser.id,
+              accountId: cleanAdminEmail || targetAdminUser.id,
+              providerId: "credential",
+              password: hashedPassword,
+            });
+          }
+        } else if (cleanAdminEmail && cleanAdminEmail !== targetAdminUser.email) {
+          // Keep accountId in sync with new email
+          await tx
+            .update(schema.accounts)
+            .set({
+              accountId: cleanAdminEmail,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(schema.accounts.userId, targetAdminUser.id),
+                eq(schema.accounts.providerId, "credential")
+              )
+            );
+        }
+      }
+    });
+
+    invalidateSession();
+
+    revalidatePath("/platform/tenants");
+    revalidatePath(`/platform/tenants/${tenant.id}`);
+    revalidatePath(`/book/${cleanSlug}`);
+    revalidatePath(`/display/${cleanSlug}`);
+    if (cleanSlug !== tenant.slug) {
+      revalidatePath(`/book/${tenant.slug}`);
+      revalidatePath(`/display/${tenant.slug}`);
+    }
+    revalidatePath("/app");
+    revalidatePath("/app/settings");
+
+    return { success: true, updatedSlug: cleanSlug };
+  } catch (err: any) {
+    console.error("[UPDATE TENANT DETAILS ERROR]:", err);
+    return { success: false, error: err?.message || "Failed to update clinic details." };
+  }
+}
+

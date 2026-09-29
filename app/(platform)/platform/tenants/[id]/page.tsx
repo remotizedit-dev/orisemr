@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { TenantStatusToggle } from "@/components/platform/TenantStatusToggle";
+import { EditTenantModal } from "@/components/platform/EditTenantModal";
 
 export default async function TenantDetailPage({
   params,
@@ -41,6 +42,8 @@ export default async function TenantDetailPage({
     .select()
     .from(schema.users)
     .where(eq(schema.users.tenantId, id));
+
+  const primaryAdmin = staff.find((u) => u.role === "TENANT_ADMIN") || staff[0] || null;
 
   const features = await db
     .select()
@@ -75,20 +78,45 @@ export default async function TenantDetailPage({
                 {tenant.status}
               </span>
             </div>
-            <p className="text-xs text-[#6B7280] mt-0.5">
-              Public Booking URL: <code className="text-[#2A5CAA]">/book/{tenant.slug}</code>
-            </p>
+            <div className="flex items-center gap-3 text-xs text-[#6B7280] mt-1 flex-wrap">
+              <span>
+                Booking URL:{" "}
+                <a
+                  href={`/book/${tenant.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[#2A5CAA] hover:underline font-mono"
+                >
+                  /book/{tenant.slug}
+                </a>
+              </span>
+              <span>•</span>
+              <span>
+                TV Queue Display:{" "}
+                <a
+                  href={`/display/${tenant.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[#059669] hover:underline font-mono"
+                >
+                  /display/{tenant.slug}
+                </a>
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Super Admin Status Action: Turn Off / Reactivate Access */}
-        <TenantStatusToggle
-          tenantId={tenant.id}
-          tenantName={tenant.name}
-          currentStatus={tenant.status}
-          suspendedReason={tenant.suspendedReason}
-          suspendedAt={tenant.suspendedAt}
-        />
+        {/* Super Admin Actions: Edit Profile & Admin + Status Toggle */}
+        <div className="flex items-center gap-2.5">
+          <EditTenantModal tenant={tenant} adminUser={primaryAdmin} />
+          <TenantStatusToggle
+            tenantId={tenant.id}
+            tenantName={tenant.name}
+            currentStatus={tenant.status}
+            suspendedReason={tenant.suspendedReason}
+            suspendedAt={tenant.suspendedAt}
+          />
+        </div>
       </div>
 
       {/* Suspension Alert Banner */}
@@ -158,7 +186,14 @@ export default async function TenantDetailPage({
               {staff.map((u) => (
                 <div key={u.id} className="py-2.5 flex items-center justify-between text-xs">
                   <div>
-                    <span className="font-bold text-[#1C1C1E]">{u.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-[#1C1C1E]">{u.name}</span>
+                      {u.role === "TENANT_ADMIN" && (
+                        <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
+                          Primary Admin
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[#6B7280] block">{u.email}</span>
                   </div>
                   <div className="flex items-center gap-2">

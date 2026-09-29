@@ -11,6 +11,7 @@ import {
   Building2,
   CheckCircle2,
   CreditCard,
+  Globe,
   Layers,
   Loader2,
   Sparkles,
@@ -117,7 +118,7 @@ export default function NewTenantPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                Clinic Name *
+                Clinic / Chamber Business Name *
               </label>
               <input
                 type="text"
@@ -125,9 +126,12 @@ export default function NewTenantPage() {
                 required
                 value={name}
                 onChange={handleNameChange}
-                placeholder="e.g. Modern Dental Care"
+                placeholder="e.g. Apex Dental & Orthodontic Care"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
               />
+              <p className="text-[11px] text-[#6B7280] mt-1">
+                The public branding name of the clinic. This displays on the public booking portal, TV queue display, receipts, and prescription headers. (Doctor and admin names belong in Section 2 below).
+              </p>
             </div>
 
             <div>
@@ -144,10 +148,13 @@ export default function NewTenantPage() {
                   required
                   value={slug}
                   onChange={(e) => setSlug(e.target.value.toLowerCase())}
-                  placeholder="modern-dental"
+                  placeholder="apex-dental"
                   className="w-full px-2 py-2.5 text-sm font-mono focus:outline-none"
                 />
               </div>
+              <span className="text-[11px] text-[#6B7280] mt-0.5 block">
+                Lowercase letters, numbers, and dashes only
+              </span>
             </div>
 
             <div>
@@ -161,12 +168,38 @@ export default function NewTenantPage() {
                 maxLength={6}
                 value={shortCode}
                 onChange={(e) => setShortCode(e.target.value.toUpperCase())}
-                placeholder="MDC"
+                placeholder="ADC"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm font-mono uppercase focus:outline-none focus:border-[#2A5CAA]"
               />
               <span className="text-[11px] text-[#6B7280] mt-0.5 block">
                 Used in codes: INV-{shortCode || "XXX"}-000001
               </span>
+            </div>
+
+            {/* Live Public URL Preview */}
+            <div className="sm:col-span-2 p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#1E293B]">
+                <Globe className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                <span>Live Public URL Preview for this Clinic:</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="bg-white p-2.5 rounded-lg border border-[#E2E8F0] shadow-2xs">
+                  <div className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider mb-0.5">
+                    Patient Online Booking URL
+                  </div>
+                  <div className="font-mono text-[11px] text-[#2A5CAA] truncate">
+                    /book/{slug || "clinic-slug"}
+                  </div>
+                </div>
+                <div className="bg-white p-2.5 rounded-lg border border-[#E2E8F0] shadow-2xs">
+                  <div className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider mb-0.5">
+                    Waiting Room TV Queue Display URL
+                  </div>
+                  <div className="font-mono text-[11px] text-[#2A5CAA] truncate">
+                    /display/{slug || "clinic-slug"}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div>
@@ -236,6 +269,9 @@ export default function NewTenantPage() {
                 placeholder="Dr. Tanvir Ahmed"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
               />
+              <span className="text-[11px] text-[#6B7280] mt-0.5 block">
+                Personal name of the doctor or manager who will administer this chamber.
+              </span>
             </div>
 
             <div>
