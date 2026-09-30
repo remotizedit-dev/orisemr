@@ -62,6 +62,7 @@ export const appointments = pgTable(
   (table) => [
     uniqueIndex("appointments_tenant_code_uq").on(table.tenantId, table.appointmentCode),
     index("appointments_doctor_start_idx").on(table.doctorId, table.startTime),
+    index("appointments_tenant_doctor_start_idx").on(table.tenantId, table.doctorId, table.startTime),
     index("appointments_tenant_start_idx").on(table.tenantId, table.startTime),
     index("appointments_tenant_status_idx").on(table.tenantId, table.status),
     index("appointments_tenant_patient_idx").on(table.tenantId, table.patientId, table.startTime),
@@ -138,6 +139,7 @@ export const queueEntries = pgTable(
   (table) => [
     index("queue_tenant_date_status_idx").on(table.tenantId, table.date, table.status),
     index("queue_tenant_date_pos_idx").on(table.tenantId, table.date, table.queuePosition, table.serialNo),
+    index("queue_tenant_date_pos_sort_idx").on(table.tenantId, table.date, table.queuePosition),
     index("queue_tenant_appt_idx").on(table.tenantId, table.appointmentId),
     index("queue_tenant_patient_idx").on(table.tenantId, table.patientId, table.date),
   ]

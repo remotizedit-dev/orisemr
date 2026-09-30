@@ -180,6 +180,7 @@ export function TenantMobileNav({
                     <Link
                       key={item.href}
                       href={item.href}
+                      prefetch={false}
                       onClick={() => setIsOpen(false)}
                       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition ${
                         isActive
@@ -211,6 +212,7 @@ export function TenantMobileNav({
                 <div className="pt-2 border-t border-[#E4E4E7] mt-3">
                   <Link
                     href={`/book/${tenantSlug}`}
+                    prefetch={false}
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => setIsOpen(false)}

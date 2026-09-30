@@ -3,6 +3,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import NewAppointmentClient from "@/components/appointments/NewAppointmentClient";
+import { getStaffSlotsAction } from "@/app/(tenant)/app/appointments/actions";
 
 interface Props {
   searchParams: Promise<{
@@ -96,6 +97,31 @@ export default async function NewAppointmentPage({ searchParams }: Props) {
     }
   }
 
+  // 5. Pre-compute initial slots on server for default service and today's date
+  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  const defaultService = services[0];
+  const initialServices = defaultService ? [defaultService.id] : [];
+  let initialSlots: any[] = [];
+
+  if (defaultService) {
+    try {
+      const slotData = await getStaffSlotsAction({
+        dateStr: todayDhakaStr,
+        durationMinutes: defaultService.durationMinutes,
+        doctorId: "any",
+      });
+      initialSlots = slotData.slots || [];
+    } catch {
+      // fallback gracefully to empty slots
+    }
+  }
+
   return (
     <NewAppointmentClient
       doctors={doctors}
@@ -104,6 +130,8 @@ export default async function NewAppointmentPage({ searchParams }: Props) {
       initialPatientId={initialPatient?.id}
       initialPatientName={initialPatient?.name}
       initialPatientCard={initialPatient?.cardNumber}
+      initialServices={initialServices}
+      initialSlots={initialSlots}
     />
   );
 }

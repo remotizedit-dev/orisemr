@@ -51,6 +51,8 @@ export const invoices = pgTable(
   },
   (table) => [
     index("invoices_tenant_status_idx").on(table.tenantId, table.status),
+    index("invoices_tenant_status_created_idx").on(table.tenantId, table.status, table.createdAt),
+    index("invoices_unpaid_created_idx").on(table.tenantId, table.createdAt),
     index("invoices_tenant_patient_idx").on(table.tenantId, table.patientId),
     index("invoices_tenant_created_idx").on(table.tenantId, table.createdAt),
     index("invoices_tenant_code_idx").on(table.tenantId, table.invoiceCode),

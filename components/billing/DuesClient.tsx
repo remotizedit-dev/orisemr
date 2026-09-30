@@ -131,6 +131,7 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
         <div className="flex items-center gap-3">
           <Link
             href="/app/billing"
+            prefetch={false}
             className="p-2 rounded-xl bg-white border border-[#E4E4E7] text-[#6B7280] hover:text-[#1C1C1E] transition"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -230,6 +231,7 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
                       <td className="py-3 px-4">
                         <Link
                           href={`/app/patients/${inv.patientId}`}
+                          prefetch={false}
                           className="font-bold text-xs text-[#1C1C1E] hover:underline block"
                         >
                           {inv.patientName}

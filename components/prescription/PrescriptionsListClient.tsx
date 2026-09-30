@@ -99,6 +99,7 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
             <div className="pt-2">
               <Link
                 href="/app/patients"
+                prefetch={false}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-sm transition"
               >
                 Go to Patients List
@@ -138,6 +139,7 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
                     <td className="py-4 px-5 align-top">
                       <Link
                         href={`/app/patients/${rx.patientId}`}
+                        prefetch={false}
                         className="font-extrabold text-base text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline flex items-center gap-1.5"
                       >
                         <span>{rx.patientName}</span>
@@ -211,6 +213,7 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
                         </button>
                         <Link
                           href={`/print/prescription/${rx.id}`}
+                          prefetch={false}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#EBF2FC] hover:bg-[#2A5CAA] text-[#2A5CAA] hover:text-white font-bold text-xs transition shadow-2xs"

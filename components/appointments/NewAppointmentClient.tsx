@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -51,6 +51,14 @@ interface Props {
   initialPatientId?: string;
   initialPatientName?: string;
   initialPatientCard?: string;
+  initialServices?: string[];
+  initialSlots?: {
+    time: string;
+    displayTime: string;
+    startTime: string;
+    endTime: string;
+    doctorId: string;
+  }[];
 }
 
 interface PatientMatch {
@@ -68,6 +76,8 @@ export default function NewAppointmentClient({
   initialPatientId,
   initialPatientName,
   initialPatientCard,
+  initialServices,
+  initialSlots,
 }: Props) {
   const router = useRouter();
 
@@ -91,7 +101,7 @@ export default function NewAppointmentClient({
   // Booking details
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("any");
   const [selectedChairId, setSelectedChairId] = useState<string>("");
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>(initialServices || []);
   const [procedureSearchQuery, setProcedureSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Intl.DateTimeFormat("en-CA", {
@@ -112,7 +122,8 @@ export default function NewAppointmentClient({
       endTime: string;
       doctorId: string;
     }[]
-  >([]);
+  >(initialSlots || []);
+  const isInitialMountRef = useRef(true);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{
     startTime: string;
@@ -179,6 +190,13 @@ export default function NewAppointmentClient({
 
   // Auto fetch slots when date, doctor, or services change
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      if (initialSlots && initialSlots.length > 0) {
+        return;
+      }
+    }
+
     if (totalDuration > 0 && selectedDate) {
       loadSlots();
     } else {

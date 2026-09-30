@@ -79,12 +79,14 @@ export default async function BillingPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/app/billing/dues"
+            prefetch={false}
             className="px-4 py-2.5 rounded-2xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F4F4F5] text-sm font-bold shadow-2xs transition"
           >
             Review Outstanding Dues →
           </Link>
           <Link
             href="/app/billing/new"
+            prefetch={false}
             className="px-5 py-2.5 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold shadow-md transition flex items-center gap-2 cursor-pointer"
           >
             <Plus className="w-4.5 h-4.5" />
@@ -165,6 +167,7 @@ export default async function BillingPage() {
                       <td className="py-3 px-4">
                         <Link
                           href={`/app/patients/${inv.patientId}`}
+                          prefetch={false}
                           className="font-bold text-xs text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline block"
                         >
                           {inv.patientName}
@@ -202,6 +205,7 @@ export default async function BillingPage() {
                           {due > 0 && (
                             <Link
                               href={`/app/billing/dues?invoiceId=${inv.id}`}
+                              prefetch={false}
                               className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition"
                               title="Collect payment on remaining due"
                             >
@@ -211,6 +215,7 @@ export default async function BillingPage() {
                           )}
                           <Link
                             href={`/print/invoice/${inv.id}`}
+                            prefetch={false}
                             target="_blank"
                             className="text-xs font-bold text-[#2A5CAA] hover:underline flex items-center gap-1"
                           >

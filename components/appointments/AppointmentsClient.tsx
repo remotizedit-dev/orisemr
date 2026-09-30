@@ -189,6 +189,7 @@ export default function AppointmentsClient({
 
           <Link
             href="/app/appointments/new"
+            prefetch={false}
             className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold shadow-md transition cursor-pointer"
           >
             <Plus className="w-4.5 h-4.5" />
@@ -301,6 +302,7 @@ export default function AppointmentsClient({
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <Link
                         href={`/app/patients/${apt.patientId}`}
+                        prefetch={false}
                         className="font-black text-base text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline flex items-center gap-1.5"
                       >
                         <span>{apt.patientName}</span>
@@ -448,6 +450,7 @@ export default function AppointmentsClient({
                       {apt.patientId ? (
                         <Link
                           href={`/app/prescriptions/new?patientId=${apt.patientId}&appointmentId=${apt.id}`}
+                          prefetch={false}
                           className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                         >
                           <FileText className="w-4 h-4" />

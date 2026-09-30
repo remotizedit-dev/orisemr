@@ -104,6 +104,7 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
                     <td className="py-4 px-5">
                       <Link
                         href={`/app/patients/${p.id}`}
+                        prefetch={false}
                         className="font-mono text-sm font-bold text-[#2A5CAA] bg-[#E8EEF7] hover:bg-[#2A5CAA] hover:text-white transition px-2.5 py-1 rounded-lg inline-block"
                         title="Open patient record"
                       >
@@ -113,6 +114,7 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
                     <td className="py-4 px-5">
                       <Link
                         href={`/app/patients/${p.id}`}
+                        prefetch={false}
                         className="font-extrabold text-base text-[#1C1C1E] group-hover:text-[#2A5CAA] group-hover:underline transition block"
                       >
                         {p.name}
@@ -148,6 +150,7 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
                       <div className="flex items-center justify-end gap-1.5">
                         <Link
                           href={`/app/patients/${p.id}`}
+                          prefetch={false}
                           className="px-3 py-1.5 rounded-xl bg-[#F4F4F5] hover:bg-[#2A5CAA] hover:text-white text-xs font-bold text-[#1C1C1E] inline-flex items-center gap-1 transition shadow-2xs"
                           title="Open patient medical record"
                         >

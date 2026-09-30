@@ -118,6 +118,7 @@ export default async function TenantDashboardPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/app/patients/new"
+            prefetch={false}
             className="px-4.5 py-3 rounded-2xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F4F4F5] text-sm font-bold flex items-center gap-2 shadow-xs transition"
           >
             <UserPlus className="w-4 h-4 text-[#2A5CAA]" />
@@ -125,6 +126,7 @@ export default async function TenantDashboardPage() {
           </Link>
           <Link
             href="/app/queue"
+            prefetch={false}
             className="px-4.5 py-3 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold flex items-center gap-2 shadow-sm transition"
           >
             <Layers className="w-4 h-4" />
@@ -137,6 +139,7 @@ export default async function TenantDashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         <Link
           href="/app/queue"
+          prefetch={false}
           className="glass-panel p-6 rounded-3xl border border-[#E4E4E7] hover:border-[#2A5CAA]/40 transition group shadow-2xs hover:shadow-sm"
         >
           <div className="flex items-center justify-between">
@@ -157,6 +160,7 @@ export default async function TenantDashboardPage() {
 
         <Link
           href="/app/queue"
+          prefetch={false}
           className="glass-panel p-6 rounded-3xl border border-[#E4E4E7] hover:border-[#2A5CAA]/40 transition group shadow-2xs hover:shadow-sm"
         >
           <div className="flex items-center justify-between">
@@ -177,6 +181,7 @@ export default async function TenantDashboardPage() {
 
         <Link
           href="/app/queue"
+          prefetch={false}
           className="glass-panel p-6 rounded-3xl border border-[#E4E4E7] hover:border-[#2A5CAA]/40 transition group shadow-2xs hover:shadow-sm"
         >
           <div className="flex items-center justify-between">
@@ -226,6 +231,7 @@ export default async function TenantDashboardPage() {
             </div>
             <Link
               href="/app/appointments"
+              prefetch={false}
               className="text-sm font-bold text-[#2A5CAA] hover:underline"
             >
               All Appointments →
@@ -257,6 +263,7 @@ export default async function TenantDashboardPage() {
                         {apt.patientId ? (
                           <Link
                             href={`/app/patients/${apt.patientId}`}
+                            prefetch={false}
                             className="hover:text-[#2A5CAA] hover:underline"
                             title="Open patient profile"
                           >
@@ -287,6 +294,7 @@ export default async function TenantDashboardPage() {
                     {apt.patientId && (
                       <Link
                         href={`/app/patients/${apt.patientId}`}
+                        prefetch={false}
                         className="text-xs sm:text-sm font-bold text-[#2A5CAA] hover:underline hidden sm:inline"
                       >
                         Profile →
@@ -321,6 +329,7 @@ export default async function TenantDashboardPage() {
 
           <Link
             href="/app/billing/dues"
+            prefetch={false}
             className="block text-center py-3 px-4 rounded-xl bg-white border border-[#E4E4E7] hover:border-[#2A5CAA]/40 text-sm font-bold text-[#1C1C1E] hover:bg-[#F4F4F5] transition shadow-2xs"
           >
             Review Dues List →

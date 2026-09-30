@@ -264,28 +264,6 @@ export default function NewInvoiceClient({
     }
   }
 
-  useEffect(() => {
-    if (preselectedPatient && (!initialItems || initialItems.length === 0)) {
-      getPatientBillingContextAction(preselectedPatient.id)
-        .then((context) => {
-          if (context) {
-            setCurrentAppointmentId(context.appointmentId || undefined);
-            setCurrentPrescriptionId(context.prescriptionInfo?.id || undefined);
-            setCurrentAlreadyBilledInfo(context.alreadyBilledInfo || null);
-            if (context.prescriptionInfo) {
-              setCurrentPrescriptionInfo(context.prescriptionInfo);
-            }
-            if (context.bookedServices && context.bookedServices.length > 0) {
-              setItems(context.bookedServices);
-            }
-            if (context.patientDues) {
-              setCurrentPatientDues(context.patientDues);
-            }
-          }
-        })
-        .catch(console.error);
-    }
-  }, [preselectedPatient, initialItems]);
 
   async function handleSettlePastDue() {
     if (!dueModalInvoice || duePayAmount <= 0) {

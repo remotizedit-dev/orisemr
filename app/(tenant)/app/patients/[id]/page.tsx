@@ -311,6 +311,7 @@ export default async function PatientProfilePage({
               {(user.isDoctor || user.role === "DOCTOR" || user.role === "TENANT_ADMIN") && (
                 <Link
                   href={`/app/prescriptions/new?patientId=${patient.id}`}
+                  prefetch={false}
                   className="inline-flex items-center gap-1 text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] hover:bg-[#2A5CAA] hover:text-white px-2.5 py-1 rounded-lg transition-colors"
                 >
                   + New Prescription
@@ -386,6 +387,7 @@ export default async function PatientProfilePage({
               </h2>
               <Link
                 href={`/app/billing/new?patientId=${patient.id}`}
+                prefetch={false}
                 className="inline-flex items-center gap-1 text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] hover:bg-[#2A5CAA] hover:text-white px-2.5 py-1 rounded-lg transition-colors"
               >
                 + New Invoice
@@ -404,6 +406,7 @@ export default async function PatientProfilePage({
               {totalOutstanding > 0 && (
                 <Link
                   href={`/app/billing/dues?search=${encodeURIComponent(patient.phone || patient.name)}`}
+                  prefetch={false}
                   className="px-3 py-1.5 bg-[#C0392B] hover:bg-[#A93226] text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
                 >
                   Settle Due →
@@ -456,6 +459,7 @@ export default async function PatientProfilePage({
                           {isUnpaid && (
                             <Link
                               href={`/app/billing/dues?invoiceId=${inv.id}`}
+                              prefetch={false}
                               className="text-[11px] font-bold text-[#C0392B] hover:underline bg-rose-50 px-2 py-0.5 rounded border border-rose-200"
                             >
                               Pay Due
@@ -463,6 +467,7 @@ export default async function PatientProfilePage({
                           )}
                           <Link
                             href={`/print/invoice/${inv.id}`}
+                            prefetch={false}
                             target="_blank"
                             className="text-[11px] text-[#2A5CAA] hover:underline"
                           >

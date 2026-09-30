@@ -70,6 +70,7 @@ export function PatientPrescriptionsList({
 
               <Link
                 href={`/print/prescription/${rx.id}`}
+                prefetch={false}
                 target="_blank"
                 className="px-3 py-1.5 rounded-lg bg-[#EBF2FC] hover:bg-[#2A5CAA] text-[#2A5CAA] hover:text-white font-semibold text-xs flex items-center gap-1.5 transition shadow-2xs"
               >

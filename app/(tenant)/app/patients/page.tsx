@@ -56,6 +56,7 @@ export default async function PatientsListPage() {
 
         <Link
           href="/app/patients/new"
+          prefetch={false}
           className="px-5 py-3 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-sm flex items-center gap-2 shadow-md transition cursor-pointer"
         >
           <UserPlus className="w-4.5 h-4.5" />

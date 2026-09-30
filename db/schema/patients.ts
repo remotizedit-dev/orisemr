@@ -48,5 +48,6 @@ export const patients = pgTable(
     index("patients_tenant_phone_idx").on(table.tenantId, table.phone),
     index("patients_tenant_name_idx").on(table.tenantId, table.name),
     index("patients_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("patients_tenant_active_created_desc_idx").on(table.tenantId, table.createdAt),
   ]
 );

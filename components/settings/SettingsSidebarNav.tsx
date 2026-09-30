@@ -91,6 +91,7 @@ export default function SettingsSidebarNav() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
                 isActive
                   ? "bg-[#2A5CAA] text-white shadow-xs"
@@ -122,6 +123,7 @@ export default function SettingsSidebarNav() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={`group flex items-center justify-between p-2.5 rounded-2xl text-left transition-all ${
                 isActive
                   ? "bg-[#2A5CAA] text-white shadow-sm shadow-[#2A5CAA]/20"
