@@ -13,6 +13,7 @@ import { users } from "./auth";
 import { patients } from "./patients";
 import { appointments } from "./appointments";
 import { services } from "./catalog";
+import { prescriptions } from "./prescriptions";
 
 export const invoices = pgTable(
   "invoices",
@@ -26,6 +27,9 @@ export const invoices = pgTable(
       .notNull()
       .references(() => patients.id, { onDelete: "restrict" }),
     appointmentId: uuid("appointment_id").references(() => appointments.id, {
+      onDelete: "set null",
+    }),
+    prescriptionId: uuid("prescription_id").references(() => prescriptions.id, {
       onDelete: "set null",
     }),
     subtotalBdt: integer("subtotal_bdt").notNull(),
@@ -51,6 +55,7 @@ export const invoices = pgTable(
     index("invoices_tenant_created_idx").on(table.tenantId, table.createdAt),
     index("invoices_tenant_code_idx").on(table.tenantId, table.invoiceCode),
     index("invoices_tenant_appt_idx").on(table.tenantId, table.appointmentId),
+    index("invoices_tenant_rx_idx").on(table.tenantId, table.prescriptionId),
     index("invoices_tenant_due_idx").on(table.tenantId, table.status, table.totalBdt, table.paidBdt),
   ]
 );

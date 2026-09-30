@@ -7,6 +7,7 @@ import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import {
   calculateAvailableSlots,
+  computeWorkingHoursIntersection,
   type CandidateDoctor,
 } from "@/lib/scheduling/slot-engine";
 import { generateRecordCode } from "@/lib/barcode/codes";
@@ -109,20 +110,7 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
   // Map candidates in memory (0ms)
   const candidates: CandidateDoctor[] = doctors.map((doc) => {
     const personalSchedules = allDoctorSchedules.filter((s) => s.doctorId === doc.id);
-    let windows =
-      personalSchedules.length > 0
-        ? personalSchedules.map((s) => ({
-            startTime: s.startTime,
-            endTime: s.endTime,
-          }))
-        : clinicHours.map((h) => ({
-            startTime: h.startTime,
-            endTime: h.endTime,
-          }));
-
-    if (windows.length === 0) {
-      windows = [{ startTime: "09:00:00", endTime: "22:00:00" }];
-    }
+    const windows = computeWorkingHoursIntersection(clinicHours, personalSchedules);
 
     const docAppointments = allAppointmentsOnDate.filter((a) => a.doctorId === doc.id);
 
@@ -202,8 +190,13 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     throw new Error("Invalid appointment start or end time.");
   }
 
-  // Pre-fetch overlap check, selected services, patient, and doctor concurrently in parallel
-  const [overlapping, selectedServices, patient, assignedDoctor] = await Promise.all([
+  // Parse target date and weekday in UTC
+  const [year, month, day] = input.dateStr.split("-").map(Number);
+  const targetDate = new Date(Date.UTC(year, month - 1, day));
+  const weekday = targetDate.getUTCDay();
+
+  // Pre-fetch overlap check, working hours, selected services, patient, and doctor concurrently in parallel
+  const [overlapping, clinicHours, doctorSchedules, selectedServices, patient, assignedDoctor] = await Promise.all([
     // Check overlap if not explicitly overbooked
     !input.isOverbooked
       ? db
@@ -219,6 +212,39 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
             )
           )
           .limit(1)
+      : Promise.resolve([]),
+
+    // Check clinic working hours for weekday if not explicitly overbooked
+    !input.isOverbooked
+      ? db
+          .select({
+            startTime: schema.tenantWorkingHours.startTime,
+            endTime: schema.tenantWorkingHours.endTime,
+          })
+          .from(schema.tenantWorkingHours)
+          .where(
+            and(
+              eq(schema.tenantWorkingHours.tenantId, tenant.id),
+              eq(schema.tenantWorkingHours.weekday, weekday)
+            )
+          )
+      : Promise.resolve([]),
+
+    // Check doctor shift for weekday if not explicitly overbooked
+    !input.isOverbooked
+      ? db
+          .select({
+            startTime: schema.doctorSchedules.startTime,
+            endTime: schema.doctorSchedules.endTime,
+          })
+          .from(schema.doctorSchedules)
+          .where(
+            and(
+              eq(schema.doctorSchedules.tenantId, tenant.id),
+              eq(schema.doctorSchedules.doctorId, input.doctorId),
+              eq(schema.doctorSchedules.weekday, weekday)
+            )
+          )
       : Promise.resolve([]),
 
     // Fetch selected services
@@ -267,6 +293,37 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       error: "OVERLAP",
       message: "This slot overlaps with an existing appointment for this doctor. Overbook to proceed anyway?",
     };
+  }
+
+  // Validate working hours intersection (chamber hours ∩ doctor shift)
+  if (!input.isOverbooked) {
+    const allowedWindows = computeWorkingHoursIntersection(clinicHours, doctorSchedules);
+    const startParts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Dhaka",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(start);
+    const endParts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Dhaka",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(end);
+
+    const isWithinHours = allowedWindows.some((w) => {
+      const wStart = w.startTime.slice(0, 5);
+      const wEnd = w.endTime.slice(0, 5);
+      return startParts >= wStart && endParts <= wEnd;
+    });
+
+    if (!isWithinHours) {
+      return {
+        success: false,
+        error: "OUTSIDE_HOURS",
+        message: "This appointment time is outside chamber working hours or doctor shift. Enable Overbook option to proceed anyway.",
+      };
+    }
   }
 
   const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {

@@ -16,6 +16,7 @@ import {
   Clock,
   Loader2,
   ExternalLink,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDhakaDate } from "@/lib/utils";
@@ -23,6 +24,7 @@ import {
   getPrescriptionDetailsAction,
   updatePrescriptionDetailsAction,
 } from "@/app/(tenant)/app/prescriptions/actions";
+import { getSignedPrintUrlAction } from "@/app/(print)/actions";
 
 interface PrescriptionViewModalProps {
   prescriptionId: string | null;
@@ -53,6 +55,22 @@ export function PrescriptionViewModal({
   const [diagnosis, setDiagnosis] = useState("");
   const [investigations, setInvestigations] = useState("");
   const [nextVisitDate, setNextVisitDate] = useState("");
+  const [isSharing, setIsSharing] = useState(false);
+
+  async function handleShareSignedLink() {
+    if (!data?.prescription?.id) return;
+    try {
+      setIsSharing(true);
+      const res = await getSignedPrintUrlAction(`/print/prescription/${data.prescription.id}`, 7);
+      const fullUrl = `${window.location.origin}${res.signedUrl}`;
+      await navigator.clipboard.writeText(fullUrl);
+      toast.success("Patient link copied to clipboard! (Expires in 7 days for privacy)");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate share link");
+    } finally {
+      setIsSharing(false);
+    }
+  }
 
   useEffect(() => {
     if (!isOpen || !prescriptionId) {
@@ -215,6 +233,21 @@ export function PrescriptionViewModal({
                         <span>Edit Notes &amp; Findings</span>
                       </>
                     )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleShareSignedLink}
+                    disabled={isSharing}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                    title="Copy expiring link to share with patient on WhatsApp"
+                  >
+                    {isSharing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Share2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>Share Link</span>
                   </button>
 
                   <Link

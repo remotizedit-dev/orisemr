@@ -141,6 +141,7 @@ export interface InvoiceItemInput {
 export interface CreateInvoiceInput {
   patientId: string;
   appointmentId?: string;
+  prescriptionId?: string;
   discountBdt: number;
   items: InvoiceItemInput[];
   advancePayment?: {
@@ -188,6 +189,14 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
     input.appointmentId !== "null" &&
     /^[0-9a-fA-F-]{36}$/.test(input.appointmentId)
       ? input.appointmentId
+      : null;
+
+  const cleanPrescriptionId =
+    input.prescriptionId &&
+    input.prescriptionId !== "undefined" &&
+    input.prescriptionId !== "null" &&
+    /^[0-9a-fA-F-]{36}$/.test(input.prescriptionId)
+      ? input.prescriptionId
       : null;
 
   // Verify patient belongs to this clinic
@@ -240,6 +249,7 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
           invoiceCode,
           patientId: input.patientId,
           appointmentId: cleanAppointmentId,
+          prescriptionId: cleanPrescriptionId,
           subtotalBdt,
           discountBdt,
           totalBdt,
@@ -505,6 +515,41 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     return null;
   }
 
+  // 1. Fetch non-void invoices for this patient to prevent duplicate billing
+  const allPatientInvoices = await db
+    .select({
+      id: schema.invoices.id,
+      invoiceCode: schema.invoices.invoiceCode,
+      appointmentId: schema.invoices.appointmentId,
+      prescriptionId: schema.invoices.prescriptionId,
+      status: schema.invoices.status,
+      totalBdt: schema.invoices.totalBdt,
+      paidBdt: schema.invoices.paidBdt,
+      createdAt: schema.invoices.createdAt,
+    })
+    .from(schema.invoices)
+    .where(
+      and(
+        eq(schema.invoices.tenantId, tenant.id),
+        eq(schema.invoices.patientId, patient.id),
+        sql`${schema.invoices.status} != 'void'`
+      )
+    )
+    .orderBy(desc(schema.invoices.createdAt));
+
+  const allBilledInvoiceIds = allPatientInvoices.map((inv) => inv.id);
+  const allBilledItems =
+    allBilledInvoiceIds.length > 0
+      ? await db
+          .select({
+            invoiceId: schema.invoiceItems.invoiceId,
+            serviceId: schema.invoiceItems.serviceId,
+            description: schema.invoiceItems.description,
+          })
+          .from(schema.invoiceItems)
+          .where(inArray(schema.invoiceItems.invoiceId, allBilledInvoiceIds))
+      : [];
+
   // Find recent appointment for this patient with booked services
   const recentAppointments = await db
     .select({
@@ -531,8 +576,25 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     quantity: number;
     unitPriceBdt: number;
   }[] = [];
+  let alreadyBilledInfo: {
+    invoiceCode: string;
+    invoiceId: string;
+    message?: string;
+  } | null = null;
 
   for (const apt of recentAppointments) {
+    const existingAptInvoice = allPatientInvoices.find((i) => i.appointmentId === apt.id);
+    if (existingAptInvoice) {
+      if (!alreadyBilledInfo) {
+        alreadyBilledInfo = {
+          invoiceCode: existingAptInvoice.invoiceCode || "INV",
+          invoiceId: existingAptInvoice.id,
+          message: `This visit is already billed (${existingAptInvoice.invoiceCode || "INV"})`,
+        };
+      }
+      continue; // Skip appointments already linked to a finalized/paid invoice!
+    }
+
     const services = await db
       .select({
         id: schema.appointmentServices.id,
@@ -549,9 +611,16 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
         )
       );
 
-    if (services.length > 0) {
+    const unbilledServices = services.filter((s) => {
+      const isAlreadyOnInvoice = allBilledItems.some(
+        (bi) => bi.serviceId === s.serviceId || bi.description === s.serviceNameSnapshot
+      );
+      return !isAlreadyOnInvoice;
+    });
+
+    if (unbilledServices.length > 0) {
       targetAppointmentId = apt.id;
-      bookedServices = services.map((s, idx) => ({
+      bookedServices = unbilledServices.map((s, idx) => ({
         id: `line-${idx + 1}`,
         serviceId: s.serviceId,
         description: s.serviceNameSnapshot,
@@ -564,22 +633,42 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
   }
 
   if (!targetAppointmentId && recentAppointments.length > 0) {
-    targetAppointmentId = recentAppointments[0].id;
+    const firstApt = recentAppointments[0];
+    const isFirstBilled = allPatientInvoices.some((i) => i.appointmentId === firstApt.id);
+    if (!isFirstBilled) {
+      targetAppointmentId = firstApt.id;
+    }
   }
 
   // Check for prescription
   let prescriptionInfo: {
+    id?: string;
     rxCode: string;
     diagnosis?: string | null;
     toothCodes?: string[];
+    isAlreadyBilled?: boolean;
+    billedInvoiceCode?: string | null;
+    billedInvoiceId?: string | null;
+  } | null = null;
+
+  let targetRx: {
+    id: string;
+    rxCode: string;
+    diagnosis: string | null;
+    toothCodes: string[] | null;
+    appointmentId: string | null;
+    createdAt: Date;
   } | null = null;
 
   if (targetAppointmentId) {
     const [rx] = await db
       .select({
+        id: schema.prescriptions.id,
         rxCode: schema.prescriptions.rxCode,
         diagnosis: schema.prescriptions.diagnosis,
         toothCodes: schema.prescriptions.toothCodes,
+        appointmentId: schema.prescriptions.appointmentId,
+        createdAt: schema.prescriptions.createdAt,
       })
       .from(schema.prescriptions)
       .where(
@@ -590,22 +679,19 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
       )
       .limit(1);
 
-    if (rx) {
-      prescriptionInfo = {
-        rxCode: rx.rxCode,
-        diagnosis: rx.diagnosis,
-        toothCodes: rx.toothCodes || [],
-      };
-    }
+    if (rx) targetRx = rx;
   }
 
   // If still no rx found from appointment, check patient's latest prescription
-  if (!prescriptionInfo) {
+  if (!targetRx) {
     const [latestRx] = await db
       .select({
+        id: schema.prescriptions.id,
         rxCode: schema.prescriptions.rxCode,
         diagnosis: schema.prescriptions.diagnosis,
         toothCodes: schema.prescriptions.toothCodes,
+        appointmentId: schema.prescriptions.appointmentId,
+        createdAt: schema.prescriptions.createdAt,
       })
       .from(schema.prescriptions)
       .where(
@@ -617,37 +703,54 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
       .orderBy(desc(schema.prescriptions.createdAt))
       .limit(1);
 
-    if (latestRx) {
+    if (latestRx) targetRx = latestRx;
+  }
+
+  if (targetRx) {
+    // Check if this prescription is already billed under an existing invoice
+    const matchingInvoice = allPatientInvoices.find(
+      (inv) =>
+        inv.prescriptionId === targetRx!.id ||
+        (targetRx!.appointmentId && inv.appointmentId === targetRx!.appointmentId) ||
+        allBilledItems.some(
+          (bi) =>
+            bi.invoiceId === inv.id &&
+            (bi.description.includes(targetRx!.rxCode) ||
+              (targetRx!.diagnosis && bi.description.toLowerCase().includes(targetRx!.diagnosis.toLowerCase())))
+        )
+    );
+
+    if (matchingInvoice) {
       prescriptionInfo = {
-        rxCode: latestRx.rxCode,
-        diagnosis: latestRx.diagnosis,
-        toothCodes: latestRx.toothCodes || [],
+        id: targetRx.id,
+        rxCode: targetRx.rxCode,
+        diagnosis: targetRx.diagnosis,
+        toothCodes: targetRx.toothCodes || [],
+        isAlreadyBilled: true,
+        billedInvoiceCode: matchingInvoice.invoiceCode || "INV",
+        billedInvoiceId: matchingInvoice.id,
+      };
+      if (!alreadyBilledInfo) {
+        alreadyBilledInfo = {
+          invoiceCode: matchingInvoice.invoiceCode || "INV",
+          invoiceId: matchingInvoice.id,
+          message: `This visit is already billed (${matchingInvoice.invoiceCode || "INV"})`,
+        };
+      }
+    } else {
+      prescriptionInfo = {
+        id: targetRx.id,
+        rxCode: targetRx.rxCode,
+        diagnosis: targetRx.diagnosis,
+        toothCodes: targetRx.toothCodes || [],
+        isAlreadyBilled: false,
       };
     }
   }
 
   // Fetch unpaid past invoices for patient
-  const pastInvoices = await db
-    .select({
-      id: schema.invoices.id,
-      invoiceCode: schema.invoices.invoiceCode,
-      totalBdt: schema.invoices.totalBdt,
-      paidBdt: schema.invoices.paidBdt,
-      status: schema.invoices.status,
-      createdAt: schema.invoices.createdAt,
-    })
-    .from(schema.invoices)
-    .where(
-      and(
-        eq(schema.invoices.tenantId, tenant.id),
-        eq(schema.invoices.patientId, patient.id),
-        inArray(schema.invoices.status, ["due", "partial"])
-      )
-    )
-    .orderBy(desc(schema.invoices.createdAt));
-
-  const unpaid = pastInvoices
-    .filter((inv) => inv.totalBdt > inv.paidBdt)
+  const unpaid = allPatientInvoices
+    .filter((inv) => (inv.status === "due" || inv.status === "partial") && inv.totalBdt > inv.paidBdt)
     .map((inv) => ({
       id: inv.id,
       invoiceCode: inv.invoiceCode || "DRAFT",
@@ -662,6 +765,7 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     appointmentId: targetAppointmentId,
     bookedServices,
     prescriptionInfo,
+    alreadyBilledInfo,
     patientDues: {
       totalDueBdt: unpaid.reduce((sum, it) => sum + it.dueBdt, 0),
       unpaidInvoices: unpaid,

@@ -257,8 +257,9 @@ export default function NewAppointmentClient({
         checkInImmediately: selectedDate === todayDhakaStr && checkInImmediately,
       });
 
-      if (res.error === "OVERLAP") {
+      if (res.error === "OVERLAP" || res.error === "OUTSIDE_HOURS") {
         setIsOverbookingModalOpen(true);
+        toast.warning(res.message || "Time is outside doctor working hours. Use Overbook Override to proceed.");
         return;
       }
 

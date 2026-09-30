@@ -82,6 +82,46 @@ export function intervalsOverlap(startA: Date, endA: Date, startB: Date, endB: D
 }
 
 /**
+ * Computes the strict intersection of chamber working hours and doctor shift windows:
+ * (chamber hours ∩ doctor shift).
+ * - If the chamber is closed (no clinic hours on this day), returns [] (0 slots).
+ * - If the doctor is off duty (no shifts on this day), returns [] (0 slots).
+ * - Overlapping intervals are merged/returned where max(c.start, d.start) < min(c.end, d.end).
+ */
+export function computeWorkingHoursIntersection(
+  clinicHours: TimeWindow[],
+  doctorShifts: TimeWindow[]
+): TimeWindow[] {
+  if (!clinicHours || clinicHours.length === 0 || !doctorShifts || doctorShifts.length === 0) {
+    return [];
+  }
+
+  const result: TimeWindow[] = [];
+
+  for (const c of clinicHours) {
+    const cStart = c.startTime.slice(0, 5);
+    const cEnd = c.endTime.slice(0, 5);
+
+    for (const d of doctorShifts) {
+      const dStart = d.startTime.slice(0, 5);
+      const dEnd = d.endTime.slice(0, 5);
+
+      const maxStart = cStart > dStart ? cStart : dStart;
+      const minEnd = cEnd < dEnd ? cEnd : dEnd;
+
+      if (maxStart < minEnd) {
+        result.push({
+          startTime: maxStart,
+          endTime: minEnd,
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Pure slot calculation engine.
  * Computes available start times without side-effects or direct database calls.
  */

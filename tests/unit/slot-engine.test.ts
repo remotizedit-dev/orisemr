@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateAvailableSlots,
+  computeWorkingHoursIntersection,
   parseWallClockTimeToDate,
   type CandidateDoctor,
 } from "@/lib/scheduling/slot-engine";
@@ -220,5 +221,37 @@ describe("Slot Engine Unit Tests", () => {
     expect(times).toContain("17:30");
     expect(times).toContain("17:40");
     expect(times).toContain("21:30");
+  });
+
+  describe("Working Hours Intersection (chamber hours ∩ doctor shift)", () => {
+    it("returns empty when clinic is closed (e.g. Friday Closed)", () => {
+      const clinicHours: any[] = [];
+      const doctorShifts = [{ startTime: "09:00", endTime: "17:00" }];
+      const result = computeWorkingHoursIntersection(clinicHours, doctorShifts);
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty when doctor is off duty", () => {
+      const clinicHours = [{ startTime: "17:00", endTime: "23:00" }];
+      const doctorShifts: any[] = [];
+      const result = computeWorkingHoursIntersection(clinicHours, doctorShifts);
+      expect(result).toEqual([]);
+    });
+
+    it("returns overlapping window when both clinic and doctor are active", () => {
+      // Clinic 17:00-23:00, Doctor 10:00-19:00 -> Overlap is 17:00-19:00
+      const clinicHours = [{ startTime: "17:00", endTime: "23:00" }];
+      const doctorShifts = [{ startTime: "10:00", endTime: "19:00" }];
+      const result = computeWorkingHoursIntersection(clinicHours, doctorShifts);
+      expect(result).toEqual([{ startTime: "17:00", endTime: "19:00" }]);
+    });
+
+    it("returns empty when doctor shift and clinic hours do not overlap at all", () => {
+      // Clinic 17:00-23:00, Doctor morning 09:00-14:00 -> No overlap
+      const clinicHours = [{ startTime: "17:00", endTime: "23:00" }];
+      const doctorShifts = [{ startTime: "09:00", endTime: "14:00" }];
+      const result = computeWorkingHoursIntersection(clinicHours, doctorShifts);
+      expect(result).toEqual([]);
+    });
   });
 });

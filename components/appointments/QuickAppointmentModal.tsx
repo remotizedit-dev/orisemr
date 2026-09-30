@@ -299,7 +299,7 @@ export function QuickAppointmentModal({
         checkInImmediately: selectedDate === todayDhakaStr && checkInImmediately,
       });
 
-      if (res?.error === "OVERLAP") {
+      if (res?.error === "OVERLAP" || res?.error === "OUTSIDE_HOURS") {
         toast.warning(res.message);
         setIsOverbooking(true);
         setIsSubmitting(false);

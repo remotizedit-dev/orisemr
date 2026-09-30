@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -6,13 +6,18 @@ import { BarcodeSvg } from "@/components/barcode/BarcodeSvg";
 import { AutoPrintTrigger } from "@/components/print/AutoPrintTrigger";
 import { formatBdt, formatDhakaDate } from "@/lib/utils";
 import { getFileUrl } from "@/lib/s3";
+import { getSession } from "@/lib/session";
+import { verifySignedPrintUrl } from "@/lib/signed-urls";
+import { ExpiredLinkScreen } from "@/components/print/ExpiredLinkScreen";
 
-export default async function PrintInvoicePage({
-  params,
-}: {
+interface Props {
   params: Promise<{ id: string }>;
-}) {
+  searchParams: Promise<{ expires?: string; sig?: string }>;
+}
+
+export default async function PrintInvoicePage({ params, searchParams }: Props) {
   const { id } = await params;
+  const query = await searchParams;
 
   const [invoice] = await db
     .select()
@@ -29,6 +34,26 @@ export default async function PrintInvoicePage({
     .from(schema.tenants)
     .where(eq(schema.tenants.id, invoice.tenantId))
     .limit(1);
+
+  // Require clinic sign-in on /print pages or a valid expiring signed link for patient sharing
+  const session = await getSession();
+  const isAuthorizedStaff =
+    session?.tenant &&
+    session.tenant.id === invoice.tenantId &&
+    (session.user.role === "TENANT_ADMIN" ||
+      session.user.role === "DOCTOR" ||
+      session.user.role === "RECEPTIONIST" ||
+      session.user.role === "SUPER_ADMIN");
+
+  if (!isAuthorizedStaff) {
+    const check = verifySignedPrintUrl(`/print/invoice/${id}`, query);
+    if (!check.valid) {
+      if (check.reason === "expired") {
+        return <ExpiredLinkScreen clinicName={tenant?.name} phone={tenant?.phone} />;
+      }
+      redirect(`/login?callbackUrl=${encodeURIComponent(`/print/invoice/${id}`)}`);
+    }
+  }
 
   const [patient] = await db
     .select()

@@ -140,6 +140,27 @@ async function runDemoSeed() {
   const primaryDoc = doctorUsers[0] || staff[0];
   const secondDoc = doctorUsers[1] || primaryDoc;
 
+  // Ensure doctors have working schedules matching chamber working hours
+  const existingDocSchedules = await db
+    .select()
+    .from(schema.doctorSchedules)
+    .where(eq(schema.doctorSchedules.tenantId, tenantId));
+
+  if (existingDocSchedules.length === 0 && doctorUsers.length > 0) {
+    const openWeekdays = [6, 0, 1, 2, 3, 4]; // Sat-Thu (Friday closed)
+    for (const doc of doctorUsers) {
+      for (const wd of openWeekdays) {
+        await db.insert(schema.doctorSchedules).values({
+          tenantId,
+          doctorId: doc.id,
+          weekday: wd,
+          startTime: "17:00",
+          endTime: "23:00",
+        });
+      }
+    }
+  }
+
   // Update sample prices on services
   await db
     .update(schema.services)

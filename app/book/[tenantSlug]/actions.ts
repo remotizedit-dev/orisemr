@@ -5,6 +5,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import {
   calculateAvailableSlots,
+  computeWorkingHoursIntersection,
   type CandidateDoctor,
 } from "@/lib/scheduling/slot-engine";
 import { generateRecordCode, generateAutoCardNumber } from "@/lib/barcode/codes";
@@ -108,16 +109,7 @@ export async function getPublicAvailableSlots(
   // 3. Map candidates in memory (ultra-fast, 0ms)
   const candidates: CandidateDoctor[] = doctors.map((doc) => {
     const personalSchedules = allDoctorSchedules.filter((s) => s.doctorId === doc.id);
-    const windows =
-      personalSchedules.length > 0
-        ? personalSchedules.map((s) => ({
-            startTime: s.startTime,
-            endTime: s.endTime,
-          }))
-        : clinicHours.map((h) => ({
-            startTime: h.startTime,
-            endTime: h.endTime,
-          }));
+    const windows = computeWorkingHoursIntersection(clinicHours, personalSchedules);
 
     const docAppointments = allAppointmentsOnDate.filter((a) => a.doctorId === doc.id);
 

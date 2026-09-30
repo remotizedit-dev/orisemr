@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
@@ -65,13 +65,42 @@ export default async function NewInvoicePage({ searchParams }: Props) {
 
   let initialLineItems: InitialInvoiceItem[] = [];
   let prescriptionInfo: {
+    id?: string;
     rxCode: string;
     diagnosis?: string | null;
     toothCodes?: string[];
+    isAlreadyBilled?: boolean;
+    billedInvoiceCode?: string | null;
+    billedInvoiceId?: string | null;
+  } | null = null;
+  let alreadyBilledInfo: {
+    invoiceCode: string;
+    invoiceId: string;
+    message?: string;
   } | null = null;
 
   // 1. If appointmentId is provided, resolve patient and services from appointment
   if (appointmentId) {
+    const [existingInv] = await db
+      .select({ id: schema.invoices.id, invoiceCode: schema.invoices.invoiceCode })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          eq(schema.invoices.appointmentId, appointmentId),
+          sql`${schema.invoices.status} != 'void'`
+        )
+      )
+      .limit(1);
+
+    if (existingInv) {
+      alreadyBilledInfo = {
+        invoiceCode: existingInv.invoiceCode || "INV",
+        invoiceId: existingInv.id,
+        message: `This visit is already billed (${existingInv.invoiceCode || "INV"})`,
+      };
+    }
+
     const [apt] = await db
       .select({
         id: schema.appointments.id,
@@ -90,32 +119,34 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       if (!cleanPatientId) cleanPatientId = apt.patientId;
     }
 
-    // Fetch booked services for this appointment
-    const bookedServices = await db
-      .select({
-        id: schema.appointmentServices.id,
-        serviceId: schema.appointmentServices.serviceId,
-        serviceNameSnapshot: schema.appointmentServices.serviceNameSnapshot,
-        priceBdtSnapshot: schema.appointmentServices.priceBdtSnapshot,
-        toothCodes: schema.appointmentServices.toothCodes,
-      })
-      .from(schema.appointmentServices)
-      .where(
-        and(
-          eq(schema.appointmentServices.tenantId, tenant.id),
-          eq(schema.appointmentServices.appointmentId, appointmentId)
-        )
-      );
+    if (!alreadyBilledInfo) {
+      // Fetch booked services for this appointment
+      const bookedServices = await db
+        .select({
+          id: schema.appointmentServices.id,
+          serviceId: schema.appointmentServices.serviceId,
+          serviceNameSnapshot: schema.appointmentServices.serviceNameSnapshot,
+          priceBdtSnapshot: schema.appointmentServices.priceBdtSnapshot,
+          toothCodes: schema.appointmentServices.toothCodes,
+        })
+        .from(schema.appointmentServices)
+        .where(
+          and(
+            eq(schema.appointmentServices.tenantId, tenant.id),
+            eq(schema.appointmentServices.appointmentId, appointmentId)
+          )
+        );
 
-    if (bookedServices.length > 0) {
-      initialLineItems = bookedServices.map((bs, idx) => ({
-        id: `line-${idx + 1}`,
-        serviceId: bs.serviceId,
-        description: bs.serviceNameSnapshot,
-        toothCodes: bs.toothCodes || [],
-        quantity: 1,
-        unitPriceBdt: bs.priceBdtSnapshot,
-      }));
+      if (bookedServices.length > 0) {
+        initialLineItems = bookedServices.map((bs, idx) => ({
+          id: `line-${idx + 1}`,
+          serviceId: bs.serviceId,
+          description: bs.serviceNameSnapshot,
+          toothCodes: bs.toothCodes || [],
+          quantity: 1,
+          unitPriceBdt: bs.priceBdtSnapshot,
+        }));
+      }
     }
 
     // Check for prescription issued for this appointment
@@ -137,13 +168,16 @@ export default async function NewInvoicePage({ searchParams }: Props) {
 
     if (rx) {
       prescriptionInfo = {
+        id: rx.id,
         rxCode: rx.rxCode,
         diagnosis: rx.diagnosis,
         toothCodes: rx.toothCodes || [],
+        isAlreadyBilled: !!alreadyBilledInfo,
+        billedInvoiceCode: alreadyBilledInfo?.invoiceCode,
       };
 
-      // If no explicit appointment services were booked, but doctor wrote prescription
-      if (initialLineItems.length === 0) {
+      // If no explicit appointment services were booked, but doctor wrote prescription and visit is NOT already billed
+      if (!alreadyBilledInfo && initialLineItems.length === 0) {
         const defaultService = services[0];
         initialLineItems = [
           {
@@ -189,8 +223,43 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     }
   }
 
-  // 2b. If appointmentId was not explicitly passed, but patient is preselected, auto-load booked services from latest appointment
+  // 2b. If appointmentId was not explicitly passed, but patient is preselected, auto-load booked services from unbilled appointment
   if (!appointmentId && resolvedPatientId && initialLineItems.length === 0) {
+    // Fetch non-void invoices for this patient
+    const allPatientInvoices = await db
+      .select({
+        id: schema.invoices.id,
+        invoiceCode: schema.invoices.invoiceCode,
+        appointmentId: schema.invoices.appointmentId,
+        prescriptionId: schema.invoices.prescriptionId,
+        status: schema.invoices.status,
+        totalBdt: schema.invoices.totalBdt,
+        paidBdt: schema.invoices.paidBdt,
+        createdAt: schema.invoices.createdAt,
+      })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          eq(schema.invoices.patientId, resolvedPatientId),
+          sql`${schema.invoices.status} != 'void'`
+        )
+      )
+      .orderBy(desc(schema.invoices.createdAt));
+
+    const billedInvoiceIds = allPatientInvoices.map((inv) => inv.id);
+    const billedInvoiceItems =
+      billedInvoiceIds.length > 0
+        ? await db
+            .select({
+              invoiceId: schema.invoiceItems.invoiceId,
+              serviceId: schema.invoiceItems.serviceId,
+              description: schema.invoiceItems.description,
+            })
+            .from(schema.invoiceItems)
+            .where(inArray(schema.invoiceItems.invoiceId, billedInvoiceIds))
+        : [];
+
     const recentAppointments = await db
       .select({
         id: schema.appointments.id,
@@ -206,6 +275,18 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .limit(5);
 
     for (const apt of recentAppointments) {
+      const existingInv = allPatientInvoices.find((i) => i.appointmentId === apt.id);
+      if (existingInv) {
+        if (!alreadyBilledInfo) {
+          alreadyBilledInfo = {
+            invoiceCode: existingInv.invoiceCode || "INV",
+            invoiceId: existingInv.id,
+            message: `This visit is already billed (${existingInv.invoiceCode || "INV"})`,
+          };
+        }
+        continue;
+      }
+
       const bookedServices = await db
         .select({
           id: schema.appointmentServices.id,
@@ -222,8 +303,15 @@ export default async function NewInvoicePage({ searchParams }: Props) {
           )
         );
 
-      if (bookedServices.length > 0) {
-        initialLineItems = bookedServices.map((bs, idx) => ({
+      const unbilledServices = bookedServices.filter((s) => {
+        const isAlreadyOnInvoice = billedInvoiceItems.some(
+          (bi) => bi.serviceId === s.serviceId || bi.description === s.serviceNameSnapshot
+        );
+        return !isAlreadyOnInvoice;
+      });
+
+      if (unbilledServices.length > 0) {
+        initialLineItems = unbilledServices.map((bs, idx) => ({
           id: `line-${idx + 1}`,
           serviceId: bs.serviceId,
           description: bs.serviceNameSnapshot,
@@ -238,9 +326,12 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     if (!prescriptionInfo) {
       const [latestRx] = await db
         .select({
+          id: schema.prescriptions.id,
           rxCode: schema.prescriptions.rxCode,
           diagnosis: schema.prescriptions.diagnosis,
           toothCodes: schema.prescriptions.toothCodes,
+          appointmentId: schema.prescriptions.appointmentId,
+          createdAt: schema.prescriptions.createdAt,
         })
         .from(schema.prescriptions)
         .where(
@@ -253,11 +344,44 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         .limit(1);
 
       if (latestRx) {
-        prescriptionInfo = {
-          rxCode: latestRx.rxCode,
-          diagnosis: latestRx.diagnosis,
-          toothCodes: latestRx.toothCodes || [],
-        };
+        const matchingInvoice = allPatientInvoices.find(
+          (inv) =>
+            inv.prescriptionId === latestRx.id ||
+            (latestRx.appointmentId && inv.appointmentId === latestRx.appointmentId) ||
+            billedInvoiceItems.some(
+              (bi) =>
+                bi.invoiceId === inv.id &&
+                (bi.description.includes(latestRx.rxCode) ||
+                  (latestRx.diagnosis && bi.description.toLowerCase().includes(latestRx.diagnosis.toLowerCase())))
+            )
+        );
+
+        if (matchingInvoice) {
+          prescriptionInfo = {
+            id: latestRx.id,
+            rxCode: latestRx.rxCode,
+            diagnosis: latestRx.diagnosis,
+            toothCodes: latestRx.toothCodes || [],
+            isAlreadyBilled: true,
+            billedInvoiceCode: matchingInvoice.invoiceCode || "INV",
+            billedInvoiceId: matchingInvoice.id,
+          };
+          if (!alreadyBilledInfo) {
+            alreadyBilledInfo = {
+              invoiceCode: matchingInvoice.invoiceCode || "INV",
+              invoiceId: matchingInvoice.id,
+              message: `This visit is already billed (${matchingInvoice.invoiceCode || "INV"})`,
+            };
+          }
+        } else {
+          prescriptionInfo = {
+            id: latestRx.id,
+            rxCode: latestRx.rxCode,
+            diagnosis: latestRx.diagnosis,
+            toothCodes: latestRx.toothCodes || [],
+            isAlreadyBilled: false,
+          };
+        }
       }
     }
   }
@@ -325,6 +449,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       initialItems={initialLineItems.length > 0 ? initialLineItems : undefined}
       patientDues={patientDues}
       prescriptionInfo={prescriptionInfo}
+      alreadyBilledInfo={alreadyBilledInfo}
     />
   );
 }

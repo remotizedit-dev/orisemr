@@ -71,9 +71,18 @@ interface Props {
     unpaidInvoices: UnpaidInvoice[];
   };
   prescriptionInfo?: {
+    id?: string;
     rxCode: string;
     diagnosis?: string | null;
     toothCodes?: string[];
+    isAlreadyBilled?: boolean;
+    billedInvoiceCode?: string | null;
+    billedInvoiceId?: string | null;
+  } | null;
+  alreadyBilledInfo?: {
+    invoiceCode: string;
+    invoiceId: string;
+    message?: string;
   } | null;
 }
 
@@ -84,6 +93,7 @@ export default function NewInvoiceClient({
   initialItems,
   patientDues,
   prescriptionInfo,
+  alreadyBilledInfo,
 }: Props) {
   const router = useRouter();
 
@@ -95,6 +105,9 @@ export default function NewInvoiceClient({
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [currentPatientDues, setCurrentPatientDues] = useState(patientDues);
   const [currentPrescriptionInfo, setCurrentPrescriptionInfo] = useState(prescriptionInfo);
+  const [currentAppointmentId, setCurrentAppointmentId] = useState<string | undefined>(appointmentId);
+  const [currentPrescriptionId, setCurrentPrescriptionId] = useState<string | undefined>(prescriptionInfo?.id);
+  const [currentAlreadyBilledInfo, setCurrentAlreadyBilledInfo] = useState(alreadyBilledInfo || null);
 
   // Line items state
   const [items, setItems] = useState<InvoiceLine[]>(
@@ -214,12 +227,33 @@ export default function NewInvoiceClient({
     try {
       const context = await getPatientBillingContextAction(p.id);
       if (context) {
-        if (context.bookedServices && context.bookedServices.length > 0) {
-          setItems(context.bookedServices);
-          toast.success(`Auto-populated ${context.bookedServices.length} booked service(s) from appointment`);
-        }
+        setCurrentAppointmentId(context.appointmentId || undefined);
+        setCurrentPrescriptionId(context.prescriptionInfo?.id || undefined);
+        setCurrentAlreadyBilledInfo(context.alreadyBilledInfo || null);
+
         if (context.prescriptionInfo) {
           setCurrentPrescriptionInfo(context.prescriptionInfo);
+        } else {
+          setCurrentPrescriptionInfo(null);
+        }
+
+        if (context.bookedServices && context.bookedServices.length > 0) {
+          setItems(context.bookedServices);
+          toast.success(`Auto-populated ${context.bookedServices.length} unbilled service(s) from appointment`);
+        } else if (context.alreadyBilledInfo || context.prescriptionInfo?.isAlreadyBilled) {
+          // Clear items to clean slate and notify
+          setItems([
+            {
+              id: "line-1",
+              description: "",
+              toothCodes: [],
+              quantity: 1,
+              unitPriceBdt: 0,
+            },
+          ]);
+          toast.warning(
+            `This visit is already billed (${context.alreadyBilledInfo?.invoiceCode || context.prescriptionInfo?.billedInvoiceCode})`
+          );
         }
         if (context.patientDues) {
           setCurrentPatientDues(context.patientDues);
@@ -235,11 +269,14 @@ export default function NewInvoiceClient({
       getPatientBillingContextAction(preselectedPatient.id)
         .then((context) => {
           if (context) {
-            if (context.bookedServices && context.bookedServices.length > 0) {
-              setItems(context.bookedServices);
-            }
+            setCurrentAppointmentId(context.appointmentId || undefined);
+            setCurrentPrescriptionId(context.prescriptionInfo?.id || undefined);
+            setCurrentAlreadyBilledInfo(context.alreadyBilledInfo || null);
             if (context.prescriptionInfo) {
               setCurrentPrescriptionInfo(context.prescriptionInfo);
+            }
+            if (context.bookedServices && context.bookedServices.length > 0) {
+              setItems(context.bookedServices);
             }
             if (context.patientDues) {
               setCurrentPatientDues(context.patientDues);
@@ -301,7 +338,8 @@ export default function NewInvoiceClient({
       setIsSubmitting(true);
       const res = await createInvoiceAction({
         patientId: selectedPatient.id,
-        appointmentId,
+        appointmentId: currentAppointmentId,
+        prescriptionId: currentPrescriptionId,
         discountBdt,
         items: validItems.map((v) => ({
           serviceId: v.serviceId,
@@ -602,8 +640,30 @@ export default function NewInvoiceClient({
         </div>
       )}
 
-      {/* Prescription / Appointment Source Badge */}
-      {currentPrescriptionInfo && (
+      {/* Already Billed Warning Banner or Prescription Source Badge */}
+      {(currentAlreadyBilledInfo || currentPrescriptionInfo?.isAlreadyBilled) ? (
+        <div className="p-4 rounded-2xl bg-[#FFF7EB] border border-[#FF9F0A]/40 flex items-center justify-between text-xs shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-[#FF9F0A] shrink-0" />
+            <div>
+              <p className="font-bold text-[#FF9F0A]">
+                This visit is already billed ({currentAlreadyBilledInfo?.invoiceCode || currentPrescriptionInfo?.billedInvoiceCode})
+              </p>
+              <p className="text-[11px] text-[#8E8E93]">
+                {currentPrescriptionInfo?.rxCode
+                  ? `Prescription ${currentPrescriptionInfo.rxCode} has already been billed under an invoice. Duplicate items have been excluded.`
+                  : "Items from this appointment visit have already been billed. Duplicate items have been excluded."}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/app/billing"
+            className="px-3 py-1.5 rounded-xl bg-white border border-[#FF9F0A]/30 text-[#FF9F0A] font-bold text-xs hover:bg-[#FFF7EB] transition cursor-pointer shrink-0"
+          >
+            View Invoices
+          </Link>
+        </div>
+      ) : currentPrescriptionInfo ? (
         <div className="p-4 rounded-2xl bg-[#EBF2FC] border border-[#2A5CAA]/30 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#2A5CAA]" />
@@ -617,7 +677,7 @@ export default function NewInvoiceClient({
             Auto-populated
           </span>
         </div>
-      )}
+      ) : null}
 
       {/* Select Patient */}
       <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] space-y-3.5 shadow-2xs">
