@@ -56,3 +56,42 @@ export async function changeFirstLoginPasswordAction(input: {
   revalidatePath("/app");
   return { success: true };
 }
+
+/**
+ * Immediately revokes all active sessions for a user from the database.
+ * If a session cookie or token was ever cloned, stolen, or compromised,
+ * this immediately renders it 100% dead across all devices and browsers.
+ */
+export async function revokeAllSessionsAction(targetUserId?: string): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+}> {
+  const context = await requireSession();
+  const userIdToRevoke = targetUserId || context.user.id;
+
+  // If revoking another user's sessions, verify administrative privileges
+  if (targetUserId && targetUserId !== context.user.id) {
+    const isPrivileged =
+      context.user.role === "SUPER_ADMIN" || context.user.role === "TENANT_ADMIN";
+    if (!isPrivileged) {
+      return { success: false, error: "Unauthorized to revoke another user's sessions." };
+    }
+  }
+
+  try {
+    // 1. Delete all active sessions from the database
+    await db.delete(schema.sessions).where(eq(schema.sessions.userId, userIdToRevoke));
+
+    // 2. Clear in-memory session cache immediately
+    invalidateSession();
+
+    revalidatePath("/app");
+    return {
+      success: true,
+      message: "All active sessions have been revoked. Any compromised or open sessions on any device are now invalid.",
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Failed to revoke sessions." };
+  }
+}
