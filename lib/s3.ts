@@ -54,14 +54,24 @@ export async function uploadMedicalFile(
   const s3Key = buildS3Key(tenantSlug, fileName);
   const sizeBytes = buffer.length;
 
+  const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB defensive ceiling
+  if (sizeBytes > MAX_FILE_SIZE_BYTES) {
+    throw new Error(
+      `File size (${(sizeBytes / (1024 * 1024)).toFixed(1)}MB) exceeds maximum allowed upload size of 15MB.`
+    );
+  }
+
   if (s3Client && env.S3_BUCKET_NAME) {
-    // 1. Upload to AWS S3
+    // 1. Upload to AWS S3 with long-term Cache-Control
+    // Setting immutable cache-control ensures CloudFront and browsers cache the file permanently at the edge,
+    // eliminating repeated S3 GET requests and drastically minimizing AWS data transfer and API costs.
     await s3Client.send(
       new PutObjectCommand({
         Bucket: env.S3_BUCKET_NAME,
         Key: s3Key,
         Body: buffer,
         ContentType: contentType,
+        CacheControl: "public, max-age=31536000, immutable",
       })
     );
 

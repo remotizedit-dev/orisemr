@@ -35,6 +35,7 @@ export const notifications = pgTable(
   },
   (table) => [
     index("notifications_user_read_idx").on(table.userId, table.readAt),
+    index("notifications_user_tenant_created_idx").on(table.userId, table.tenantId, table.createdAt),
   ]
 );
 

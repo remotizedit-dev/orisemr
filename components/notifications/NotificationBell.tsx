@@ -24,6 +24,9 @@ export function NotificationBell() {
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = async () => {
+    if (typeof document !== "undefined" && document.hidden) {
+      return;
+    }
     try {
       const data = await getUserNotificationsAction();
       setNotifications(data.notifications);

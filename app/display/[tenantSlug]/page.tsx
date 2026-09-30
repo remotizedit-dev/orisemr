@@ -10,28 +10,38 @@ export const metadata = {
   description: "Live waiting room and dental chair queue display monitor",
 };
 
+import { getOrSetCache } from "@/lib/cache";
+
 export default async function PublicQueueDisplayPage({
   params,
 }: {
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
+  const cleanSlug = tenantSlug.toLowerCase().trim();
 
-  const [tenant] = await db
-    .select({
-      id: schema.tenants.id,
-      name: schema.tenants.name,
-      slug: schema.tenants.slug,
-      brandColor: schema.tenants.brandColor,
-    })
-    .from(schema.tenants)
-    .where(
-      and(
-        eq(schema.tenants.slug, tenantSlug.toLowerCase().trim()),
-        eq(schema.tenants.status, "active")
-      )
-    )
-    .limit(1);
+  const tenant = await getOrSetCache(
+    `tenant:public:${cleanSlug}`,
+    async () => {
+      const [t] = await db
+        .select({
+          id: schema.tenants.id,
+          name: schema.tenants.name,
+          slug: schema.tenants.slug,
+          brandColor: schema.tenants.brandColor,
+        })
+        .from(schema.tenants)
+        .where(
+          and(
+            eq(schema.tenants.slug, cleanSlug),
+            eq(schema.tenants.status, "active")
+          )
+        )
+        .limit(1);
+      return t || null;
+    },
+    300
+  );
 
   if (!tenant) {
     notFound();

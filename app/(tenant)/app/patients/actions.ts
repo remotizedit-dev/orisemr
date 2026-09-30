@@ -85,7 +85,10 @@ export async function registerPatientAction(input: RegisterPatientInput) {
 
   // Check unique card number within clinic
   const [existingCard] = await db
-    .select()
+    .select({
+      id: schema.patients.id,
+      name: schema.patients.name,
+    })
     .from(schema.patients)
     .where(
       and(

@@ -5,6 +5,7 @@ import * as schema from "@/db/schema";
 import { PublicBookingClient } from "./PublicBookingClient";
 import { Stethoscope } from "lucide-react";
 import { getFileUrl } from "@/lib/s3";
+import { getOrSetCache } from "@/lib/cache";
 
 export default async function PublicBookingPage({
   params,
@@ -15,70 +16,107 @@ export default async function PublicBookingPage({
 }) {
   const { tenantSlug } = await params;
   const { embed } = await searchParams;
+  const cleanSlug = tenantSlug.toLowerCase().trim();
 
-  const [tenant] = await db
-    .select()
-    .from(schema.tenants)
-    .where(
-      and(
-        eq(schema.tenants.slug, tenantSlug.toLowerCase()),
-        eq(schema.tenants.status, "active")
-      )
-    )
-    .limit(1);
+  // Cache clinic booking payload for 60s to protect Neon DB from public traffic spikes
+  const data = await getOrSetCache(
+    `booking:page:${cleanSlug}`,
+    async () => {
+      const [tenant] = await db
+        .select({
+          id: schema.tenants.id,
+          name: schema.tenants.name,
+          slug: schema.tenants.slug,
+          shortCode: schema.tenants.shortCode,
+          phone: schema.tenants.phone,
+          address: schema.tenants.address,
+          brandColor: schema.tenants.brandColor,
+          logoKey: schema.tenants.logoKey,
+          slotGranularityMinutes: schema.tenants.slotGranularityMinutes,
+          bookingBufferMinutes: schema.tenants.bookingBufferMinutes,
+          publicBookingMinLeadMinutes: schema.tenants.publicBookingMinLeadMinutes,
+          publicBookingDaysAhead: schema.tenants.publicBookingDaysAhead,
+          status: schema.tenants.status,
+        })
+        .from(schema.tenants)
+        .where(
+          and(
+            eq(schema.tenants.slug, cleanSlug),
+            eq(schema.tenants.status, "active")
+          )
+        )
+        .limit(1);
 
-  if (!tenant) {
+      if (!tenant) return null;
+
+      const [[feature], services, doctors] = await Promise.all([
+        db
+          .select({
+            platformEnabled: schema.tenantFeatures.platformEnabled,
+            tenantEnabled: schema.tenantFeatures.tenantEnabled,
+          })
+          .from(schema.tenantFeatures)
+          .where(
+            and(
+              eq(schema.tenantFeatures.tenantId, tenant.id),
+              eq(schema.tenantFeatures.featureKey, "public_booking")
+            )
+          )
+          .limit(1),
+        db
+          .select({
+            id: schema.services.id,
+            name: schema.services.name,
+            durationMinutes: schema.services.durationMinutes,
+            priceBdt: schema.services.priceBdt,
+          })
+          .from(schema.services)
+          .where(
+            and(
+              eq(schema.services.tenantId, tenant.id),
+              eq(schema.services.bookableOnline, true),
+              eq(schema.services.isActive, true)
+            )
+          )
+          .orderBy(schema.services.sortOrder),
+        db
+          .select({
+            id: schema.users.id,
+            name: schema.users.name,
+            doctorTitle: schema.users.doctorTitle,
+            doctorSpecialty: schema.users.doctorSpecialty,
+            sortOrder: schema.users.sortOrder,
+          })
+          .from(schema.users)
+          .where(
+            and(
+              eq(schema.users.tenantId, tenant.id),
+              eq(schema.users.isDoctor, true),
+              eq(schema.users.status, "active")
+            )
+          )
+          .orderBy(schema.users.sortOrder),
+      ]);
+
+      const isFeatureDisabled = feature && (!feature.platformEnabled || !feature.tenantEnabled);
+
+      return {
+        tenant,
+        isFeatureDisabled: Boolean(isFeatureDisabled),
+        services,
+        doctors,
+      };
+    },
+    60
+  );
+
+  if (!data || !data.tenant) {
     notFound();
   }
 
-  // Fetch feature, bookable services, and active doctors concurrently
-  const [[feature], services, doctors] = await Promise.all([
-    db
-      .select()
-      .from(schema.tenantFeatures)
-      .where(
-        and(
-          eq(schema.tenantFeatures.tenantId, tenant.id),
-          eq(schema.tenantFeatures.featureKey, "public_booking")
-        )
-      )
-      .limit(1),
-    db
-      .select({
-        id: schema.services.id,
-        name: schema.services.name,
-        durationMinutes: schema.services.durationMinutes,
-        priceBdt: schema.services.priceBdt,
-      })
-      .from(schema.services)
-      .where(
-        and(
-          eq(schema.services.tenantId, tenant.id),
-          eq(schema.services.bookableOnline, true),
-          eq(schema.services.isActive, true)
-        )
-      )
-      .orderBy(schema.services.sortOrder),
-    db
-      .select({
-        id: schema.users.id,
-        name: schema.users.name,
-        doctorTitle: schema.users.doctorTitle,
-        doctorSpecialty: schema.users.doctorSpecialty,
-        sortOrder: schema.users.sortOrder,
-      })
-      .from(schema.users)
-      .where(
-        and(
-          eq(schema.users.tenantId, tenant.id),
-          eq(schema.users.isDoctor, true),
-          eq(schema.users.status, "active")
-        )
-      )
-      .orderBy(schema.users.sortOrder),
-  ]);
+  const { tenant, isFeatureDisabled, services, doctors } = data;
 
-  if (feature && (!feature.platformEnabled || !feature.tenantEnabled)) {
+  if (isFeatureDisabled) {
     return (
       <div className="min-h-screen bg-[#F4F4F5] flex items-center justify-center p-4">
         <div className="glass-panel p-8 rounded-2xl max-w-md text-center space-y-3">

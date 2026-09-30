@@ -41,6 +41,14 @@ const envSchema = z.object({
   // Cron Secret
   CRON_SECRET: z.string().default("cron_secret_dev_fallback"),
 
+  // Redis & Caching (Optional: defaults to in-memory TTL/LRU fallback)
+  REDIS_URL: z.string().optional().default(""),
+  UPSTASH_REDIS_REST_URL: z.string().optional().default(""),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional().default(""),
+
+  // Database Connection Tuning
+  DB_POOL_MAX: z.coerce.number().default(10),
+
   // Super Admin Initial Seed
   SEED_SUPER_ADMIN_NAME: z.string().default("Super Admin"),
   SEED_SUPER_ADMIN_EMAIL: z.string().email().default("admin@orisemr.com"),
@@ -68,6 +76,10 @@ export const env = envSchema.parse({
   SMTP_FROM_EMAIL: process.env.SMTP_FROM_EMAIL,
   SMTP_FROM_NAME: process.env.SMTP_FROM_NAME,
   CRON_SECRET: process.env.CRON_SECRET,
+  REDIS_URL: process.env.REDIS_URL,
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+  DB_POOL_MAX: process.env.DB_POOL_MAX,
   SEED_SUPER_ADMIN_NAME: process.env.SEED_SUPER_ADMIN_NAME,
   SEED_SUPER_ADMIN_EMAIL: process.env.SEED_SUPER_ADMIN_EMAIL,
   SEED_SUPER_ADMIN_PASSWORD: process.env.SEED_SUPER_ADMIN_PASSWORD,

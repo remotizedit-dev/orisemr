@@ -116,11 +116,25 @@ export function QueueTvDisplay({
     return () => clearInterval(timer);
   }, []);
 
-  // Real-Time Background Polling (Every 3.5 seconds)
+  // Real-Time Background Polling with Smart Power & Database Protection
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: NodeJS.Timeout | undefined;
 
     const poll = async () => {
+      // 1. If tab is in background or minimized, don't run rapid DB polling
+      if (document.hidden) {
+        if (isMounted) {
+          timeoutId = setTimeout(poll, 15000); // Check again in 15s
+        }
+        return;
+      }
+
+      // 2. Adaptive rate: 30s during overnight quiet hours (11 PM - 7 AM), 4s during daytime
+      const currentHour = new Date().getHours();
+      const isQuietHours = currentHour >= 23 || currentHour < 7;
+      const nextDelayMs = isQuietHours ? 30000 : 4000;
+
       try {
         let freshItems: QueueItem[] | undefined;
 
@@ -152,13 +166,28 @@ export function QueueTvDisplay({
         }
       } catch {
         // Silently swallow polling network blips on public displays
+      } finally {
+        if (isMounted) {
+          timeoutId = setTimeout(poll, nextDelayMs);
+        }
       }
     };
 
-    const interval = setInterval(poll, 3500);
+    // Schedule initial poll followed by adaptive interval
+    timeoutId = setTimeout(poll, 4000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isMounted) {
+        clearTimeout(timeoutId);
+        poll();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [isPublic, tenantSlug, isAudioEnabled]);
 

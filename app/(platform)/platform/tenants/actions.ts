@@ -7,6 +7,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
+import { deleteCachePattern } from "@/lib/cache";
 
 export async function createClinicAction(formData: FormData): Promise<{
   success?: boolean;
@@ -399,6 +400,10 @@ export async function updateTenantDetailsAction(input: UpdateTenantDetailsInput)
     });
 
     invalidateSession();
+
+    // Purge cached tenant resolutions and public booking caches
+    await deleteCachePattern("tenant:*");
+    await deleteCachePattern("booking:*");
 
     revalidatePath("/platform/tenants");
     revalidatePath(`/platform/tenants/${tenant.id}`);

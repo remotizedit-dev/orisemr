@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -16,6 +16,7 @@ import {
 } from "@/lib/email/mailer";
 import { formatDhakaDate } from "@/lib/utils";
 import { checkInPatientAction } from "@/app/(tenant)/app/queue/actions";
+import { getOrSetCache, deleteCache } from "@/lib/cache";
 
 export interface GetStaffSlotsInput {
   dateStr: string; // YYYY-MM-DD
@@ -36,44 +37,78 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
   const targetDate = new Date(Date.UTC(year, month - 1, day));
   const weekday = targetDate.getUTCDay();
 
-  // 1. Fetch clinic working hours for weekday
-  const clinicHours = await db
-    .select()
-    .from(schema.tenantWorkingHours)
-    .where(
-      and(
-        eq(schema.tenantWorkingHours.tenantId, tenant.id),
-        eq(schema.tenantWorkingHours.weekday, weekday)
-      )
-    );
+  const dayStart = new Date(`${dateStr}T00:00:00+06:00`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999+06:00`);
 
-  // 2. Fetch candidate doctors
-  const doctors = await db
-    .select()
-    .from(schema.users)
-    .where(
-      and(
-        eq(schema.users.tenantId, tenant.id),
-        eq(schema.users.isDoctor, true),
-        eq(schema.users.status, "active")
-      )
-    );
+  // Parallel database query: 1 single round trip instead of 11 sequential queries
+  const [clinicHours, doctors, allDoctorSchedules, allAppointmentsOnDate] = await Promise.all([
+    // 1. Clinic working hours for weekday
+    db
+      .select({
+        startTime: schema.tenantWorkingHours.startTime,
+        endTime: schema.tenantWorkingHours.endTime,
+      })
+      .from(schema.tenantWorkingHours)
+      .where(
+        and(
+          eq(schema.tenantWorkingHours.tenantId, tenant.id),
+          eq(schema.tenantWorkingHours.weekday, weekday)
+        )
+      ),
 
-  const candidates: CandidateDoctor[] = [];
+    // 2. Candidate doctors (filtered if specific doctorId provided)
+    db
+      .select({
+        id: schema.users.id,
+        name: schema.users.name,
+        sortOrder: schema.users.sortOrder,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenant.id),
+          eq(schema.users.isDoctor, true),
+          eq(schema.users.status, "active"),
+          doctorId && doctorId !== "any" ? eq(schema.users.id, doctorId) : undefined
+        )
+      ),
 
-  for (const doc of doctors) {
-    // Check personal schedule
-    const personalSchedules = await db
-      .select()
+    // 3. All doctor schedules for weekday
+    db
+      .select({
+        doctorId: schema.doctorSchedules.doctorId,
+        startTime: schema.doctorSchedules.startTime,
+        endTime: schema.doctorSchedules.endTime,
+      })
       .from(schema.doctorSchedules)
       .where(
         and(
           eq(schema.doctorSchedules.tenantId, tenant.id),
-          eq(schema.doctorSchedules.doctorId, doc.id),
           eq(schema.doctorSchedules.weekday, weekday)
         )
-      );
+      ),
 
+    // 4. All appointments on target date
+    db
+      .select({
+        doctorId: schema.appointments.doctorId,
+        startTime: schema.appointments.startTime,
+        endTime: schema.appointments.endTime,
+      })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+          sql`${schema.appointments.startTime} < ${dayEnd.toISOString()}`,
+          sql`${schema.appointments.endTime} > ${dayStart.toISOString()}`
+        )
+      ),
+  ]);
+
+  // Map candidates in memory (0ms)
+  const candidates: CandidateDoctor[] = doctors.map((doc) => {
+    const personalSchedules = allDoctorSchedules.filter((s) => s.doctorId === doc.id);
     let windows =
       personalSchedules.length > 0
         ? personalSchedules.map((s) => ({
@@ -85,43 +120,24 @@ export async function getStaffSlotsAction(input: GetStaffSlotsInput) {
             endTime: h.endTime,
           }));
 
-    // If neither doctor nor clinic defined hours for this weekday, provide a sensible default day shift
     if (windows.length === 0) {
       windows = [{ startTime: "09:00:00", endTime: "22:00:00" }];
     }
 
-    // Fetch existing appointments on this calendar date in Asia/Dhaka (+06:00)
-    const dayStart = new Date(`${dateStr}T00:00:00+06:00`);
-    const dayEnd = new Date(`${dateStr}T23:59:59.999+06:00`);
+    const docAppointments = allAppointmentsOnDate.filter((a) => a.doctorId === doc.id);
 
-    const existingAppointments = await db
-      .select({
-        startTime: schema.appointments.startTime,
-        endTime: schema.appointments.endTime,
-      })
-      .from(schema.appointments)
-      .where(
-        and(
-          eq(schema.appointments.tenantId, tenant.id),
-          eq(schema.appointments.doctorId, doc.id),
-          sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
-          sql`${schema.appointments.startTime} < ${dayEnd.toISOString()}`,
-          sql`${schema.appointments.endTime} > ${dayStart.toISOString()}`
-        )
-      );
-
-    candidates.push({
+    return {
       doctorId: doc.id,
       doctorName: doc.name,
-      sortOrder: 0,
-      appointmentCountToday: existingAppointments.length,
+      sortOrder: doc.sortOrder ?? 0,
+      appointmentCountToday: docAppointments.length,
       windows,
-      busyIntervals: existingAppointments.map((a) => ({
+      busyIntervals: docAppointments.map((a) => ({
         startTime: new Date(a.startTime),
         endTime: new Date(a.endTime),
       })),
-    });
-  }
+    };
+  });
 
   const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dhaka",
@@ -424,6 +440,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
   // Fast targeted revalidation: only revalidate active appointments list and today's queue if affected
   revalidatePath("/app/appointments");
   if (input.dateStr === todayDhakaStr) {
+    await deleteCache(`queue:today:${tenant.id}`);
     revalidatePath("/app/queue");
   }
 
@@ -625,6 +642,7 @@ export async function searchPatientsForBookingAction(query: string) {
     .where(
       and(
         eq(schema.patients.tenantId, tenant.id),
+        isNull(schema.patients.deletedAt),
         sql`(${schema.patients.name} ILIKE ${searchPattern} OR ${schema.patients.phone} ILIKE ${searchPattern} OR ${schema.patients.cardNumber} ILIKE ${searchPattern})`
       )
     )
@@ -636,57 +654,63 @@ export async function searchPatientsForBookingAction(query: string) {
 export async function getBookingFormDataAction() {
   const { tenant } = await requireClinicStaff();
 
-  const [doctors, services, chairs] = await Promise.all([
-    db
-      .select({
-        id: schema.users.id,
-        name: schema.users.name,
-      })
-      .from(schema.users)
-      .where(
-        and(
-          eq(schema.users.tenantId, tenant.id),
-          eq(schema.users.isDoctor, true),
-          eq(schema.users.status, "active")
-        )
-      ),
+  return getOrSetCache(
+    `clinic:booking-form:${tenant.id}`,
+    async () => {
+      const [doctors, services, chairs] = await Promise.all([
+        db
+          .select({
+            id: schema.users.id,
+            name: schema.users.name,
+          })
+          .from(schema.users)
+          .where(
+            and(
+              eq(schema.users.tenantId, tenant.id),
+              eq(schema.users.isDoctor, true),
+              eq(schema.users.status, "active")
+            )
+          ),
 
-    db
-      .select({
-        id: schema.services.id,
-        name: schema.services.name,
-        durationMinutes: schema.services.durationMinutes,
-        priceBdt: schema.services.priceBdt,
-        category: schema.serviceCategories.name,
-      })
-      .from(schema.services)
-      .innerJoin(
-        schema.serviceCategories,
-        eq(schema.services.categoryId, schema.serviceCategories.id)
-      )
-      .where(
-        and(
-          eq(schema.services.tenantId, tenant.id),
-          eq(schema.services.isActive, true)
-        )
-      )
-      .orderBy(schema.serviceCategories.name, schema.services.name),
+        db
+          .select({
+            id: schema.services.id,
+            name: schema.services.name,
+            durationMinutes: schema.services.durationMinutes,
+            priceBdt: schema.services.priceBdt,
+            category: schema.serviceCategories.name,
+          })
+          .from(schema.services)
+          .innerJoin(
+            schema.serviceCategories,
+            eq(schema.services.categoryId, schema.serviceCategories.id)
+          )
+          .where(
+            and(
+              eq(schema.services.tenantId, tenant.id),
+              eq(schema.services.isActive, true)
+            )
+          )
+          .orderBy(schema.serviceCategories.name, schema.services.name),
 
-    db
-      .select({
-        id: schema.chairs.id,
-        name: schema.chairs.name,
-      })
-      .from(schema.chairs)
-      .where(
-        and(
-          eq(schema.chairs.tenantId, tenant.id),
-          eq(schema.chairs.isActive, true)
-        )
-      )
-      .orderBy(schema.chairs.sortOrder),
-  ]);
+        db
+          .select({
+            id: schema.chairs.id,
+            name: schema.chairs.name,
+          })
+          .from(schema.chairs)
+          .where(
+            and(
+              eq(schema.chairs.tenantId, tenant.id),
+              eq(schema.chairs.isActive, true)
+            )
+          )
+          .orderBy(schema.chairs.sortOrder),
+      ]);
 
-  return { doctors, services, chairs };
+      return { doctors, services, chairs };
+    },
+    120 // 2 minutes cache: enables instant opening of booking modal with 0ms DB roundtrip
+  );
 }
 

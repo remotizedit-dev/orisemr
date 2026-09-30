@@ -23,29 +23,24 @@ const connectionString =
 // Connection pool singleton for serverless Next.js runtime & Node scripts
 const globalForDb = globalThis as unknown as {
   conn: Pool | undefined;
-  keepAlive: NodeJS.Timeout | undefined;
 };
 
+// Optimal serverless pool configuration:
+// 1. Shorter idleTimeout (15s instead of 5 minutes) allows idle connections to close
+//    promptly so Neon compute can auto-suspend and scale to 0 when there is no traffic.
+// 2. Max connections capped at 10 to avoid exhausting pooler connection limits.
+// 3. NO forced keep-alive ping (SELECT 1 every 2 minutes):
+//    Allowing Neon to sleep when inactive saves up to 70-80% of Neon compute hours/billing.
 export const pool =
   globalForDb.conn ??
   new Pool({
     connectionString,
-    max: 20,
-    idleTimeoutMillis: 300000, // 5 minutes keepalive to prevent frequent reconnects
+    max: Number(process.env.DB_POOL_MAX) || 10,
+    idleTimeoutMillis: 15000, // 15 seconds: release idle connections quickly to enable auto-suspend
     connectionTimeoutMillis: 10000,
   });
 
 globalForDb.conn = pool;
-
-// Keep Neon serverless compute warm and prevent 5-minute cold suspension latency
-if (!globalForDb.keepAlive && typeof setInterval !== "undefined") {
-  globalForDb.keepAlive = setInterval(() => {
-    pool.query("SELECT 1").catch(() => {});
-  }, 120000); // Ping every 2 minutes
-  if (globalForDb.keepAlive.unref) {
-    globalForDb.keepAlive.unref();
-  }
-}
 
 export const db = drizzle(pool, { schema, casing: "snake_case" });
 

@@ -1,26 +1,29 @@
 import { notFound, redirect } from "next/navigation";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { cache } from "react";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { PrescriptionBuilder } from "@/components/prescription/PrescriptionBuilder";
 import { SelectPatientForPrescription } from "@/components/prescription/SelectPatientForPrescription";
 import { getPatientAttachmentsAction } from "@/app/(tenant)/app/patients/actions";
+import { getOrSetCache } from "@/lib/cache";
 
 /**
  * Cache chamber clinical catalogs (medicines, dosage patterns, timings, durations, advice, quick texts)
- * per request using React cache() to avoid duplicate DB calls while eliminating serialization errors.
+ * for 5 minutes across requests so the Prescription Builder opens in 0ms without hitting Neon DB.
  */
-const getCachedPrescriptionCatalog = cache(async (tenantId: string) => {
-  const [
-    catalogMedicines,
-    dosagePatterns,
-    mealTimings,
-    durationOptions,
-    adviceTemplates,
-    quickTexts,
-  ] = await Promise.all([
+const getCachedPrescriptionCatalog = async (tenantId: string) => {
+  return getOrSetCache(
+    `catalog:prescription:${tenantId}`,
+    async () => {
+      const [
+        catalogMedicines,
+        dosagePatterns,
+        mealTimings,
+        durationOptions,
+        adviceTemplates,
+        quickTexts,
+      ] = await Promise.all([
     db
       .select({
         id: schema.medicines.id,
@@ -110,15 +113,18 @@ const getCachedPrescriptionCatalog = cache(async (tenantId: string) => {
       ),
   ]);
 
-  return {
-    catalogMedicines,
-    dosagePatterns,
-    mealTimings,
-    durationOptions,
-    adviceTemplates,
-    quickTexts,
-  };
-});
+      return {
+        catalogMedicines,
+        dosagePatterns,
+        mealTimings,
+        durationOptions,
+        adviceTemplates,
+        quickTexts,
+      };
+    },
+    300 // 5 minutes TTL
+  );
+};
 
 export default async function NewPrescriptionPage({
   searchParams,

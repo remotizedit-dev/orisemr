@@ -1,9 +1,10 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { parseRecordCode } from "./codes";
+import { normalizeBdPhone } from "@/lib/utils";
 
 export interface CodeResolutionResult {
   found: boolean;
@@ -124,75 +125,108 @@ export async function resolveCode(
     }
   }
 
-  // 2. Check for numeric Patient Card barcode (10-16 digits)
-  const isNumericCard = /^\d{10,16}$/.test(clean);
-  if (isNumericCard) {
-    const [patient] = await db
+  // 2. Direct lookup by Patient Card Number (supports numeric, alphanumeric, custom prefixes)
+  let [patient] = await db
+    .select()
+    .from(schema.patients)
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenantId),
+        isNull(schema.patients.deletedAt),
+        eq(schema.patients.cardNumber, clean)
+      )
+    )
+    .limit(1);
+
+  // 3. If not found by card number, try Phone Number lookup
+  if (!patient) {
+    const normalizedPhone = normalizeBdPhone(clean);
+    if (normalizedPhone) {
+      const [byPhone] = await db
+        .select()
+        .from(schema.patients)
+        .where(
+          and(
+            eq(schema.patients.tenantId, tenantId),
+            isNull(schema.patients.deletedAt),
+            eq(schema.patients.phone, normalizedPhone)
+          )
+        )
+        .limit(1);
+      if (byPhone) patient = byPhone;
+    }
+  }
+
+  // 4. If not found, try Patient Name search
+  if (!patient && clean.length >= 2) {
+    const [byName] = await db
       .select()
       .from(schema.patients)
       .where(
         and(
           eq(schema.patients.tenantId, tenantId),
-          eq(schema.patients.cardNumber, clean)
+          isNull(schema.patients.deletedAt),
+          sql`${schema.patients.name} ILIKE ${`%${clean}%`}`
         )
       )
       .limit(1);
+    if (byName) patient = byName;
+  }
 
-    if (patient) {
-      // Check if patient has an appointment today not yet checked in
-      const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+  if (patient) {
+    // Check if patient has an appointment today not yet checked in
+    const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Dhaka",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const todayApts = await db
+      .select()
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenantId),
+          eq(schema.appointments.patientId, patient.id),
+          eq(schema.appointments.status, "confirmed")
+        )
+      );
+
+    // Check if there is an appointment scheduled for today's calendar date
+    const todayAppointment = todayApts.find((apt) => {
+      const aptDateStr = new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Dhaka",
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
-      }).format(new Date());
+      }).format(new Date(apt.startTime));
+      return aptDateStr === todayDhakaStr;
+    });
 
-      const todayApts = await db
-        .select()
-        .from(schema.appointments)
-        .where(
-          and(
-            eq(schema.appointments.tenantId, tenantId),
-            eq(schema.appointments.patientId, patient.id),
-            eq(schema.appointments.status, "confirmed")
-          )
-        );
+    let canCheckIn = false;
+    if (todayAppointment) {
+      // Check queue entry status
+      const [qEntry] = await db
+        .select({ status: schema.queueEntries.status })
+        .from(schema.queueEntries)
+        .where(eq(schema.queueEntries.appointmentId, todayAppointment.id))
+        .limit(1);
 
-      // Check if there is an appointment scheduled for today's calendar date
-      const todayAppointment = todayApts.find((apt) => {
-        const aptDateStr = new Intl.DateTimeFormat("en-CA", {
-          timeZone: "Asia/Dhaka",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }).format(new Date(apt.startTime));
-        return aptDateStr === todayDhakaStr;
-      });
-
-      let canCheckIn = false;
-      if (todayAppointment) {
-        // Check queue entry status
-        const [qEntry] = await db
-          .select()
-          .from(schema.queueEntries)
-          .where(eq(schema.queueEntries.appointmentId, todayAppointment.id))
-          .limit(1);
-
-        if (qEntry && qEntry.status === "booked") {
-          canCheckIn = true;
-        }
+      if (qEntry && qEntry.status === "booked") {
+        canCheckIn = true;
       }
-
-      return {
-        found: true,
-        type: "patient",
-        id: patient.id,
-        url: `/app/patients/${patient.id}`,
-        patient,
-        todayAppointment,
-        canCheckIn,
-      };
     }
+
+    return {
+      found: true,
+      type: "patient",
+      id: patient.id,
+      url: `/app/patients/${patient.id}`,
+      patient,
+      todayAppointment,
+      canCheckIn,
+    };
   }
 
   return {
