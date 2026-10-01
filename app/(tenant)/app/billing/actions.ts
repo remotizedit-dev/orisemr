@@ -159,13 +159,35 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
     throw new Error("Please add at least one line item to the invoice");
   }
 
-  // Calculate totals
+  // Calculate totals and validate prices/quantities defensively (Issue 7)
   let subtotalBdt = 0;
   for (const item of input.items) {
-    if (item.quantity <= 0 || item.unitPriceBdt < 0) {
-      throw new Error("Item quantity and price must be non-negative");
+    if (
+      typeof item.quantity !== "number" ||
+      !Number.isFinite(item.quantity) ||
+      item.quantity < 1
+    ) {
+      throw new Error("Item quantity must be at least 1");
+    }
+    if (
+      typeof item.unitPriceBdt !== "number" ||
+      !Number.isFinite(item.unitPriceBdt) ||
+      item.unitPriceBdt < 0
+    ) {
+      throw new Error("Item price must be 0 or greater (negative prices are not allowed)");
     }
     subtotalBdt += item.quantity * item.unitPriceBdt;
+  }
+
+  if (
+    typeof input.discountBdt !== "number" ||
+    !Number.isFinite(input.discountBdt) ||
+    input.discountBdt < 0
+  ) {
+    throw new Error("Discount must be 0 or greater");
+  }
+  if (input.discountBdt > subtotalBdt) {
+    throw new Error(`Discount (৳${input.discountBdt}) cannot exceed subtotal (৳${subtotalBdt})`);
   }
 
   const discountBdt = Math.max(0, input.discountBdt || 0);
@@ -260,15 +282,32 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
         })
         .returning({ id: schema.invoices.id });
 
-      // 3. Insert Items
+      // 3. Insert Items (copy prescription teeth if item teeth are empty - Issue 13)
+      let fallbackTeeth: string[] = [];
+      if (cleanPrescriptionId) {
+        const [rx] = await tx
+          .select({ toothCodes: schema.prescriptions.toothCodes })
+          .from(schema.prescriptions)
+          .where(eq(schema.prescriptions.id, cleanPrescriptionId))
+          .limit(1);
+        if (rx?.toothCodes && rx.toothCodes.length > 0) {
+          fallbackTeeth = rx.toothCodes;
+        }
+      }
+
       let sort = 0;
       for (const item of input.items) {
+        const effectiveTeeth =
+          item.toothCodes && item.toothCodes.length > 0
+            ? item.toothCodes
+            : fallbackTeeth;
+
         await tx.insert(schema.invoiceItems).values({
           tenantId: tenant.id,
           invoiceId: created.id,
           serviceId: item.serviceId || null,
           description: item.description,
-          toothCodes: item.toothCodes || [],
+          toothCodes: effectiveTeeth,
           quantity: item.quantity,
           unitPriceBdt: item.unitPriceBdt,
           totalBdt: item.quantity * item.unitPriceBdt,
@@ -759,6 +798,13 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
       dueBdt: inv.totalBdt - inv.paidBdt,
       createdAt: inv.createdAt.toISOString(),
     }));
+
+  if (targetRx?.toothCodes && targetRx.toothCodes.length > 0 && bookedServices.length > 0) {
+    bookedServices = bookedServices.map((bs) => ({
+      ...bs,
+      toothCodes: bs.toothCodes && bs.toothCodes.length > 0 ? bs.toothCodes : targetRx!.toothCodes || [],
+    }));
+  }
 
   return {
     patient,

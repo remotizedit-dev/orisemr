@@ -12,6 +12,23 @@ import { GlobalActionDock } from "@/components/layout/GlobalActionDock";
 import { FirstLoginPasswordModal } from "@/components/auth/FirstLoginPasswordModal";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { getFileUrl } from "@/lib/s3";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const { tenant } = await requireClinicStaff();
+    return {
+      title: {
+        template: `%s · ${tenant.name}`,
+        default: `${tenant.name} · Oris EMR`,
+      },
+    };
+  } catch {
+    return {
+      title: "Oris EMR — Dental Chamber Management",
+    };
+  }
+}
 
 export default async function TenantAppLayout({
   children,
@@ -103,8 +120,8 @@ export default async function TenantAppLayout({
           </div>
         </header>
 
-        {/* Workspace Canvas (Full width without artificial 1280px constraint) */}
-        <main className="flex-1 px-3 sm:px-5 lg:px-6 py-4 w-full">{children}</main>
+        {/* Workspace Canvas with bottom clearance for floating action dock (Issue 10) */}
+        <main className="flex-1 px-3 sm:px-5 lg:px-6 pt-4 pb-28 sm:pb-32 w-full">{children}</main>
       </div>
 
       {/* Global Floating Action Docker (New Patient & Book Appointment) */}

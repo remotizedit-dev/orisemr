@@ -49,6 +49,7 @@ export const tenants = pgTable("tenants", {
   rxPrintLetterhead: boolean("rx_print_letterhead").default(true).notNull(),
   rxTopMarginMm: integer("rx_top_margin_mm").default(0).notNull(),
   invoicePaperSize: paperSizeEnum("invoice_paper_size").default("A4").notNull(),
+  tvDisplaySecret: text("tv_display_secret"),
   onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

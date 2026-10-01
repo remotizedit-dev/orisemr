@@ -5,6 +5,10 @@ import { requireClinicStaff } from "@/lib/session";
 import { formatDhakaDate } from "@/lib/utils";
 import DuesClient from "@/components/billing/DuesClient";
 
+export const metadata = {
+  title: "Outstanding Dues",
+};
+
 export default async function DuesPage() {
   const { tenant } = await requireClinicStaff();
 

@@ -11,6 +11,7 @@ import {
   cancelQueueBookingAction,
   revertToBookedAction,
   getLiveQueueItemsAction,
+  resetTvSecretAction,
   type QueueItem,
 } from "@/app/(tenant)/app/queue/actions";
 import { InactivePatientsModal } from "./InactivePatientsModal";
@@ -57,6 +58,7 @@ interface QueueBoardProps {
   doctors: { id: string; name: string }[];
   chairs?: ChairOption[];
   tenantSlug?: string;
+  tvDisplaySecret?: string;
 }
 
 export function QueueBoard({
@@ -66,6 +68,7 @@ export function QueueBoard({
   doctors,
   chairs = [],
   tenantSlug,
+  tvDisplaySecret,
 }: QueueBoardProps) {
   const router = useRouter();
   const [items, setItems] = useState<QueueItem[]>(initialItems);
@@ -78,6 +81,8 @@ export function QueueBoard({
   const [isSyncing, setIsSyncing] = useState(false);
   const [copiedTvUrl, setCopiedTvUrl] = useState(false);
   const [isTvMenuOpen, setIsTvMenuOpen] = useState(false);
+  const [tvSecret, setTvSecret] = useState<string>(tvDisplaySecret || "");
+  const [isResettingKey, setIsResettingKey] = useState(false);
   const tvMenuRef = useRef<HTMLDivElement>(null);
 
   // Close TV dropdown on outside click
@@ -237,30 +242,62 @@ export function QueueBoard({
     }
   };
 
+  const occupiedChairIds = new Set(
+    items.filter((i) => i.status === "in_chair" && i.chairId).map((i) => i.chairId!)
+  );
+
+  const getAvailableChairId = (preferredChairId?: string) => {
+    if (chairs.length === 0) return undefined;
+    if (preferredChairId && !occupiedChairIds.has(preferredChairId)) {
+      return preferredChairId;
+    }
+    const vacant = chairs.find((c) => !occupiedChairIds.has(c.id));
+    return vacant?.id;
+  };
+
   const handleAdvance = async (
     itemId: string,
     newStatus: QueueItem["status"],
     chairId?: string
   ) => {
+    let effectiveChairId = chairId;
+    if (newStatus === "in_chair" && chairs.length > 0) {
+      if (effectiveChairId && occupiedChairIds.has(effectiveChairId)) {
+        const vacant = getAvailableChairId();
+        if (!vacant) {
+          toast.error(
+            "All dental chairs are currently occupied. Please complete or bill a patient before seating another."
+          );
+          return;
+        }
+        effectiveChairId = vacant;
+        toast.info(
+          `Selected chair was occupied. Re-routed to available chair: ${chairs.find((c) => c.id === vacant)?.name}`
+        );
+      } else if (!effectiveChairId) {
+        effectiveChairId = getAvailableChairId();
+      }
+    }
+
     setProcessingId(itemId);
     // Optimistic update
     setItems((prev) =>
       prev.map((i) =>
         i.id === itemId
-          ? { ...i, status: newStatus, ...(chairId ? { chairId } : {}) }
+          ? { ...i, status: newStatus, ...(effectiveChairId ? { chairId: effectiveChairId } : {}) }
           : i
       )
     );
     try {
-      await advanceQueueStatusAction(itemId, newStatus, chairId);
+      await advanceQueueStatusAction(itemId, newStatus, effectiveChairId);
       const labels: Record<string, string> = {
         in_chair: "In Dental Chair",
         billing: "Pending Front-Desk Billing",
         done: "Completed Visits",
       };
       toast.success(`Patient moved to ${labels[newStatus] || newStatus}`);
-    } catch {
-      toast.error("Failed to update patient queue status");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update patient queue status");
       router.refresh();
     } finally {
       setProcessingId(null);
@@ -338,11 +375,14 @@ export function QueueBoard({
                 onChange={(e) => setSelectedChairId(e.target.value)}
                 className="bg-transparent text-sm font-bold text-[#1C1C1E] focus:outline-none cursor-pointer pr-2"
               >
-                {chairs.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {chairs.map((c) => {
+                  const isOccupied = occupiedChairIds.has(c.id);
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {isOccupied ? "(Busy)" : "(Free)"}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
@@ -422,30 +462,67 @@ export function QueueBoard({
                 </Link>
 
                 {tenantSlug && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = `${window.location.origin}/display/${tenantSlug}`;
-                      navigator.clipboard.writeText(url);
-                      setCopiedTvUrl(true);
-                      toast.success("Public Smart TV link copied to clipboard!");
-                      setTimeout(() => {
-                        setCopiedTvUrl(false);
-                        setIsTvMenuOpen(false);
-                      }, 2000);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-[#1C1C1E] hover:bg-[#F4F4F5] transition text-left cursor-pointer"
-                  >
-                    {copiedTvUrl ? (
-                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-[#2A5CAA] shrink-0" />
-                    )}
-                    <div className="flex flex-col">
-                      <span>{copiedTvUrl ? "Copied TV Link!" : "Copy Smart TV URL"}</span>
-                      <span className="text-[10px] font-normal text-[#6B7280]">For Smart TVs (no login needed)</span>
-                    </div>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/display/${tenantSlug}${tvSecret ? `?key=${tvSecret}` : ""}`;
+                        navigator.clipboard.writeText(url);
+                        setCopiedTvUrl(true);
+                        toast.success("Protected Smart TV link copied to clipboard!");
+                        setTimeout(() => {
+                          setCopiedTvUrl(false);
+                          setIsTvMenuOpen(false);
+                        }, 2000);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-[#1C1C1E] hover:bg-[#F4F4F5] transition text-left cursor-pointer"
+                    >
+                      {copiedTvUrl ? (
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-[#2A5CAA] shrink-0" />
+                      )}
+                      <div className="flex flex-col">
+                        <span>{copiedTvUrl ? "Copied Protected TV Link!" : "Copy Protected TV URL"}</span>
+                        <span className="text-[10px] font-normal text-[#6B7280]">Key-protected for Smart TVs</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isResettingKey}
+                      onClick={async () => {
+                        if (
+                          !confirm(
+                            "Are you sure you want to reset the Smart TV secret key? Existing TV displays will immediately stop loading until you update the link on the TV."
+                          )
+                        ) {
+                          return;
+                        }
+                        setIsResettingKey(true);
+                        try {
+                          const res = await resetTvSecretAction();
+                          if (res.success && res.newSecret) {
+                            setTvSecret(res.newSecret);
+                            toast.success("Smart TV key reset! Remember to copy the new TV URL to your Smart TV.");
+                          } else {
+                            toast.error("Failed to reset key");
+                          }
+                        } catch (err: any) {
+                          toast.error(err?.message || "Failed to reset key");
+                        } finally {
+                          setIsResettingKey(false);
+                        }
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-[#E53935] hover:bg-rose-50 transition text-left cursor-pointer border-t border-[#F4F4F5] mt-1"
+                    >
+                      <RotateCcw className={`w-4 h-4 text-[#E53935] shrink-0 ${isResettingKey ? "animate-spin" : ""}`} />
+                      <div className="flex flex-col">
+                        <span>Reset Smart TV Key</span>
+                        <span className="text-[10px] font-normal text-rose-500">Revokes old TV links immediately</span>
+                      </div>
+                    </button>
+                  </>
                 )}
               </div>
             )}

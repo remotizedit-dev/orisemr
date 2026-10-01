@@ -22,9 +22,16 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Oris EMR — Multi-Tenant Dental Chamber Management",
+  title: {
+    default: "Oris EMR — Multi-Tenant Dental Chamber Management",
+    template: "%s · Oris EMR",
+  },
   description:
     "Ultra-fast SaaS EMR for dental chambers in Bangladesh: patient cards, slot engine, live queue, Bangla prescriptions, and whole-Taka billing.",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/apple-icon",
+  },
 };
 
 import { Suspense } from "react";

@@ -8,6 +8,10 @@ interface Props {
   searchParams: Promise<{ date?: string }>;
 }
 
+export const metadata = {
+  title: "Appointments",
+};
+
 export default async function AppointmentsPage({ searchParams }: Props) {
   const { tenant } = await requireClinicStaff();
   const params = await searchParams;

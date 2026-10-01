@@ -265,6 +265,38 @@ export async function advanceQueueStatusAction(
   if (newStatus === "in_chair") {
     updateData.inChairAt = now;
     if (chairId) {
+      // Issue 12: Check if this chair is already occupied by another patient
+      const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Dhaka",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(now);
+
+      const [busyEntry] = await db
+        .select({
+          patientName: schema.patients.name,
+          chairName: schema.chairs.name,
+        })
+        .from(schema.queueEntries)
+        .innerJoin(schema.patients, eq(schema.queueEntries.patientId, schema.patients.id))
+        .leftJoin(schema.chairs, eq(schema.queueEntries.chairId, schema.chairs.id))
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.date, todayDhakaStr),
+            eq(schema.queueEntries.status, "in_chair"),
+            eq(schema.queueEntries.chairId, chairId),
+            sql`${schema.queueEntries.id} != ${queueEntryId}`
+          )
+        )
+        .limit(1);
+
+      if (busyEntry) {
+        throw new Error(
+          `${busyEntry.chairName || "Dental Chair"} is already occupied by ${busyEntry.patientName}. Please select an empty chair or complete the current visit first.`
+        );
+      }
       updateData.chairId = chairId;
     }
   } else if (newStatus === "billing") {
@@ -301,6 +333,60 @@ export async function callNextPatientAction(doctorId?: string, chairId?: string)
     day: "2-digit",
   }).format(new Date());
 
+  // Issue 12: If chairId is provided, check if it's occupied. If so, try to find another vacant chair.
+  let assignedChairId = chairId;
+  if (assignedChairId) {
+    const [busy] = await db
+      .select({ id: schema.queueEntries.id })
+      .from(schema.queueEntries)
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenant.id),
+          eq(schema.queueEntries.date, todayDhakaStr),
+          eq(schema.queueEntries.status, "in_chair"),
+          eq(schema.queueEntries.chairId, assignedChairId)
+        )
+      )
+      .limit(1);
+
+    if (busy) {
+      // Find another available chair in the clinic
+      const clinicChairs = await db
+        .select({ id: schema.chairs.id })
+        .from(schema.chairs)
+        .where(
+          and(
+            eq(schema.chairs.tenantId, tenant.id),
+            eq(schema.chairs.isActive, true)
+          )
+        )
+        .orderBy(schema.chairs.sortOrder);
+
+      const busyEntries = await db
+        .select({ chairId: schema.queueEntries.chairId })
+        .from(schema.queueEntries)
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.date, todayDhakaStr),
+            eq(schema.queueEntries.status, "in_chair")
+          )
+        );
+
+      const busyChairIds = new Set(busyEntries.map((e) => e.chairId).filter(Boolean));
+      const vacantChair = clinicChairs.find((c) => !busyChairIds.has(c.id));
+
+      if (vacantChair) {
+        assignedChairId = vacantChair.id;
+      } else if (clinicChairs.length > 0) {
+        return {
+          success: false,
+          message: "All dental chairs are currently occupied. Please complete or bill a patient before calling next.",
+        };
+      }
+    }
+  }
+
   // Find earliest waiting patient by assigned Serial Number (SL #1 before SL #2)
   const [nextPatient] = await db
     .select()
@@ -317,8 +403,12 @@ export async function callNextPatientAction(doctorId?: string, chairId?: string)
     .limit(1);
 
   if (nextPatient) {
-    await advanceQueueStatusAction(nextPatient.id, "in_chair", chairId);
-    return { success: true, patientId: nextPatient.patientId, serialNo: nextPatient.serialNo };
+    try {
+      await advanceQueueStatusAction(nextPatient.id, "in_chair", assignedChairId);
+      return { success: true, patientId: nextPatient.patientId, serialNo: nextPatient.serialNo };
+    } catch (err: any) {
+      return { success: false, message: err?.message || "Failed to assign patient to chair." };
+    }
   }
 
   return { success: false, message: "No patients currently in Waiting status." };
@@ -641,7 +731,10 @@ export async function getLiveQueueItemsAction(): Promise<QueueItem[]> {
   return fetchTodayQueueItems(tenant.id);
 }
 
-export async function getPublicQueueDataAction(tenantSlug: string): Promise<{
+export async function getPublicQueueDataAction(
+  tenantSlug: string,
+  key?: string
+): Promise<{
   success: boolean;
   tenant?: { id: string; name: string; brandColor: string | null };
   items?: QueueItem[];
@@ -658,6 +751,7 @@ export async function getPublicQueueDataAction(tenantSlug: string): Promise<{
           id: schema.tenants.id,
           name: schema.tenants.name,
           brandColor: schema.tenants.brandColor,
+          tvDisplaySecret: schema.tenants.tvDisplaySecret,
         })
         .from(schema.tenants)
         .where(
@@ -676,6 +770,11 @@ export async function getPublicQueueDataAction(tenantSlug: string): Promise<{
     return { success: false, error: "Clinic not found or inactive" };
   }
 
+  // Validate secret key for public queue monitor
+  if (!key || !tenant.tvDisplaySecret || key !== tenant.tvDisplaySecret) {
+    return { success: false, error: "Unauthorized TV display key" };
+  }
+
   const items = await fetchTodayQueueItems(tenant.id);
   // Privacy sanitization for public display screen
   const sanitizedItems = items.map((i) => ({
@@ -692,4 +791,37 @@ export async function getPublicQueueDataAction(tenantSlug: string): Promise<{
     items: sanitizedItems,
   };
 }
+
+export async function resetTvSecretAction(): Promise<{
+  success: boolean;
+  newSecret?: string;
+  tvUrl?: string;
+  error?: string;
+}> {
+  try {
+    const { tenant } = await requireClinicStaff();
+    const crypto = await import("crypto");
+    const newSecret = crypto.randomBytes(12).toString("hex");
+
+    await db
+      .update(schema.tenants)
+      .set({
+        tvDisplaySecret: newSecret,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.tenants.id, tenant.id));
+
+    await deleteCache(`tenant:public:${tenant.slug}`);
+    await deleteCache(`tenant:details:${tenant.id}`);
+
+    return {
+      success: true,
+      newSecret,
+      tvUrl: `/display/${tenant.slug}?key=${newSecret}`,
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to reset TV secret key" };
+  }
+}
+
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
@@ -15,6 +15,10 @@ import {
   Clock,
   ArrowRight,
 } from "lucide-react";
+
+export const metadata = {
+  title: "Dashboard",
+};
 
 export default async function TenantDashboardPage() {
   const { tenant, user } = await requireClinicStaff();
@@ -90,7 +94,7 @@ export default async function TenantDashboardPage() {
       .where(
         and(
           eq(schema.invoices.tenantId, tenant.id),
-          eq(schema.invoices.status, "due")
+          inArray(schema.invoices.status, ["due", "partial"])
         )
       ),
   ]);

@@ -13,6 +13,10 @@ import {
   Search,
 } from "lucide-react";
 
+export const metadata = {
+  title: "Billing & Invoices",
+};
+
 export default async function BillingPage() {
   const { tenant } = await requireClinicStaff();
 

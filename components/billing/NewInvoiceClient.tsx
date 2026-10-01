@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatBdt } from "@/lib/utils";
+import { formatBdt, formatPaymentMethod } from "@/lib/utils";
 import {
   createInvoiceAction,
   recordPaymentAction,
@@ -110,19 +110,26 @@ export default function NewInvoiceClient({
   const [currentAlreadyBilledInfo, setCurrentAlreadyBilledInfo] = useState(alreadyBilledInfo || null);
 
   // Line items state
-  const [items, setItems] = useState<InvoiceLine[]>(
-    initialItems && initialItems.length > 0
-      ? initialItems
-      : [
-          {
-            id: "line-1",
-            description: "",
-            toothCodes: [],
-            quantity: 1,
-            unitPriceBdt: 0,
-          },
-        ]
-  );
+  const [items, setItems] = useState<InvoiceLine[]>(() => {
+    const rxTeeth = prescriptionInfo?.toothCodes || [];
+    if (initialItems && initialItems.length > 0) {
+      return initialItems.map((it) => ({
+        ...it,
+        quantity: Math.max(1, it.quantity || 1),
+        unitPriceBdt: Math.max(0, it.unitPriceBdt || 0),
+        toothCodes: it.toothCodes && it.toothCodes.length > 0 ? it.toothCodes : rxTeeth,
+      }));
+    }
+    return [
+      {
+        id: "line-1",
+        description: "",
+        toothCodes: rxTeeth,
+        quantity: 1,
+        unitPriceBdt: 0,
+      },
+    ];
+  });
 
   // Discount
   const [discountBdt, setDiscountBdt] = useState<number>(0);
@@ -237,16 +244,23 @@ export default function NewInvoiceClient({
           setCurrentPrescriptionInfo(null);
         }
 
+        const rxTeeth = context.prescriptionInfo?.toothCodes || [];
         if (context.bookedServices && context.bookedServices.length > 0) {
-          setItems(context.bookedServices);
-          toast.success(`Auto-populated ${context.bookedServices.length} unbilled service(s) from appointment`);
+          const merged = context.bookedServices.map((bs: any) => ({
+            ...bs,
+            quantity: Math.max(1, bs.quantity || 1),
+            unitPriceBdt: Math.max(0, bs.unitPriceBdt || 0),
+            toothCodes: bs.toothCodes && bs.toothCodes.length > 0 ? bs.toothCodes : rxTeeth,
+          }));
+          setItems(merged);
+          toast.success(`Auto-populated ${merged.length} unbilled service(s) from appointment`);
         } else if (context.alreadyBilledInfo || context.prescriptionInfo?.isAlreadyBilled) {
           // Clear items to clean slate and notify
           setItems([
             {
               id: "line-1",
               description: "",
-              toothCodes: [],
+              toothCodes: rxTeeth,
               quantity: 1,
               unitPriceBdt: 0,
             },
@@ -254,6 +268,20 @@ export default function NewInvoiceClient({
           toast.warning(
             `This visit is already billed (${context.alreadyBilledInfo?.invoiceCode || context.prescriptionInfo?.billedInvoiceCode})`
           );
+        } else if (context.prescriptionInfo) {
+          const defaultService = services[0];
+          setItems([
+            {
+              id: "line-1",
+              serviceId: defaultService?.id,
+              description: context.prescriptionInfo.diagnosis
+                ? `Dental Treatment & Care (${context.prescriptionInfo.diagnosis})`
+                : (defaultService?.name || "Dental Consultation & Treatment"),
+              toothCodes: rxTeeth,
+              quantity: 1,
+              unitPriceBdt: defaultService?.priceBdt || 500,
+            },
+          ]);
         }
         if (context.patientDues) {
           setCurrentPatientDues(context.patientDues);
@@ -304,6 +332,16 @@ export default function NewInvoiceClient({
 
     if (validItems.length === 0) {
       toast.error("Please add at least one billable item with a description.");
+      return;
+    }
+
+    if (items.some((it) => it.unitPriceBdt < 0 || it.quantity < 1)) {
+      toast.error("Item quantity must be at least 1 and price must be 0 or greater.");
+      return;
+    }
+
+    if (discountBdt < 0 || discountBdt > subtotalBdt) {
+      toast.error("Discount cannot be negative or exceed the subtotal.");
       return;
     }
 
@@ -856,9 +894,10 @@ export default function NewInvoiceClient({
                   type="number"
                   min={1}
                   value={line.quantity || 1}
-                  onChange={(e) =>
-                    updateLine(idx, { quantity: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    const parsed = parseInt(e.target.value, 10);
+                    updateLine(idx, { quantity: isNaN(parsed) || parsed < 1 ? 1 : parsed });
+                  }}
                   className="w-full px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl outline-none text-center font-bold font-mono"
                 />
               </div>
@@ -872,10 +911,11 @@ export default function NewInvoiceClient({
                   type="number"
                   min={0}
                   placeholder="Price (৳)"
-                  value={line.unitPriceBdt || ""}
-                  onChange={(e) =>
-                    updateLine(idx, { unitPriceBdt: Number(e.target.value) })
-                  }
+                  value={line.unitPriceBdt !== undefined && line.unitPriceBdt !== null ? line.unitPriceBdt : ""}
+                  onChange={(e) => {
+                    const parsed = parseFloat(e.target.value);
+                    updateLine(idx, { unitPriceBdt: isNaN(parsed) ? 0 : Math.max(0, parsed) });
+                  }}
                   className="w-full px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl outline-none font-black font-mono"
                 />
               </div>
@@ -1039,13 +1079,13 @@ export default function NewInvoiceClient({
                         key={m}
                         type="button"
                         onClick={() => setAdvanceMethod(m)}
-                        className={`py-2 px-2 text-xs font-bold rounded-xl border text-center capitalize transition cursor-pointer ${
+                        className={`py-2 px-2 text-xs font-bold rounded-xl border text-center transition cursor-pointer ${
                           advanceMethod === m
                             ? "bg-[#2A5CAA] border-[#2A5CAA] text-white shadow-2xs"
                             : "bg-white border-[#E4E4E7] text-[#4B5563] hover:bg-[#F4F4F5]"
                         }`}
                       >
-                        {m}
+                        {formatPaymentMethod(m)}
                       </button>
                     ))}
                   </div>
@@ -1094,8 +1134,12 @@ export default function NewInvoiceClient({
               <input
                 type="number"
                 min={0}
+                max={subtotalBdt}
                 value={discountBdt || ""}
-                onChange={(e) => setDiscountBdt(Number(e.target.value))}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setDiscountBdt(isNaN(val) ? 0 : Math.max(0, Math.min(subtotalBdt, val)));
+                }}
                 placeholder="0"
                 className="w-28 px-3 py-1.5 text-sm border border-[#E4E4E7] rounded-xl outline-none text-right font-bold font-mono"
               />
@@ -1122,7 +1166,12 @@ export default function NewInvoiceClient({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !selectedPatient || subtotalBdt <= 0}
+            disabled={
+              isSubmitting ||
+              !selectedPatient ||
+              subtotalBdt <= 0 ||
+              items.some((i) => i.unitPriceBdt < 0 || i.quantity < 1)
+            }
             className="w-full py-4 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-black text-sm sm:text-base shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4 cursor-pointer"
           >
             {isSubmitting ? (

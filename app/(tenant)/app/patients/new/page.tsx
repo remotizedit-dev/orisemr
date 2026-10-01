@@ -22,6 +22,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { normalizeBdPhone } from "@/lib/utils";
 
 export default function NewPatientPage() {
   const router = useRouter();
@@ -83,23 +84,29 @@ export default function NewPatientPage() {
       return;
     }
 
+    const normalizedPhone = normalizeBdPhone(phone);
+    if (!normalizedPhone) {
+      toast.error("Please enter a valid 11-digit Bangladeshi phone number (e.g. 017XXXXXXXX)");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await registerPatientAction({
         cardNumber: cardNumber || undefined,
-        name,
-        phone,
-        email: email || undefined,
+        name: name.trim(),
+        phone: normalizedPhone,
+        email: email.trim() || undefined,
         approxAge: approxAge ? parseInt(approxAge, 10) : undefined,
         gender,
         bloodGroup,
-        address,
-        emergencyContactName,
-        emergencyContactPhone,
+        address: address.trim() || undefined,
+        emergencyContactName: emergencyContactName.trim() || undefined,
+        emergencyContactPhone: emergencyContactPhone.trim() || undefined,
         medicalConditions: selectedConditions,
         allergyFlags: selectedAllergies,
-        allergyNotes,
-        medicalNotes,
+        allergyNotes: allergyNotes.trim() || undefined,
+        medicalNotes: medicalNotes.trim() || undefined,
       });
       toast.success("Patient registered successfully!");
       if (res?.emailDispatched) {

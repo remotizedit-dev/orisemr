@@ -99,7 +99,7 @@ export async function resolveCode(
           found: true,
           type: "invoice",
           id: inv.id,
-          url: `/app/billing/${inv.id}`,
+          url: `/print/invoice/${inv.id}`,
         };
       }
     } else if (parsed.prefix === "RPT") {

@@ -5,19 +5,37 @@ import * as schema from "@/db/schema";
 import { fetchTodayQueueItems } from "@/app/(tenant)/app/queue/actions";
 import { QueueTvDisplay } from "@/components/queue/QueueTvDisplay";
 
-export const metadata = {
-  title: "Live Chamber Queue Display | Oris EMR",
-  description: "Live waiting room and dental chair queue display monitor",
-};
-
-import { getOrSetCache } from "@/lib/cache";
-
-export default async function PublicQueueDisplayPage({
+export async function generateMetadata({
   params,
 }: {
   params: Promise<{ tenantSlug: string }>;
 }) {
   const { tenantSlug } = await params;
+  const cleanSlug = tenantSlug.toLowerCase().trim();
+  const [t] = await db
+    .select({ name: schema.tenants.name })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.slug, cleanSlug))
+    .limit(1);
+
+  return {
+    title: t ? `Live Queue · ${t.name}` : "Live Queue Display",
+    description: "Live waiting room and dental chair queue display monitor",
+  };
+}
+
+import { getOrSetCache } from "@/lib/cache";
+import { PrivateTvNoticeScreen } from "@/components/queue/PrivateTvNoticeScreen";
+
+export default async function PublicQueueDisplayPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenantSlug: string }>;
+  searchParams: Promise<{ key?: string }>;
+}) {
+  const { tenantSlug } = await params;
+  const { key } = await searchParams;
   const cleanSlug = tenantSlug.toLowerCase().trim();
 
   const tenant = await getOrSetCache(
@@ -29,6 +47,7 @@ export default async function PublicQueueDisplayPage({
           name: schema.tenants.name,
           slug: schema.tenants.slug,
           brandColor: schema.tenants.brandColor,
+          tvDisplaySecret: schema.tenants.tvDisplaySecret,
         })
         .from(schema.tenants)
         .where(
@@ -45,6 +64,11 @@ export default async function PublicQueueDisplayPage({
 
   if (!tenant) {
     notFound();
+  }
+
+  // Enforce secret key to protect patient queue and dental chair info from unauthorized public viewing
+  if (!key || !tenant.tvDisplaySecret || key !== tenant.tvDisplaySecret) {
+    return <PrivateTvNoticeScreen tenantName={tenant.name} />;
   }
 
   const items = await fetchTodayQueueItems(tenant.id);
@@ -64,6 +88,7 @@ export default async function PublicQueueDisplayPage({
       tenantName={tenant.name}
       brandColor={tenant.brandColor}
       tenantSlug={tenant.slug}
+      secretKey={tenant.tvDisplaySecret || undefined}
       isPublic={true}
     />
   );

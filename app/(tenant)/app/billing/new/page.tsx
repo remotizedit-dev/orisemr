@@ -176,6 +176,14 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         billedInvoiceCode: alreadyBilledInfo?.invoiceCode,
       };
 
+      // Copy prescription's tooth numbers into invoice line items (Issue 13)
+      if (rx.toothCodes && rx.toothCodes.length > 0) {
+        initialLineItems = initialLineItems.map((item) => ({
+          ...item,
+          toothCodes: item.toothCodes && item.toothCodes.length > 0 ? item.toothCodes : rx.toothCodes!,
+        }));
+      }
+
       // If no explicit appointment services were booked, but doctor wrote prescription and visit is NOT already billed
       if (!alreadyBilledInfo && initialLineItems.length === 0) {
         const defaultService = services[0];
@@ -381,6 +389,13 @@ export default async function NewInvoicePage({ searchParams }: Props) {
             toothCodes: latestRx.toothCodes || [],
             isAlreadyBilled: false,
           };
+
+          if (latestRx.toothCodes && latestRx.toothCodes.length > 0) {
+            initialLineItems = initialLineItems.map((item) => ({
+              ...item,
+              toothCodes: item.toothCodes && item.toothCodes.length > 0 ? item.toothCodes : latestRx.toothCodes!,
+            }));
+          }
         }
       }
     }

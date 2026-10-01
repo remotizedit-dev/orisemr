@@ -5,6 +5,10 @@ import { requireClinicStaff } from "@/lib/session";
 import { QueueBoard } from "@/components/queue/QueueBoard";
 import { fetchTodayQueueItems } from "./actions";
 
+export const metadata = {
+  title: "Live Queue",
+};
+
 export default async function LiveQueuePage() {
   const { tenant, user } = await requireClinicStaff();
 
@@ -37,6 +41,13 @@ export default async function LiveQueuePage() {
     )
     .orderBy(schema.chairs.sortOrder);
 
+  // 4. Fetch clinic TV secret key
+  const [tenantRow] = await db
+    .select({ tvDisplaySecret: schema.tenants.tvDisplaySecret })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenant.id))
+    .limit(1);
+
   return (
     <QueueBoard
       initialItems={formattedItems}
@@ -45,6 +56,7 @@ export default async function LiveQueuePage() {
       doctors={doctors}
       chairs={chairs}
       tenantSlug={tenant.slug}
+      tvDisplaySecret={tenantRow?.tvDisplaySecret || undefined}
     />
   );
 }

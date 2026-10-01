@@ -183,8 +183,25 @@ export interface CreateStaffAppointmentInput {
 export async function createStaffAppointmentAction(input: CreateStaffAppointmentInput) {
   const { tenant, user } = await requireClinicStaff();
 
-  const start = new Date(input.startTime);
-  const end = new Date(input.endTime);
+  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  let start = new Date(input.startTime);
+  let end = new Date(input.endTime);
+
+  // Issue 14: If patient is checking in immediately today (walk-in), book at current time
+  if (input.checkInImmediately && input.dateStr === todayDhakaStr) {
+    const now = new Date();
+    const durationMs = !isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start
+      ? end.getTime() - start.getTime()
+      : 20 * 60000;
+    start = now;
+    end = new Date(now.getTime() + durationMs);
+  }
 
   if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
     throw new Error("Invalid appointment start or end time.");
@@ -325,13 +342,6 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       };
     }
   }
-
-  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
 
   const { newAppointmentId, appointmentCode, assignedSerial } = await db.transaction(async (tx) => {
     // Increment appointment counter

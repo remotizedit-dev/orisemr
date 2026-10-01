@@ -70,6 +70,21 @@ export function formatBdt(amountInTaka: number | null | undefined): string {
 }
 
 /**
+ * Formats payment method identifiers into official brand capitalization standard (e.g. "bKash", "Nagad", "Cash").
+ */
+export function formatPaymentMethod(method: string | null | undefined): string {
+  if (!method) return "—";
+  const m = method.toLowerCase().trim();
+  if (m === "bkash") return "bKash";
+  if (m === "nagad") return "Nagad";
+  if (m === "rocket") return "Rocket";
+  if (m === "cash") return "Cash";
+  if (m === "card") return "Card / POS";
+  if (m === "bank_transfer") return "Bank Transfer";
+  return method.charAt(0).toUpperCase() + method.slice(1);
+}
+
+/**
  * Formats a given date to Asia/Dhaka time zone standard string.
  * Supports:
  * - "hh:mm" or "hh:mm a": returns 12-hour formatted time (e.g. "06:00 PM")

@@ -109,6 +109,18 @@ export function ClinicalAutocompleteInput({
     }
   };
 
+  // Close Browse Templates modal on Escape key (Issue 17)
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [isModalOpen]);
+
   // Top 4 quick suggestion pills for 1-click addition
   const quickPills = suggestions.slice(0, 4);
 
@@ -201,8 +213,13 @@ export function ClinicalAutocompleteInput({
 
       {/* Full Browse Modal for when clinic has 100+ or 1,000 records */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-5 border border-[#E4E4E7] shadow-2xl space-y-4 animate-in zoom-in-95">
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 border border-[#E4E4E7] shadow-2xl space-y-4 animate-in zoom-in-95 cursor-default">
             <div className="flex items-center justify-between pb-2 border-b border-[#E4E4E7]">
               <div>
                 <h3 className="font-extrabold text-base text-[#1C1C1E]">

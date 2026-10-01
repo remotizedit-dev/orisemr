@@ -29,6 +29,7 @@ interface QueueTvDisplayProps {
   brandColor?: string | null;
   tenantSlug?: string;
   isPublic?: boolean;
+  secretKey?: string;
 }
 
 // Gentle audio synthesizer for hospital/clinic waiting room chime (two-tone chord)
@@ -77,6 +78,7 @@ export function QueueTvDisplay({
   brandColor = "#2A5CAA",
   tenantSlug,
   isPublic = false,
+  secretKey,
 }: QueueTvDisplayProps) {
   const [items, setItems] = useState<QueueItem[]>(initialItems);
   const [currentTime, setCurrentTime] = useState("");
@@ -139,7 +141,7 @@ export function QueueTvDisplay({
         let freshItems: QueueItem[] | undefined;
 
         if (isPublic && tenantSlug) {
-          const res = await getPublicQueueDataAction(tenantSlug);
+          const res = await getPublicQueueDataAction(tenantSlug, secretKey);
           if (res.success && res.items) {
             freshItems = res.items;
           }

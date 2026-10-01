@@ -4,7 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { BarcodeSvg } from "@/components/barcode/BarcodeSvg";
 import { AutoPrintTrigger } from "@/components/print/AutoPrintTrigger";
-import { formatBdt, formatDhakaDate } from "@/lib/utils";
+import { formatBdt, formatDhakaDate, formatPaymentMethod } from "@/lib/utils";
 import { getFileUrl } from "@/lib/s3";
 import { getSession } from "@/lib/session";
 import { verifySignedPrintUrl } from "@/lib/signed-urls";
@@ -215,7 +215,7 @@ export default async function PrintInvoicePage({ params, searchParams }: Props) 
               {payments.map((p) => (
                 <tr key={p.id}>
                   <td className="py-1">{formatDhakaDate(p.paidAt, "dd MMM yyyy, hh:mm a")}</td>
-                  <td className="py-1 uppercase font-semibold">{p.method}</td>
+                  <td className="py-1 font-semibold">{formatPaymentMethod(p.method)}</td>
                   <td className="py-1 font-mono">{p.transactionRef || "—"}</td>
                   <td className="py-1">{p.receivedByName || "Staff"}</td>
                   <td className="py-1 text-right font-bold">{formatBdt(p.amountBdt)}</td>

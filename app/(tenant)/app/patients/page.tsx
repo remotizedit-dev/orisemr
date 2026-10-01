@@ -6,6 +6,10 @@ import { requireClinicStaff } from "@/lib/session";
 import { UserPlus } from "lucide-react";
 import PatientsListClient, { type PatientRow } from "@/components/patients/PatientsListClient";
 
+export const metadata = {
+  title: "Patients",
+};
+
 export default async function PatientsListPage() {
   const { tenant } = await requireClinicStaff();
 
