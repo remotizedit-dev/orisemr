@@ -244,7 +244,17 @@ export default function NewAppointmentClient({
     let endTime = selectedSlot?.endTime;
     let docId = selectedSlot?.doctorId;
 
-    if (isOverbooked) {
+    // Issue N3: When 'Check-in now' is ticked for today, book from current time without needing a free slot
+    if (!selectedSlot && checkInImmediately && selectedDate === todayDhakaStr) {
+      const now = new Date();
+      const durationMs = (totalDuration > 0 ? totalDuration : 30) * 60000;
+      startTime = now.toISOString();
+      endTime = new Date(now.getTime() + durationMs).toISOString();
+      docId = selectedDoctorId === "any" ? (doctors[0]?.id || "") : selectedDoctorId;
+      isOverbooked = true;
+    }
+
+    if (isOverbooked && (!startTime || !endTime)) {
       // Use custom time on selected date in Asia/Dhaka (+06:00)
       const sDate = new Date(`${selectedDate}T${customStartTime}:00+06:00`);
       const eDate = new Date(`${selectedDate}T${customEndTime}:00+06:00`);
@@ -255,7 +265,7 @@ export default function NewAppointmentClient({
     }
 
     if (!startTime || !endTime || !docId) {
-      toast.error("Please pick an available slot or use Overbook Override");
+      toast.error("Please pick an available slot or tick Check-in now");
       return;
     }
 
@@ -298,7 +308,7 @@ export default function NewAppointmentClient({
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-16">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -528,13 +538,25 @@ export default function NewAppointmentClient({
                 <p className="text-xs text-[#FF453A] font-semibold">
                   No consecutive {totalDuration}-minute slots available on this date.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setIsOverbookingModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-[#FFF7EB] text-[#FF9F0A] text-xs font-bold hover:bg-[#FFEECB] transition"
-                >
-                  Force Overbook with Custom Time
-                </button>
+                {checkInImmediately && selectedDate === todayDhakaStr ? (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold text-left flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">Walk-in Check-in Ready</span>
+                      <span className="text-[11px] font-normal text-amber-800">
+                        Since &apos;Check-in to Waiting Lounge immediately&apos; is selected, you can book right now from current time without needing a free schedule slot.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsOverbookingModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-[#FFF7EB] text-[#FF9F0A] text-xs font-bold hover:bg-[#FFEECB] transition cursor-pointer"
+                  >
+                    Force Overbook with Custom Time
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-1">
@@ -673,6 +695,21 @@ export default function NewAppointmentClient({
                     Custom manual time override for {selectedDate}
                   </p>
                 </div>
+              ) : checkInImmediately && selectedDate === todayDhakaStr ? (
+                <div className="p-3.5 rounded-2xl bg-amber-50/80 border-2 border-amber-400 shadow-2xs space-y-1">
+                  <div className="flex items-center justify-between text-amber-950">
+                    <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Immediate Walk-in</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[11px] font-black font-mono">
+                      Current Time
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-800 font-medium pt-0.5">
+                    Checks in immediately at reception. Auto-assigns next Daily Serial # (SL) and syncs to live TV queue.
+                  </p>
+                </div>
               ) : (
                 <div className="p-3.5 rounded-2xl border-2 border-dashed border-[#CBD5E1] bg-[#F8FAFC] text-center space-y-1">
                   <Clock className="w-4 h-4 text-[#94A3B8] mx-auto" />
@@ -723,15 +760,27 @@ export default function NewAppointmentClient({
             <button
               type="button"
               onClick={() => handleBook(false)}
-              disabled={isSubmitting || !selectedPatient || !selectedSlot}
-              className="w-full py-3 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-xs shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={
+                isSubmitting ||
+                !selectedPatient ||
+                selectedServices.length === 0 ||
+                (!selectedSlot && !(checkInImmediately && selectedDate === todayDhakaStr))
+              }
+              className="w-full py-3 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-xs shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
+              ) : checkInImmediately && selectedDate === todayDhakaStr ? (
+                <>
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>Check-in Walk-in Immediately</span>
+                </>
               ) : (
-                <Check className="w-4 h-4" />
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Confirm &amp; Book Appointment</span>
+                </>
               )}
-              <span>Confirm &amp; Book Appointment</span>
             </button>
           </div>
         </div>
@@ -748,8 +797,8 @@ export default function NewAppointmentClient({
               </h3>
             </div>
             <p className="text-xs text-[#6B7280]">
-              You are manually scheduling an appointment outside default calculated slot windows or over an existing slot. This appointment will be tagged with{" "}
-              <strong className="text-[#FF453A]">is_overbooked: true</strong>.
+              You are manually scheduling an appointment outside default calculated slot windows or over an existing slot. This appointment will be marked as{" "}
+              <strong className="text-[#FF453A]">overbooked</strong>.
             </p>
 
             <div className="grid grid-cols-2 gap-3 pt-2">

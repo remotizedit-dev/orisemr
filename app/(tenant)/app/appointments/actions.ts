@@ -193,8 +193,11 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
   let start = new Date(input.startTime);
   let end = new Date(input.endTime);
 
-  // Issue 14: If patient is checking in immediately today (walk-in), book at current time
-  if (input.checkInImmediately && input.dateStr === todayDhakaStr) {
+  // Issue N3: If patient is checking in immediately today (walk-in), book at current time
+  const isImmediateWalkIn = Boolean(input.checkInImmediately && input.dateStr === todayDhakaStr);
+  const effectiveIsOverbooked = Boolean(input.isOverbooked || isImmediateWalkIn);
+
+  if (isImmediateWalkIn) {
     const now = new Date();
     const durationMs = !isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start
       ? end.getTime() - start.getTime()
@@ -215,7 +218,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
   // Pre-fetch overlap check, working hours, selected services, patient, and doctor concurrently in parallel
   const [overlapping, clinicHours, doctorSchedules, selectedServices, patient, assignedDoctor] = await Promise.all([
     // Check overlap if not explicitly overbooked
-    !input.isOverbooked
+    !effectiveIsOverbooked
       ? db
           .select({ id: schema.appointments.id })
           .from(schema.appointments)
@@ -232,7 +235,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       : Promise.resolve([]),
 
     // Check clinic working hours for weekday if not explicitly overbooked
-    !input.isOverbooked
+    !effectiveIsOverbooked
       ? db
           .select({
             startTime: schema.tenantWorkingHours.startTime,
@@ -248,7 +251,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       : Promise.resolve([]),
 
     // Check doctor shift for weekday if not explicitly overbooked
-    !input.isOverbooked
+    !effectiveIsOverbooked
       ? db
           .select({
             startTime: schema.doctorSchedules.startTime,
@@ -313,7 +316,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
   }
 
   // Validate working hours intersection (chamber hours ∩ doctor shift)
-  if (!input.isOverbooked) {
+  if (!effectiveIsOverbooked) {
     const allowedWindows = computeWorkingHoursIntersection(clinicHours, doctorSchedules);
     const startParts = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Asia/Dhaka",
@@ -376,7 +379,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
         endTime: end,
         status: "confirmed",
         source: "staff",
-        isOverbooked: input.isOverbooked ?? false,
+        isOverbooked: effectiveIsOverbooked,
         notes: input.notes || null,
         createdBy: user.id,
       })

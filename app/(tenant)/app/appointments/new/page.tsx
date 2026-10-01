@@ -97,30 +97,9 @@ export default async function NewAppointmentPage({ searchParams }: Props) {
     }
   }
 
-  // 5. Pre-compute initial slots on server for default service and today's date
-  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-
-  const defaultService = services[0];
-  const initialServices = defaultService ? [defaultService.id] : [];
-  let initialSlots: any[] = [];
-
-  if (defaultService) {
-    try {
-      const slotData = await getStaffSlotsAction({
-        dateStr: todayDhakaStr,
-        durationMinutes: defaultService.durationMinutes,
-        doctorId: "any",
-      });
-      initialSlots = slotData.slots || [];
-    } catch {
-      // fallback gracefully to empty slots
-    }
-  }
+  // 5. Issue N2: Start with nothing pre-selected so procedures and bills are not pre-selected unnoticed
+  const initialServices: string[] = [];
+  const initialSlots: any[] = [];
 
   return (
     <NewAppointmentClient

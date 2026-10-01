@@ -117,9 +117,9 @@ export default function DoctorsClient({
   const [editColor, setEditColor] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Scheduling state: map of weekday -> { enabled: boolean, startTime: string, endTime: string }
+  // Scheduling state: map of weekday -> { enabled: boolean, windows: { startTime: string; endTime: string }[] }
   const [shifts, setShifts] = useState<{
-    [key: number]: { enabled: boolean; startTime: string; endTime: string };
+    [key: number]: { enabled: boolean; windows: { startTime: string; endTime: string }[] };
   }>({});
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
@@ -152,31 +152,38 @@ export default function DoctorsClient({
     const doctorShifts = initialSchedules.filter((s) => s.doctorId === doc.id);
 
     const shiftMap: {
-      [key: number]: { enabled: boolean; startTime: string; endTime: string };
+      [key: number]: { enabled: boolean; windows: { startTime: string; endTime: string }[] };
     } = {};
 
     WEEKDAYS.forEach(({ index }) => {
-      const match = doctorShifts.find((s) => s.weekday === index);
-      const clinicDefault = clinicHours.find((h) => h.weekday === index);
+      const dayMatches = doctorShifts
+        .filter((s) => s.weekday === index)
+        .map((s) => ({
+          startTime: s.startTime.slice(0, 5),
+          endTime: s.endTime.slice(0, 5),
+        }));
 
-      if (match) {
+      const clinicDefaults = clinicHours
+        .filter((h) => h.weekday === index)
+        .map((h) => ({
+          startTime: h.startTime.slice(0, 5),
+          endTime: h.endTime.slice(0, 5),
+        }));
+
+      if (dayMatches.length > 0) {
         shiftMap[index] = {
           enabled: true,
-          startTime: match.startTime.slice(0, 5),
-          endTime: match.endTime.slice(0, 5),
+          windows: dayMatches,
         };
-      } else if (clinicDefault) {
-        // Default to clinic working hours if not set
+      } else if (clinicDefaults.length > 0) {
         shiftMap[index] = {
           enabled: false,
-          startTime: clinicDefault.startTime.slice(0, 5),
-          endTime: clinicDefault.endTime.slice(0, 5),
+          windows: clinicDefaults,
         };
       } else {
         shiftMap[index] = {
           enabled: false,
-          startTime: "10:00",
-          endTime: "18:00",
+          windows: [{ startTime: "10:00", endTime: "18:00" }],
         };
       }
     });
@@ -242,18 +249,92 @@ export default function DoctorsClient({
     }
   }
 
+  function toggleDay(weekday: number, enabled: boolean) {
+    setShifts((prev) => {
+      const current = prev[weekday];
+      return {
+        ...prev,
+        [weekday]: {
+          enabled,
+          windows: current && current.windows.length > 0 ? current.windows : [{ startTime: "10:00", endTime: "18:00" }],
+        },
+      };
+    });
+  }
+
+  function addWindowToDay(weekday: number) {
+    setShifts((prev) => {
+      const current = prev[weekday] || { enabled: true, windows: [] };
+      return {
+        ...prev,
+        [weekday]: {
+          enabled: true,
+          windows: [
+            ...current.windows,
+            { startTime: "17:00", endTime: "21:00" },
+          ],
+        },
+      };
+    });
+  }
+
+  function removeWindowFromDay(weekday: number, windowIndex: number) {
+    setShifts((prev) => {
+      const current = prev[weekday];
+      if (!current) return prev;
+      const filtered = current.windows.filter((_, idx) => idx !== windowIndex);
+      return {
+        ...prev,
+        [weekday]: {
+          enabled: filtered.length > 0,
+          windows: filtered.length > 0 ? filtered : [{ startTime: "10:00", endTime: "18:00" }],
+        },
+      };
+    });
+  }
+
+  function updateWindowTime(
+    weekday: number,
+    windowIndex: number,
+    field: "startTime" | "endTime",
+    value: string
+  ) {
+    setShifts((prev) => {
+      const current = prev[weekday];
+      if (!current) return prev;
+      const updatedWindows = current.windows.map((w, idx) =>
+        idx === windowIndex ? { ...w, [field]: value } : w
+      );
+      return {
+        ...prev,
+        [weekday]: {
+          ...current,
+          windows: updatedWindows,
+        },
+      };
+    });
+  }
+
   async function handleSaveSchedule() {
     if (!schedulingDoctor) return;
 
     setIsSavingSchedule(true);
     try {
-      const schedulePayload = Object.entries(shifts)
-        .filter(([_, config]) => config.enabled)
-        .map(([weekdayStr, config]) => ({
-          weekday: parseInt(weekdayStr, 10),
-          startTime: config.startTime,
-          endTime: config.endTime,
-        }));
+      const schedulePayload: { weekday: number; startTime: string; endTime: string }[] = [];
+
+      Object.entries(shifts).forEach(([weekdayStr, config]) => {
+        if (!config.enabled) return;
+        const weekday = parseInt(weekdayStr, 10);
+        config.windows.forEach((win) => {
+          if (win.startTime && win.endTime) {
+            schedulePayload.push({
+              weekday,
+              startTime: win.startTime,
+              endTime: win.endTime,
+            });
+          }
+        });
+      });
 
       await updateDoctorSchedulesAction(schedulingDoctor.id, schedulePayload);
 
@@ -288,17 +369,27 @@ export default function DoctorsClient({
   function applyClinicHoursToAll() {
     const updated = { ...shifts };
     WEEKDAYS.forEach(({ index }) => {
-      const clinicDefault = clinicHours.find((h) => h.weekday === index);
-      if (clinicDefault) {
+      const clinicDefaults = clinicHours
+        .filter((h) => h.weekday === index)
+        .map((h) => ({
+          startTime: h.startTime.slice(0, 5),
+          endTime: h.endTime.slice(0, 5),
+        }));
+
+      if (clinicDefaults.length > 0) {
         updated[index] = {
           enabled: true,
-          startTime: clinicDefault.startTime.slice(0, 5),
-          endTime: clinicDefault.endTime.slice(0, 5),
+          windows: clinicDefaults,
+        };
+      } else {
+        updated[index] = {
+          enabled: false,
+          windows: [{ startTime: "10:00", endTime: "18:00" }],
         };
       }
     });
     setShifts(updated);
-    toast.info("Applied clinic default operating hours to active days");
+    toast.info("Applied all chamber hours windows (including split shifts) to doctor schedule");
   }
 
   return (
@@ -836,70 +927,82 @@ export default function DoctorsClient({
               </div>
 
               {/* Day-by-day table */}
-              <div className="space-y-2 border border-[#E4E4E7] rounded-2xl p-3 bg-[#FBFBFC]">
+              <div className="space-y-2 border border-[#E4E4E7] rounded-2xl p-3 bg-[#FBFBFC] max-h-[60vh] overflow-y-auto">
                 {WEEKDAYS.map(({ index, label }) => {
-                  const shift = shifts[index] || {
+                  const dayConfig = shifts[index] || {
                     enabled: false,
-                    startTime: "10:00",
-                    endTime: "18:00",
+                    windows: [{ startTime: "10:00", endTime: "18:00" }],
                   };
 
                   return (
                     <div
                       key={index}
-                      className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
-                        shift.enabled
-                          ? "bg-white border-[#2A5CAA]/30 shadow-2xs"
+                      className={`p-3 rounded-xl border transition ${
+                        dayConfig.enabled
+                          ? "bg-white border-[#2A5CAA]/30 shadow-2xs space-y-2.5"
                           : "bg-white/50 border-[#E4E4E7]/60 opacity-60"
                       }`}
                     >
-                      <label className="flex items-center gap-2.5 cursor-pointer w-32">
-                        <input
-                          type="checkbox"
-                          checked={shift.enabled}
-                          onChange={(e) =>
-                            setShifts((prev) => ({
-                              ...prev,
-                              [index]: { ...shift, enabled: e.target.checked },
-                            }))
-                          }
-                          className="w-4 h-4 rounded text-[#2A5CAA] focus:ring-[#2A5CAA]"
-                        />
-                        <span className={`text-xs font-bold ${shift.enabled ? "text-[#1C1C1E]" : "text-[#8E8E93]"}`}>
-                          {label}
-                        </span>
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={dayConfig.enabled}
+                            onChange={(e) => toggleDay(index, e.target.checked)}
+                            className="w-4 h-4 rounded text-[#2A5CAA] focus:ring-[#2A5CAA]"
+                          />
+                          <span className={`text-xs font-bold ${dayConfig.enabled ? "text-[#1C1C1E]" : "text-[#8E8E93]"}`}>
+                            {label}
+                          </span>
+                        </label>
 
-                      {shift.enabled ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="time"
-                            value={shift.startTime}
-                            onChange={(e) =>
-                              setShifts((prev) => ({
-                                ...prev,
-                                [index]: { ...shift, startTime: e.target.value },
-                              }))
-                            }
-                            className="px-2.5 py-1 text-xs border border-[#E4E4E7] rounded-lg bg-white font-mono font-semibold text-[#1C1C1E] outline-none focus:border-[#2A5CAA]"
-                          />
-                          <span className="text-xs text-[#8E8E93]">to</span>
-                          <input
-                            type="time"
-                            value={shift.endTime}
-                            onChange={(e) =>
-                              setShifts((prev) => ({
-                                ...prev,
-                                [index]: { ...shift, endTime: e.target.value },
-                              }))
-                            }
-                            className="px-2.5 py-1 text-xs border border-[#E4E4E7] rounded-lg bg-white font-mono font-semibold text-[#1C1C1E] outline-none focus:border-[#2A5CAA]"
-                          />
+                        {dayConfig.enabled ? (
+                          <button
+                            type="button"
+                            onClick={() => addWindowToDay(index)}
+                            className="text-[11px] font-bold text-[#2A5CAA] hover:text-[#1E4282] hover:bg-[#E8EEF7] px-2 py-0.5 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                            title="Add another shift window (e.g. evening chamber)"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add Window</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-[#8E8E93] italic pr-1">
+                            Off Duty
+                          </span>
+                        )}
+                      </div>
+
+                      {dayConfig.enabled && (
+                        <div className="space-y-1.5 pl-6">
+                          {dayConfig.windows.map((win, winIdx) => (
+                            <div key={winIdx} className="flex items-center gap-2">
+                              <input
+                                type="time"
+                                value={win.startTime}
+                                onChange={(e) => updateWindowTime(index, winIdx, "startTime", e.target.value)}
+                                className="px-2.5 py-1 text-xs border border-[#E4E4E7] rounded-lg bg-white font-mono font-semibold text-[#1C1C1E] outline-none focus:border-[#2A5CAA]"
+                              />
+                              <span className="text-xs text-[#8E8E93]">to</span>
+                              <input
+                                type="time"
+                                value={win.endTime}
+                                onChange={(e) => updateWindowTime(index, winIdx, "endTime", e.target.value)}
+                                className="px-2.5 py-1 text-xs border border-[#E4E4E7] rounded-lg bg-white font-mono font-semibold text-[#1C1C1E] outline-none focus:border-[#2A5CAA]"
+                              />
+                              {dayConfig.windows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeWindowFromDay(index, winIdx)}
+                                  className="p-1 rounded-lg text-[#FF453A] hover:bg-[#FF453A]/10 transition cursor-pointer"
+                                  title="Remove this shift window"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ) : (
-                        <span className="text-[11px] font-semibold text-[#8E8E93] italic pr-2">
-                          Off Duty
-                        </span>
                       )}
                     </div>
                   );

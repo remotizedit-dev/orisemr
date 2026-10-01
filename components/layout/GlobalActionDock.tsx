@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { UserPlus, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuickRegisterPatientModal } from "@/components/patients/QuickRegisterPatientModal";
@@ -8,6 +9,7 @@ import { QuickAppointmentModal } from "@/components/appointments/QuickAppointmen
 import { toast } from "sonner";
 
 export function GlobalActionDock() {
+  const pathname = usePathname();
   const [isHovered, setIsHovered] = useState(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isAppointmentOpen, setIsAppointmentOpen] = useState(false);
@@ -61,26 +63,36 @@ export function GlobalActionDock() {
     });
   };
 
+  // Issue 10: Do not display floating shortcut dock on dedicated full-page creation workflows
+  // where it can obscure primary submit actions (e.g. 'Register Patient' button at 1920x1080)
+  const isFormPage =
+    pathname?.startsWith("/app/patients/new") ||
+    pathname?.startsWith("/app/appointments/new") ||
+    pathname?.startsWith("/app/prescriptions/new") ||
+    pathname?.startsWith("/app/billing/new") ||
+    pathname?.includes("/display");
+
   return (
     <>
       {/* Floating Action Docker Bar with Smooth Expansion Animation */}
-      <motion.div
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        initial={false}
-        animate={{
-          opacity: isHovered ? 1 : 0.6,
-          scale: isHovered ? 1.02 : 0.95,
-          y: isHovered ? -2 : 0,
-        }}
-        transition={{ type: "spring", stiffness: 400, damping: 28 }}
-        className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 transition-shadow duration-300"
-      >
+      {!isFormPage && (
         <motion.div
-          layout
-          transition={{ type: "spring", stiffness: 420, damping: 30 }}
-          className="flex items-center gap-1.5 p-1.5 sm:p-2 bg-white/90 dark:bg-black/90 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-xl hover:shadow-2xl rounded-full ring-1 ring-black/10 cursor-pointer"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          initial={false}
+          animate={{
+            opacity: isHovered ? 1 : 0.6,
+            scale: isHovered ? 1.02 : 0.95,
+            y: isHovered ? -2 : 0,
+          }}
+          transition={{ type: "spring", stiffness: 400, damping: 28 }}
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 transition-shadow duration-300 pointer-events-none"
         >
+          <motion.div
+            layout
+            transition={{ type: "spring", stiffness: 420, damping: 30 }}
+            className="flex items-center gap-1.5 p-1.5 sm:p-2 bg-white/90 dark:bg-black/90 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-xl hover:shadow-2xl rounded-full ring-1 ring-black/10 pointer-events-auto cursor-pointer"
+          >
           {/* 1. New Patient Button */}
           <motion.button
             layout
@@ -149,6 +161,7 @@ export function GlobalActionDock() {
           </motion.button>
         </motion.div>
       </motion.div>
+    )}
 
       {/* Quick Register Patient Modal */}
       <QuickRegisterPatientModal

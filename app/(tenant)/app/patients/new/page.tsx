@@ -354,7 +354,7 @@ export default function NewPatientPage() {
         </div>
 
         {/* Submit Button */}
-        <div className="pt-2">
+        <div className="pt-2 pb-12 sm:pb-16">
           <button
             type="submit"
             disabled={isSubmitting}

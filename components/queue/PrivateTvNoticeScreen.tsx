@@ -35,7 +35,7 @@ export function PrivateTvNoticeScreen({ tenantName }: PrivateTvNoticeScreenProps
           <ol className="list-decimal list-inside space-y-1.5 text-gray-400">
             <li>Log into your clinic account on a staff computer or tablet.</li>
             <li>Go to <strong className="text-white">Live Queue</strong> and click the <strong className="text-white">TV Screen</strong> menu.</li>
-            <li>Click <strong className="text-white">Copy Smart TV URL</strong> to get your clinic&apos;s private link with its secret key.</li>
+            <li>Click <strong className="text-white">Copy Protected TV URL</strong> to get your clinic&apos;s private link with its secret key.</li>
             <li>Open that secret URL on this display browser.</li>
           </ol>
         </div>
