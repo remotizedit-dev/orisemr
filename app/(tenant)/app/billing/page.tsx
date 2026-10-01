@@ -3,15 +3,9 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
-import { formatBdt, formatDhakaDate } from "@/lib/utils";
-import {
-  CreditCard,
-  DollarSign,
-  FileText,
-  Plus,
-  Printer,
-  Search,
-} from "lucide-react";
+import { formatBdt } from "@/lib/utils";
+import { Plus } from "lucide-react";
+import InvoicesListClient, { type InvoiceRow } from "@/components/billing/InvoicesListClient";
 
 export const metadata = {
   title: "Billing & Invoices",
@@ -41,13 +35,6 @@ export default async function BillingPage() {
     .orderBy(desc(schema.invoices.createdAt));
 
   // Today's payments collection breakdown
-  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-
   const allPayments = await db
     .select()
     .from(schema.payments)
@@ -67,6 +54,18 @@ export default async function BillingPage() {
       methodTotals[p.method] += p.amountBdt;
     }
   }
+
+  const formattedInvoices: InvoiceRow[] = invoices.map((inv) => ({
+    id: inv.id,
+    code: inv.code,
+    totalBdt: inv.totalBdt,
+    paidBdt: inv.paidBdt,
+    status: inv.status as any,
+    createdAt: inv.createdAt,
+    patientId: inv.patientId,
+    patientName: inv.patientName,
+    patientCard: inv.patientCard,
+  }));
 
   return (
     <div className="space-y-6">
@@ -138,104 +137,9 @@ export default async function BillingPage() {
         </div>
       </div>
 
-      {/* Invoices List */}
-      <div className="glass-panel rounded-2xl border border-[#E4E4E7] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-[#E4E4E7] bg-white/50 text-[11px] font-bold text-[#6B7280] uppercase tracking-wider">
-                <th className="py-3 px-4">Invoice Code</th>
-                <th className="py-3 px-4">Patient Name</th>
-                <th className="py-3 px-4">Total Amount</th>
-                <th className="py-3 px-4">Paid</th>
-                <th className="py-3 px-4">Due Balance</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Receipt</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E4E4E7]">
-              {invoices.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-xs text-[#6B7280]">
-                    No invoices generated yet.
-                  </td>
-                </tr>
-              ) : (
-                invoices.map((inv) => {
-                  const due = inv.totalBdt - inv.paidBdt;
-                  return (
-                    <tr key={inv.id} className="hover:bg-white/70 transition">
-                      <td className="py-3 px-4 font-mono text-xs font-bold text-[#2A5CAA]">
-                        {inv.code || "DRAFT"}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Link
-                          href={`/app/patients/${inv.patientId}`}
-                          prefetch={false}
-                          className="font-bold text-xs text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline block"
-                        >
-                          {inv.patientName}
-                        </Link>
-                        <span className="text-[11px] text-[#6B7280] font-mono">
-                          {inv.patientCard}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-xs text-[#1C1C1E]">
-                        {formatBdt(inv.totalBdt)}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-[#30D158] font-semibold">
-                        {formatBdt(inv.paidBdt)}
-                      </td>
-                      <td className="py-3 px-4 text-xs font-bold text-[#FF453A]">
-                        {formatBdt(due)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                            inv.status === "paid"
-                              ? "bg-[#E8F8EE] text-[#30D158]"
-                              : inv.status === "partial"
-                              ? "bg-[#FFF7EB] text-[#FF9F0A]"
-                              : inv.status === "due"
-                              ? "bg-[#FFEBEA] text-[#FF453A]"
-                              : "bg-[#F4F4F5] text-[#6B7280]"
-                          }`}
-                        >
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2.5">
-                          {due > 0 && (
-                            <Link
-                              href={`/app/billing/dues?invoiceId=${inv.id}`}
-                              prefetch={false}
-                              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition"
-                              title="Collect payment on remaining due"
-                            >
-                              <CreditCard className="w-3.5 h-3.5" />
-                              <span>Pay Due</span>
-                            </Link>
-                          )}
-                          <Link
-                            href={`/print/invoice/${inv.id}`}
-                            prefetch={false}
-                            target="_blank"
-                            className="text-xs font-bold text-[#2A5CAA] hover:underline flex items-center gap-1"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Print</span>
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Invoices List with Search, Filter & 25/100 Pagination */}
+      <InvoicesListClient invoices={formattedInvoices} />
     </div>
   );
 }
+

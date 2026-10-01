@@ -26,6 +26,7 @@ import {
   advanceAppointmentQueueAction,
 } from "@/app/(tenant)/app/appointments/actions";
 import { toast } from "sonner";
+import PaginationControls from "@/components/ui/PaginationControls";
 
 interface AppointmentItem {
   id: string;
@@ -74,12 +75,15 @@ export default function AppointmentsClient({
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
   function handleDateChange(newDate: string) {
     setSelectedDate(newDate);
+    setCurrentPage(1);
     router.push(`/app/appointments?date=${newDate}`);
   }
 
@@ -107,6 +111,29 @@ export default function AppointmentsClient({
     }
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredAppointments.length / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedAppointments = filteredAppointments.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize
+  );
+
+  function handleSelectDoctor(docId: string) {
+    setSelectedDoctorId(docId);
+    setCurrentPage(1);
+  }
+
+  function handleSelectStatus(st: string) {
+    setStatusFilter(st);
+    setCurrentPage(1);
+  }
+
+  function handlePageSizeChange(newSize: number) {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  }
 
   async function handleStatusUpdate(
     appointmentId: string,
@@ -210,7 +237,7 @@ export default function AppointmentsClient({
         {/* Doctor filter tabs */}
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setSelectedDoctorId("all")}
+            onClick={() => handleSelectDoctor("all")}
             className={`px-3.5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${
               selectedDoctorId === "all"
                 ? "bg-[#2A5CAA] text-white shadow-xs"
@@ -224,7 +251,7 @@ export default function AppointmentsClient({
             return (
               <button
                 key={doc.id}
-                onClick={() => setSelectedDoctorId(doc.id)}
+                onClick={() => handleSelectDoctor(doc.id)}
                 className={`px-3.5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${
                   selectedDoctorId === doc.id
                     ? "bg-[#2A5CAA] text-white shadow-xs"
@@ -252,7 +279,7 @@ export default function AppointmentsClient({
               return (
                 <button
                   key={st}
-                  onClick={() => setStatusFilter(st)}
+                  onClick={() => handleSelectStatus(st)}
                   className={`px-3 py-1.5 rounded-xl font-bold capitalize transition cursor-pointer flex items-center gap-1.5 ${
                     statusFilter === st
                       ? "bg-white text-[#1C1C1E] shadow-2xs"
@@ -296,7 +323,7 @@ export default function AppointmentsClient({
             </Link>
           </div>
         ) : (
-          filteredAppointments.map((apt) => {
+          paginatedAppointments.map((apt) => {
             const hasAlerts =
               apt.patientAllergies.length > 0 ||
               apt.patientConditions.length > 0;
@@ -514,6 +541,18 @@ export default function AppointmentsClient({
           })
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {filteredAppointments.length > 0 && (
+        <PaginationControls
+          currentPage={safePage}
+          totalItems={filteredAppointments.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
+          pageSizeOptions={[25, 100]}
+        />
+      )}
 
       {/* Cancellation Dialog Modal */}
       {cancellingId && (

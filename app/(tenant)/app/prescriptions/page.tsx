@@ -40,8 +40,7 @@ export default async function PrescriptionsPage() {
       eq(schema.prescriptions.doctorId, schema.users.id)
     )
     .where(eq(schema.prescriptions.tenantId, tenant.id))
-    .orderBy(desc(schema.prescriptions.createdAt))
-    .limit(100);
+    .orderBy(desc(schema.prescriptions.createdAt));
 
   return (
     <div className="space-y-6">

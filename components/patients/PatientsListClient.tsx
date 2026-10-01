@@ -7,6 +7,7 @@ import { formatBdPhone } from "@/lib/utils";
 import { AlertCircle, Search, UserPlus, Users, ArrowRight, Pencil, Trash2 } from "lucide-react";
 import { EditPatientModal } from "./EditPatientModal";
 import { DeletePatientModal } from "./DeletePatientModal";
+import PaginationControls from "@/components/ui/PaginationControls";
 
 export interface PatientRow {
   id: string;
@@ -28,6 +29,8 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
   const router = useRouter();
   const [patients, setPatients] = useState<PatientRow[]>(initialPatients);
   const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Modals state
   const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
@@ -49,6 +52,24 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
     );
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedPatients = filteredPatients.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize
+  );
+
+  function handleSearchChange(val: string) {
+    setSearch(val);
+    setCurrentPage(1);
+  }
+
+  function handlePageSizeChange(newSize: number) {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  }
+
   return (
     <div className="space-y-4">
       {/* Top Search & Filter Bar */}
@@ -58,7 +79,7 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search patient by name, mobile number, or card #..."
             className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-[#E4E4E7] text-sm sm:text-base text-[#1C1C1E] focus:outline-none focus:border-[#2A5CAA] focus:ring-2 focus:ring-[#E8EEF7] transition shadow-2xs font-medium placeholder:text-[#6B7280]"
           />
@@ -99,7 +120,7 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
                   </td>
                 </tr>
               ) : (
-                filteredPatients.map((p) => (
+                paginatedPatients.map((p) => (
                   <tr key={p.id} className="hover:bg-white/80 transition group">
                     <td className="py-4 px-5">
                       <Link
@@ -190,6 +211,18 @@ export default function PatientsListClient({ initialPatients }: PatientsListClie
           </table>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {filteredPatients.length > 0 && (
+        <PaginationControls
+          currentPage={safePage}
+          totalItems={filteredPatients.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
+          pageSizeOptions={[25, 100]}
+        />
+      )}
 
       {/* Edit Patient Modal */}
       {editingPatientId && (

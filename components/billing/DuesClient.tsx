@@ -20,6 +20,7 @@ import {
   sendDueReminderEmailAction,
   recordPaymentAction,
 } from "@/app/(tenant)/app/billing/actions";
+import PaginationControls from "@/components/ui/PaginationControls";
 
 interface DueInvoice {
   id: string;
@@ -47,6 +48,8 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
   const searchParams = useSearchParams();
   const invoiceIdParam = searchParams.get("invoiceId");
   const [agingFilter, setAgingFilter] = useState<"all" | "recent" | "medium" | "old">("all");
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
 
   // Quick Payment Modal state
@@ -72,6 +75,24 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
     if (agingFilter === "old") return inv.daysOverdue > 30;
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedInvoices = filteredInvoices.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize
+  );
+
+  function handleAgingFilter(filter: "all" | "recent" | "medium" | "old") {
+    setAgingFilter(filter);
+    setCurrentPage(1);
+  }
+
+  function handlePageSizeChange(newSize: number) {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  }
 
   async function handleSendReminder(inv: DueInvoice) {
     if (!inv.patientEmail) {
@@ -178,7 +199,7 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setAgingFilter(tab.key as any)}
+            onClick={() => handleAgingFilter(tab.key as any)}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
               agingFilter === tab.key
                 ? "bg-[#2A5CAA] text-white shadow-xs"
@@ -213,7 +234,7 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((inv) => {
+                paginatedInvoices.map((inv) => {
                   const eligibleForReminder =
                     inv.patientEmail && canSendReminder(inv.lastReminderSentAt);
 
@@ -322,6 +343,18 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
           </table>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {filteredInvoices.length > 0 && (
+        <PaginationControls
+          currentPage={safePage}
+          totalItems={filteredInvoices.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
+          pageSizeOptions={[25, 100]}
+        />
+      )}
 
       {/* Collect Payment Modal */}
       {paymentInvoice && (

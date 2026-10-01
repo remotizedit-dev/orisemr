@@ -17,6 +17,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { PrescriptionViewModal } from "./PrescriptionViewModal";
+import PaginationControls from "@/components/ui/PaginationControls";
 
 interface PrescriptionSummary {
   id: string;
@@ -46,6 +47,8 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewingRxId, setViewingRxId] = useState<string | null>(null);
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   const filtered = initialPrescriptions.filter((rx) => {
     if (!searchTerm.trim()) return true;
@@ -60,6 +63,24 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
       rx.doctorName.toLowerCase().includes(q)
     );
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginated = filtered.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize
+  );
+
+  function handleSearchChange(val: string) {
+    setSearchTerm(val);
+    setCurrentPage(1);
+  }
+
+  function handlePageSizeChange(newSize: number) {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  }
 
   return (
     <div className="space-y-4">
@@ -120,7 +141,7 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E4E7]">
-                {filtered.map((rx) => (
+                {paginated.map((rx) => (
                   <tr
                     key={rx.id}
                     className="hover:bg-[#F4F4F5]/50 transition group"
@@ -230,6 +251,18 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {filtered.length > 0 && (
+        <PaginationControls
+          currentPage={safePage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
+          pageSizeOptions={[25, 100]}
+        />
+      )}
 
       {/* Prescription View & Quick Edit Modal */}
       <PrescriptionViewModal
