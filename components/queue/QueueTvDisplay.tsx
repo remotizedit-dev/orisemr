@@ -9,6 +9,7 @@ import {
   Clock,
   Maximize2,
   Minimize2,
+  RefreshCw,
   Stethoscope,
   Users,
   Volume2,
@@ -85,6 +86,8 @@ export function QueueTvDisplay({
   const [currentDate, setCurrentDate] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [justSynced, setJustSynced] = useState(false);
   const prevInChairIdsRef = useRef<Set<string>>(
     new Set(initialItems.filter((i) => i.status === "in_chair").map((i) => i.id))
   );
@@ -118,6 +121,8 @@ export function QueueTvDisplay({
     return () => clearInterval(timer);
   }, []);
 
+  const triggerPollRef = useRef<() => void>(() => {});
+
   // Real-Time Background Polling with Smart Power & Database Protection
   useEffect(() => {
     let isMounted = true;
@@ -138,6 +143,7 @@ export function QueueTvDisplay({
       const nextDelayMs = isQuietHours ? 30000 : 4000;
 
       try {
+        if (isMounted) setIsSyncing(true);
         let freshItems: QueueItem[] | undefined;
 
         if (isPublic && tenantSlug) {
@@ -165,14 +171,24 @@ export function QueueTvDisplay({
 
           prevInChairIdsRef.current = newInChairIds;
           setItems(freshItems);
+          setJustSynced(true);
+          setTimeout(() => {
+            if (isMounted) setJustSynced(false);
+          }, 1200);
         }
       } catch {
         // Silently swallow polling network blips on public displays
       } finally {
         if (isMounted) {
+          setIsSyncing(false);
           timeoutId = setTimeout(poll, nextDelayMs);
         }
       }
+    };
+
+    triggerPollRef.current = () => {
+      clearTimeout(timeoutId);
+      poll();
     };
 
     // Schedule initial poll followed by adaptive interval
@@ -192,6 +208,11 @@ export function QueueTvDisplay({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [isPublic, tenantSlug, isAudioEnabled]);
+
+  const handleManualRefresh = () => {
+    if (isSyncing) return;
+    triggerPollRef.current();
+  };
 
   // Fullscreen Toggle
   const toggleFullscreen = () => {
@@ -250,19 +271,47 @@ export function QueueTvDisplay({
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-[#0F172A]">
                 {tenantName}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                Live Screen
-              </span>
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isSyncing}
+                className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200/90 flex items-center gap-1.5 shadow-2xs transition-all duration-300 select-none cursor-pointer hover:bg-emerald-100/70 disabled:cursor-wait"
+                title={isSyncing ? "Syncing live queue updates..." : "Live synced in real time · Click to refresh"}
+              >
+                <span className="relative flex items-center justify-center w-3 h-3 shrink-0">
+                  {isSyncing ? (
+                    <RefreshCw className="w-3 h-3 text-emerald-600 animate-spin" />
+                  ) : (
+                    <span
+                      className={`rounded-full bg-emerald-500 transition-all duration-500 ease-out ${
+                        justSynced
+                          ? "w-3 h-3 shadow-[0_0_10px_rgba(16,185,129,0.9)] scale-110"
+                          : "w-2 h-2 shadow-[0_0_6px_rgba(16,185,129,0.7)]"
+                      }`}
+                    />
+                  )}
+                </span>
+                <span>Live Screen</span>
+              </button>
             </div>
             <p className="text-xs font-semibold text-[#64748B] tracking-wide">
-              Patient Care & Chamber Queue Monitor
+              Patient Care &amp; Chamber Queue Monitor
             </p>
           </div>
         </div>
 
         {/* Right: Clock & Screen Controls */}
-        <div className="flex items-center gap-4 sm:gap-6">
+        <div className="flex items-center gap-2.5 sm:gap-4">
+          {/* Manual Refresh Button */}
+          <button
+            onClick={handleManualRefresh}
+            disabled={isSyncing}
+            className="p-2.5 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#475569] hover:text-[#0F172A] border border-[#E2E8F0] transition cursor-pointer shadow-2xs disabled:cursor-wait"
+            title={isSyncing ? "Syncing..." : "Refresh now"}
+          >
+            <RefreshCw className={`w-4 h-4 text-[#475569] ${isSyncing ? "animate-spin text-emerald-600" : ""}`} />
+          </button>
+
           {/* Audio Chime Notification Toggle */}
           <button
             onClick={() => {
@@ -345,7 +394,7 @@ export function QueueTvDisplay({
 
                       <div>
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black uppercase tracking-wider mb-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
                           {item.chairName || "Dental Chair"}
                         </div>
                         <h3 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight">

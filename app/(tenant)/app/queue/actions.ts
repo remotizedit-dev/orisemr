@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -314,6 +314,30 @@ export async function advanceQueueStatusAction(
         eq(schema.queueEntries.id, queueEntryId)
       )
     );
+
+  if (newStatus === "done") {
+    const [entry] = await db
+      .select({ appointmentId: schema.queueEntries.appointmentId })
+      .from(schema.queueEntries)
+      .where(eq(schema.queueEntries.id, queueEntryId))
+      .limit(1);
+
+    if (entry?.appointmentId) {
+      await db
+        .update(schema.appointments)
+        .set({
+          status: "completed",
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.id, entry.appointmentId)
+          )
+        );
+      revalidatePath("/app/appointments");
+    }
+  }
 
   await deleteCache(`queue:today:${tenant.id}`);
 
@@ -821,6 +845,80 @@ export async function resetTvSecretAction(): Promise<{
     };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to reset TV secret key" };
+  }
+}
+
+export async function reorderWaitingQueueAction(orderedItemIds: string[]) {
+  try {
+    const { tenant } = await requireClinicStaff();
+    if (!orderedItemIds || orderedItemIds.length <= 1) return { success: true };
+
+    const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Dhaka",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    await db.transaction(async (tx) => {
+      // 1. Fetch current waiting entries for these IDs in this tenant today
+      const currentEntries = await tx
+        .select({
+          id: schema.queueEntries.id,
+          serialNo: schema.queueEntries.serialNo,
+        })
+        .from(schema.queueEntries)
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.date, todayDhakaStr),
+            eq(schema.queueEntries.status, "waiting"),
+            inArray(schema.queueEntries.id, orderedItemIds)
+          )
+        );
+
+      if (currentEntries.length <= 1) return;
+
+      // Map existing entry serials
+      const validSerials = currentEntries
+        .map((e) => e.serialNo)
+        .filter((s): s is number => s !== null && s > 0)
+        .sort((a, b) => a - b);
+
+      // If any items are missing serials, generate contiguous numbers
+      let nextSerial = validSerials.length > 0 ? Math.max(...validSerials) : 0;
+      while (validSerials.length < orderedItemIds.length) {
+        nextSerial += 1;
+        validSerials.push(nextSerial);
+      }
+
+      // Reassign serials in the exact orderedItemIds sequence
+      for (let i = 0; i < orderedItemIds.length; i++) {
+        const entryId = orderedItemIds[i];
+        const newSerial = validSerials[i];
+        await tx
+          .update(schema.queueEntries)
+          .set({
+            serialNo: newSerial,
+            queuePosition: newSerial,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.queueEntries.tenantId, tenant.id),
+              eq(schema.queueEntries.id, entryId)
+            )
+          );
+      }
+    });
+
+    await deleteCache(`queue:today:${tenant.id}`);
+    revalidatePath("/app/queue");
+    revalidatePath("/display/[tenantSlug]");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Failed to reorder waiting queue:", err);
+    return { success: false, error: err.message || "Failed to reorder waiting queue" };
   }
 }
 

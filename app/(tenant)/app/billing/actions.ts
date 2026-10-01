@@ -329,7 +329,7 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
         });
       }
 
-      // 5. If linked to an appointment, mark queue entry as done
+      // 5. If linked to an appointment, mark queue entry as done and appointment as completed
       if (cleanAppointmentId) {
         await tx
           .update(schema.queueEntries)
@@ -343,6 +343,19 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
             and(
               eq(schema.queueEntries.tenantId, tenant.id),
               eq(schema.queueEntries.appointmentId, cleanAppointmentId)
+            )
+          );
+
+        await tx
+          .update(schema.appointments)
+          .set({
+            status: "completed",
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.appointments.tenantId, tenant.id),
+              eq(schema.appointments.id, cleanAppointmentId)
             )
           );
       }

@@ -986,7 +986,7 @@ export function PrescriptionBuilder({
         {/* ================================================================== */}
         {/* Left Column (5 of 12 cols): FDI Tooth Chart & Clinical Findings    */}
         {/* ================================================================== */}
-        <div className="lg:col-span-5 space-y-5">
+        <div className="lg:col-span-5 min-w-0 space-y-5">
           {/* Tile 1: Tooth Selector */}
           <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] shadow-2xs space-y-3 bg-white">
             <h2 className="text-xs font-black uppercase text-[#4B5563] tracking-wider flex items-center gap-1.5">

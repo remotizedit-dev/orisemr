@@ -136,7 +136,9 @@ export default async function AppointmentsPage({ searchParams }: Props) {
       10,
       Math.round((apt.endTime.getTime() - apt.startTime.getTime()) / (60 * 1000))
     ),
-    status: apt.status as any,
+    status: (apt.status === "completed" || apt.queueStatus === "done"
+      ? "completed"
+      : apt.status) as any,
     queueStatus: apt.queueStatus as any,
     serialNo: apt.serialNo,
     isOverbooked: apt.isOverbooked,

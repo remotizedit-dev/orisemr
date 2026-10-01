@@ -95,8 +95,15 @@ export default function AppointmentsClient({
     if (selectedDoctorId !== "all" && apt.doctorId !== selectedDoctorId) {
       return false;
     }
-    if (statusFilter !== "all" && apt.status !== statusFilter) {
-      return false;
+    const isCompleted = apt.status === "completed" || apt.queueStatus === "done";
+    if (statusFilter !== "all") {
+      if (statusFilter === "completed") {
+        if (!isCompleted) return false;
+      } else if (statusFilter === "confirmed") {
+        if (isCompleted || apt.status !== "confirmed") return false;
+      } else if (apt.status !== statusFilter) {
+        return false;
+      }
     }
     return true;
   });
@@ -231,21 +238,40 @@ export default function AppointmentsClient({
         </div>
 
         {/* Status filter buttons */}
-        <div className="flex items-center gap-1.5 bg-[#F4F4F5] p-1.5 rounded-2xl text-sm">
+        <div className="flex items-center gap-1.5 bg-[#F4F4F5] p-1.5 rounded-2xl text-sm flex-wrap">
           {["all", "confirmed", "completed", "pending", "cancelled"].map(
-            (st) => (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-xl font-bold capitalize transition cursor-pointer ${
-                  statusFilter === st
-                    ? "bg-white text-[#1C1C1E] shadow-2xs"
-                    : "text-[#6B7280] hover:text-[#1C1C1E]"
-                }`}
-              >
-                {st}
-              </button>
-            )
+            (st) => {
+              const count = appointments.filter((a) => {
+                if (selectedDoctorId !== "all" && a.doctorId !== selectedDoctorId) return false;
+                const isComp = a.status === "completed" || a.queueStatus === "done";
+                if (st === "all") return true;
+                if (st === "completed") return isComp;
+                if (st === "confirmed") return !isComp && a.status === "confirmed";
+                return a.status === st;
+              }).length;
+              return (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-3 py-1.5 rounded-xl font-bold capitalize transition cursor-pointer flex items-center gap-1.5 ${
+                    statusFilter === st
+                      ? "bg-white text-[#1C1C1E] shadow-2xs"
+                      : "text-[#6B7280] hover:text-[#1C1C1E]"
+                  }`}
+                >
+                  <span>{st}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                      statusFilter === st
+                        ? "bg-[#2A5CAA] text-white"
+                        : "bg-black/5 text-[#6B7280]"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            }
           )}
         </div>
       </div>
@@ -328,7 +354,7 @@ export default function AppointmentsClient({
                       {/* Status Badge */}
                       <span
                         className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full uppercase ${
-                          apt.status === "completed"
+                          apt.status === "completed" || apt.queueStatus === "done"
                             ? "bg-[#E8F8EE] text-[#30D158]"
                             : apt.status === "confirmed"
                             ? "bg-[#EBF2FC] text-[#2A5CAA]"
@@ -339,7 +365,9 @@ export default function AppointmentsClient({
                             : "bg-[#F4F4F5] text-[#6B7280]"
                         }`}
                       >
-                        {apt.status}
+                        {apt.status === "completed" || apt.queueStatus === "done"
+                          ? "completed"
+                          : apt.status}
                       </span>
 
                       {/* Queue Status Badge if in chair */}
@@ -468,7 +496,9 @@ export default function AppointmentsClient({
                     </div>
                   )}
 
-                  {apt.status !== "completed" && apt.status !== "cancelled" && (
+                  {apt.status !== "completed" &&
+                    apt.queueStatus !== "done" &&
+                    apt.status !== "cancelled" && (
                     <button
                       onClick={() => setCancellingId(apt.id)}
                       disabled={isUpdating}

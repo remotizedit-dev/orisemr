@@ -12,6 +12,7 @@ import {
   revertToBookedAction,
   getLiveQueueItemsAction,
   resetTvSecretAction,
+  reorderWaitingQueueAction,
   type QueueItem,
 } from "@/app/(tenant)/app/queue/actions";
 import { InactivePatientsModal } from "./InactivePatientsModal";
@@ -26,11 +27,13 @@ import {
   CreditCard,
   ExternalLink,
   FileText,
+  GripVertical,
   HelpCircle,
   Info,
   Loader2,
   Play,
   RotateCcw,
+  RefreshCw,
   Sparkles,
   Stethoscope,
   Tv,
@@ -79,10 +82,13 @@ export function QueueBoard({
   const [showGuide, setShowGuide] = useState(false);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [justSynced, setJustSynced] = useState(false);
   const [copiedTvUrl, setCopiedTvUrl] = useState(false);
   const [isTvMenuOpen, setIsTvMenuOpen] = useState(false);
   const [tvSecret, setTvSecret] = useState<string>(tvDisplaySecret || "");
   const [isResettingKey, setIsResettingKey] = useState(false);
+  const [draggedWaitingIndex, setDraggedWaitingIndex] = useState<number | null>(null);
+  const [dragOverWaitingIndex, setDragOverWaitingIndex] = useState<number | null>(null);
   const tvMenuRef = useRef<HTMLDivElement>(null);
 
   // Close TV dropdown on outside click
@@ -118,6 +124,10 @@ export function QueueBoard({
         const freshItems = await getLiveQueueItemsAction();
         if (isMounted && freshItems) {
           setItems(freshItems);
+          setJustSynced(true);
+          setTimeout(() => {
+            if (isMounted) setJustSynced(false);
+          }, 1200);
         }
       } catch {
         // Silently swallow background sync network blips
@@ -239,6 +249,80 @@ export function QueueBoard({
       router.refresh();
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleManualSync = async () => {
+    if (isSyncing) return;
+    try {
+      setIsSyncing(true);
+      const freshItems = await getLiveQueueItemsAction();
+      if (freshItems) {
+        setItems(freshItems);
+        setJustSynced(true);
+        toast.success("Live queue updated!");
+        setTimeout(() => setJustSynced(false), 1500);
+      }
+    } catch {
+      toast.error("Failed to sync queue");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleMoveWaiting = async (fromIndex: number, toIndex: number) => {
+    const waitingItems = getColumnItems("waiting");
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= waitingItems.length ||
+      toIndex >= waitingItems.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+
+    const reorderedWaiting = [...waitingItems];
+    const [movedItem] = reorderedWaiting.splice(fromIndex, 1);
+    reorderedWaiting.splice(toIndex, 0, movedItem);
+
+    // Collect existing serial numbers ascending
+    const existingSerials = waitingItems
+      .map((i) => i.serialNo)
+      .filter((s): s is number => s !== null && s > 0)
+      .sort((a, b) => a - b);
+
+    // Optimistically assign serials to reordered items
+    const newSerialsMap = new Map<string, number>();
+    reorderedWaiting.forEach((item, idx) => {
+      const assigned = existingSerials[idx] ?? idx + 1;
+      newSerialsMap.set(item.id, assigned);
+    });
+
+    // Optimistically update full items state
+    setItems((prev) =>
+      prev.map((it) => {
+        if (newSerialsMap.has(it.id)) {
+          return { ...it, serialNo: newSerialsMap.get(it.id)! };
+        }
+        return it;
+      })
+    );
+
+    try {
+      const orderedIds = reorderedWaiting.map((i) => i.id);
+      const res = await reorderWaitingQueueAction(orderedIds);
+      if (res?.success) {
+        toast.success(
+          `Serial # updated! ${movedItem.patientName} is now SL #${newSerialsMap.get(movedItem.id)}`
+        );
+      } else {
+        toast.error(res?.error || "Failed to update serial order");
+        router.refresh();
+      }
+    } catch {
+      toast.error("Failed to update serial order");
+      router.refresh();
     }
   };
 
@@ -422,17 +506,26 @@ export function QueueBoard({
             )}
           </button>
 
-          {/* Live Sync Status Green Dot Only */}
-          <div
-            className="flex items-center justify-center p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 shadow-2xs cursor-default"
-            title={isSyncing ? "Live auto-syncing..." : "Real-time live synced"}
+          {/* Professional Live Sync Indicator / Refresh Button */}
+          <button
+            type="button"
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            className="w-10 h-10 flex items-center justify-center rounded-2xl bg-emerald-50/90 hover:bg-emerald-100/80 border border-emerald-200/80 text-emerald-700 shadow-2xs transition-all duration-300 cursor-pointer disabled:cursor-wait shrink-0"
+            title={isSyncing ? "Syncing live queue..." : "Live synced in real time · Click to refresh now"}
           >
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-            </span>
-            {isSyncing && <Loader2 className="w-3 h-3 animate-spin text-emerald-600 ml-1.5" />}
-          </div>
+            {isSyncing ? (
+              <RefreshCw className="w-4 h-4 text-emerald-600 animate-spin transition-all duration-300" />
+            ) : (
+              <span
+                className={`rounded-full bg-emerald-500 transition-all duration-500 ease-out ${
+                  justSynced
+                    ? "w-3.5 h-3.5 shadow-[0_0_12px_rgba(16,185,129,0.9)] scale-110"
+                    : "w-2.5 h-2.5 shadow-[0_0_8px_rgba(16,185,129,0.7)]"
+                }`}
+              />
+            )}
+          </button>
 
           {/* Combined TV Display Screen Dropdown */}
           <div className="relative" ref={tvMenuRef}>
@@ -603,7 +696,7 @@ export function QueueBoard({
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[660px] xl:max-h-[690px] overflow-y-auto pr-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {getColumnItems("booked").length === 0 ? (
                 <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/60 rounded-2xl border border-dashed border-[#E4E4E7]">
                   No upcoming bookings for today
@@ -711,85 +804,160 @@ export function QueueBoard({
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[660px] xl:max-h-[690px] overflow-y-auto pr-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {getColumnItems("waiting").length === 0 ? (
                 <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#FF9F0A]/30">
                   Lounge is currently empty
                 </div>
               ) : (
-                getColumnItems("waiting").map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-4 rounded-2xl shadow-sm border-2 border-amber-300/80 space-y-3.5 bg-white hover:shadow-md transition"
-                  >
-                    {/* Header: BIG SERIAL NUMBER BADGE + Patient Card */}
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white font-black text-2xl flex items-center justify-center font-mono shadow-md border border-amber-500">
-                          #{item.serialNo || "?"}
-                        </div>
-                        <div>
-                          <span className="text-xs font-bold uppercase tracking-wider text-amber-700 block">
-                            Daily Serial
-                          </span>
-                          <span className="font-mono text-xs font-bold text-[#6B7280]">
-                            {item.patientCard}
-                          </span>
-                        </div>
-                      </div>
+                getColumnItems("waiting").map((item, idx, arr) => {
+                  const isDragging = draggedWaitingIndex === idx;
+                  const isDragOver = dragOverWaitingIndex === idx && !isDragging;
 
-                      {item.allergyFlags.length > 0 && (
-                        <span
-                          className="px-2.5 py-1 rounded-lg bg-[#FFEBEA] text-[#FF453A] font-extrabold text-xs uppercase border border-[#FF453A]/30"
-                          title={`Allergies: ${item.allergyFlags.join(", ")}`}
-                        >
-                          Allergy
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Patient Name - Big & Bold */}
-                    <div>
-                      <Link
-                        href={`/app/patients/${item.patientId}`}
-                        className="font-black text-lg text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline line-clamp-1 block leading-tight"
-                        title="View patient history"
-                      >
-                        {item.patientName}
-                      </Link>
-                      <div className="flex items-center gap-1.5 text-sm font-semibold text-[#4B5563] mt-1 font-mono">
-                        <Phone className="w-3.5 h-3.5 text-[#8E8E93]" />
-                        <span>{item.patientPhone}</span>
-                      </div>
-                    </div>
-
-                    {/* Assigned Dentist */}
-                    <div className="text-xs font-semibold text-[#4B5563] flex items-center gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
-                      <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
-                      <span className="truncate">Dentist: {item.doctorName}</span>
-                    </div>
-
-                    {/* Send to Chair Action */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleAdvance(item.id, "in_chair", selectedChairId || undefined)
-                      }
-                      disabled={processingId === item.id}
-                      className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 transition shadow-sm disabled:opacity-50 cursor-pointer"
+                  return (
+                    <div
+                      key={item.id}
+                      draggable={true}
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", String(idx));
+                        setDraggedWaitingIndex(idx);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (dragOverWaitingIndex !== idx) {
+                          setDragOverWaitingIndex(idx);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverWaitingIndex === idx) {
+                          setDragOverWaitingIndex(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (draggedWaitingIndex !== null && draggedWaitingIndex !== idx) {
+                          handleMoveWaiting(draggedWaitingIndex, idx);
+                        }
+                        setDraggedWaitingIndex(null);
+                        setDragOverWaitingIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedWaitingIndex(null);
+                        setDragOverWaitingIndex(null);
+                      }}
+                      className={`p-4 rounded-2xl shadow-sm border-2 space-y-3.5 bg-white transition select-none ${
+                        isDragging
+                          ? "opacity-40 ring-2 ring-amber-500 scale-[0.98] border-amber-500"
+                          : isDragOver
+                          ? "border-amber-500 ring-2 ring-amber-400 bg-amber-50/50 shadow-md"
+                          : "border-amber-300/80 hover:shadow-md hover:border-amber-400"
+                      }`}
                     >
-                      {processingId === item.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Armchair className="w-4 h-4" />
-                          <span>Send to Chair Now</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ))
+                      {/* Header: Grip Handle + BIG SERIAL NUMBER BADGE + Up/Down Controls + Patient Card */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {/* Drag Handle */}
+                          <div
+                            className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-amber-600/70 hover:text-amber-800 transition rounded-md hover:bg-amber-100/60"
+                            title="Drag up or down to change serial number"
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </div>
+
+                          {/* Serial Badge */}
+                          <div className="min-w-12 h-12 px-2 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white font-black text-xl flex items-center justify-center font-mono shadow-md border border-amber-500">
+                            #{item.serialNo || "?"}
+                          </div>
+
+                          {/* Up/Down buttons for quick SL swapping without dragging */}
+                          {arr.length > 1 && (
+                            <div className="flex flex-col gap-0.5">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveWaiting(idx, idx - 1)}
+                                className="p-0.5 rounded text-amber-700 hover:bg-amber-100 disabled:opacity-20 disabled:hover:bg-transparent transition cursor-pointer"
+                                title="Move Up (Assign Earlier SL #)"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === arr.length - 1}
+                                onClick={() => handleMoveWaiting(idx, idx + 1)}
+                                className="p-0.5 rounded text-amber-700 hover:bg-amber-100 disabled:opacity-20 disabled:hover:bg-transparent transition cursor-pointer"
+                                title="Move Down (Assign Later SL #)"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block leading-tight">
+                              Daily Serial
+                            </span>
+                            <span className="font-mono text-xs font-bold text-[#6B7280]">
+                              {item.patientCard}
+                            </span>
+                          </div>
+                        </div>
+
+                        {item.allergyFlags.length > 0 && (
+                          <span
+                            className="px-2 py-0.5 rounded-lg bg-[#FFEBEA] text-[#FF453A] font-extrabold text-[11px] uppercase border border-[#FF453A]/30"
+                            title={`Allergies: ${item.allergyFlags.join(", ")}`}
+                          >
+                            Allergy
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Patient Name - Big & Bold */}
+                      <div>
+                        <Link
+                          href={`/app/patients/${item.patientId}`}
+                          className="font-black text-lg text-[#1C1C1E] hover:text-[#2A5CAA] hover:underline line-clamp-1 block leading-tight"
+                          title="View patient history"
+                        >
+                          {item.patientName}
+                        </Link>
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-[#4B5563] mt-1 font-mono">
+                          <Phone className="w-3.5 h-3.5 text-[#8E8E93]" />
+                          <span>{item.patientPhone}</span>
+                        </div>
+                      </div>
+
+                      {/* Assigned Dentist */}
+                      <div className="text-xs font-semibold text-[#4B5563] flex items-center gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
+                        <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
+                        <span className="truncate">Dentist: {item.doctorName}</span>
+                      </div>
+
+                      {/* Send to Chair Action */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleAdvance(item.id, "in_chair", selectedChairId || undefined)
+                        }
+                        disabled={processingId === item.id}
+                        className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 transition shadow-sm disabled:opacity-50 cursor-pointer"
+                      >
+                        {processingId === item.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Armchair className="w-4 h-4" />
+                            <span>Send to Chair Now</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -812,7 +980,7 @@ export function QueueBoard({
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[660px] xl:max-h-[690px] overflow-y-auto pr-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {getColumnItems("in_chair").length === 0 ? (
                 <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#2A5CAA]/30">
                   All dental chairs vacant
@@ -925,7 +1093,7 @@ export function QueueBoard({
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[660px] xl:max-h-[690px] overflow-y-auto pr-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {getColumnItems("billing").length === 0 ? (
                 <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#FF453A]/30">
                   No bills awaiting checkout
@@ -1022,7 +1190,7 @@ export function QueueBoard({
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[660px] xl:max-h-[690px] overflow-y-auto pr-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {getColumnItems("done").length === 0 ? (
                 <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#30D158]/30">
                   0 visits finalized today
