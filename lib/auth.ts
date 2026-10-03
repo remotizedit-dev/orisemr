@@ -18,6 +18,25 @@ export const auth = betterAuth({
   }),
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
+  trustedOrigins: [
+    "https://orisemr.com",
+    "https://www.orisemr.com",
+    "https://*.orisemr.com",
+    "https://*.vercel.app",
+    "http://localhost:3000",
+    ...(env.BETTER_AUTH_URL ? [env.BETTER_AUTH_URL] : []),
+    ...(env.NEXT_PUBLIC_APP_URL ? [env.NEXT_PUBLIC_APP_URL] : []),
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    ...(process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`]
+      : []),
+  ],
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
+    crossSubDomainCookies: {
+      enabled: true,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,

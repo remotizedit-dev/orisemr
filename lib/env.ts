@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+const sanitizeUrl = (val: unknown) => {
+  if (typeof val !== "string" || !val.trim()) return val;
+  let trimmed = val.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `https://${trimmed}`;
+  }
+  return trimmed.replace(/\/+$/, "");
+};
+
 const envSchema = z.object({
   // Neon PostgreSQL Database
   DATABASE_URL: z.string().url().default("postgresql://postgres:postgres@localhost:5432/oris_emr"),
@@ -7,8 +16,8 @@ const envSchema = z.object({
 
   // Better Auth & App
   BETTER_AUTH_SECRET: z.string().min(16).default("oris_secret_dev_fallback_at_least_32_characters_long"),
-  BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
-  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  BETTER_AUTH_URL: z.preprocess(sanitizeUrl, z.string().url()).default("http://localhost:3000"),
+  NEXT_PUBLIC_APP_URL: z.preprocess(sanitizeUrl, z.string().url()).default("http://localhost:3000"),
 
   // AWS S3 & CloudFront (Optional in early dev)
   AWS_ACCESS_KEY_ID: z.string().optional().default(""),
