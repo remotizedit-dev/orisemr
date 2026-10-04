@@ -4,7 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { env } from "@/lib/env";
 
-import { sendEmailInBackground, renderPasswordResetHtml } from "@/lib/email/mailer";
+import { sendEmail, renderPasswordResetHtml } from "@/lib/email/mailer";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -40,16 +40,26 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
-    sendResetPassword: async ({ user, url }) => {
-      // Dispatched in background without blocking the auth endpoint response
-      sendEmailInBackground({
-        to: user.email,
-        subject: "Reset Your Oris EMR Password",
-        html: renderPasswordResetHtml({
-          userName: user.name,
-          resetUrl: url,
-        }),
-      });
+    sendResetPassword: async ({ user, url, token }) => {
+      // Determine the canonical base URL for the client reset page
+      const baseUrl = (env.NEXT_PUBLIC_APP_URL || env.BETTER_AUTH_URL || "https://orisemr.com").replace(/\/+$/, "");
+      // Direct token-based reset link matching /reset-password?token=...
+      const resetUrl = token
+        ? `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`
+        : url;
+
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: "Reset Your Oris EMR Password",
+          html: renderPasswordResetHtml({
+            userName: user.name,
+            resetUrl,
+          }),
+        });
+      } catch (err) {
+        console.error("[BETTER-AUTH] Password reset email dispatch failed:", err);
+      }
     },
   },
   user: {
