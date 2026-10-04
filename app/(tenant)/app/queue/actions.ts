@@ -559,6 +559,96 @@ export async function revertToBookedAction(appointmentId: string) {
   return { success: true };
 }
 
+export async function reassignQueueDoctorAction(
+  queueEntryId: string,
+  newDoctorId: string
+) {
+  const { tenant, user } = await requireClinicStaff();
+
+  // 1. Verify queue entry exists in tenant
+  const [entry] = await db
+    .select({
+      id: schema.queueEntries.id,
+      appointmentId: schema.queueEntries.appointmentId,
+      patientId: schema.queueEntries.patientId,
+      serialNo: schema.queueEntries.serialNo,
+    })
+    .from(schema.queueEntries)
+    .where(
+      and(
+        eq(schema.queueEntries.tenantId, tenant.id),
+        eq(schema.queueEntries.id, queueEntryId)
+      )
+    )
+    .limit(1);
+
+  if (!entry) {
+    throw new Error("Queue entry not found");
+  }
+
+  // 2. Verify new doctor is active in clinic
+  const [doctor] = await db
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+    })
+    .from(schema.users)
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.id, newDoctorId),
+        eq(schema.users.isDoctor, true),
+        eq(schema.users.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (!doctor) {
+    throw new Error("Target doctor was not found or is disabled");
+  }
+
+  // 3. Atomically update queueEntry, appointment, and patient record
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.queueEntries)
+      .set({
+        doctorId: newDoctorId,
+        updatedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.queueEntries.id, entry.id));
+
+    await tx
+      .update(schema.appointments)
+      .set({
+        doctorId: newDoctorId,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.appointments.id, entry.appointmentId));
+
+    await tx
+      .update(schema.patients)
+      .set({
+        assignedDoctorId: newDoctorId,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.patients.id, entry.patientId));
+  });
+
+  await deleteCache(`queue:today:${tenant.id}`);
+
+  revalidatePath("/app/queue");
+  revalidatePath("/app/appointments");
+  revalidatePath("/app/patients");
+  revalidatePath(`/app/patients/${entry.patientId}`);
+
+  return {
+    success: true,
+    doctorId: newDoctorId,
+    doctorName: doctor.name,
+  };
+}
+
 export interface QueueItem {
   id: string;
   appointmentId: string;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
@@ -11,7 +11,71 @@ export const metadata = {
 };
 
 export default async function PatientsListPage() {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
+
+  const isPureDoctor = Boolean(
+    (user.isDoctor || user.role === "DOCTOR") &&
+    user.role !== "TENANT_ADMIN" &&
+    user.role !== "SUPER_ADMIN" &&
+    user.role !== "RECEPTIONIST"
+  );
+
+  // Doctors list in this clinic for doctor assignment filter
+  const doctors = await db
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+    })
+    .from(schema.users)
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.isDoctor, true),
+        eq(schema.users.status, "active")
+      )
+    )
+    .orderBy(schema.users.name);
+
+  const isDoctorUser = Boolean(user.isDoctor || user.role === "DOCTOR");
+
+  // If user is a doctor, identify all patients associated with them
+  // (via assignedDoctorId, or having appointments/queue/prescriptions with this doctor)
+  const myPatientIdSet = new Set<string>();
+  if (isDoctorUser) {
+    const [myApts, myQueue, myRx] = await Promise.all([
+      db
+        .select({ patientId: schema.appointments.patientId })
+        .from(schema.appointments)
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.doctorId, user.id)
+          )
+        ),
+      db
+        .select({ patientId: schema.queueEntries.patientId })
+        .from(schema.queueEntries)
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.doctorId, user.id)
+          )
+        ),
+      db
+        .select({ patientId: schema.prescriptions.patientId })
+        .from(schema.prescriptions)
+        .where(
+          and(
+            eq(schema.prescriptions.tenantId, tenant.id),
+            eq(schema.prescriptions.doctorId, user.id)
+          )
+        ),
+    ]);
+
+    myApts.forEach((a) => a.patientId && myPatientIdSet.add(a.patientId));
+    myQueue.forEach((q) => q.patientId && myPatientIdSet.add(q.patientId));
+    myRx.forEach((r) => r.patientId && myPatientIdSet.add(r.patientId));
+  }
 
   const patientList = await db
     .select({
@@ -24,8 +88,14 @@ export default async function PatientsListPage() {
       allergyFlags: schema.patients.allergyFlags,
       medicalConditions: schema.patients.medicalConditions,
       createdAt: schema.patients.createdAt,
+      assignedDoctorId: schema.patients.assignedDoctorId,
+      assignedDoctorName: schema.users.name,
     })
     .from(schema.patients)
+    .leftJoin(
+      schema.users,
+      eq(schema.patients.assignedDoctorId, schema.users.id)
+    )
     .where(
       and(
         eq(schema.patients.tenantId, tenant.id),
@@ -44,6 +114,11 @@ export default async function PatientsListPage() {
     allergyFlags: p.allergyFlags || [],
     medicalConditions: p.medicalConditions || [],
     createdAt: p.createdAt.toISOString(),
+    assignedDoctorId: p.assignedDoctorId || null,
+    assignedDoctorName: p.assignedDoctorName || null,
+    isMyPatient: isDoctorUser
+      ? p.assignedDoctorId === user.id || myPatientIdSet.has(p.id)
+      : true,
   }));
 
   return (
@@ -54,7 +129,9 @@ export default async function PatientsListPage() {
             Patients ({formattedPatients.length})
           </h1>
           <p className="text-sm text-[#6B7280]">
-            Search registered chamber records, card numbers, and medical conditions.
+            {isPureDoctor
+              ? `Displaying patients assigned to you (Dr. ${user.name}).`
+              : "Search registered chamber records, card numbers, and assigned dentists."}
           </p>
         </div>
 
@@ -68,7 +145,12 @@ export default async function PatientsListPage() {
         </Link>
       </div>
 
-      <PatientsListClient initialPatients={formattedPatients} />
+      <PatientsListClient
+        initialPatients={formattedPatients}
+        isPureDoctor={isPureDoctor}
+        currentDoctorName={user.name}
+        doctors={doctors}
+      />
     </div>
   );
 }

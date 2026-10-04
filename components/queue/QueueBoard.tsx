@@ -16,9 +16,11 @@ import {
   type QueueItem,
 } from "@/app/(tenant)/app/queue/actions";
 import { InactivePatientsModal } from "./InactivePatientsModal";
+import { SwitchDoctorModal } from "@/components/patients/SwitchDoctorModal";
 import {
   AlertCircle,
   ArrowRight,
+  ArrowRightLeft,
   Armchair,
   Check,
   CheckCircle2,
@@ -77,9 +79,12 @@ export function QueueBoard({
 }: QueueBoardProps) {
   const router = useRouter();
   const [items, setItems] = useState<QueueItem[]>(initialItems);
-  const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>("all");
+  const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>(
+    currentUserIsDoctor ? currentUserId : "all"
+  );
   const [selectedChairId, setSelectedChairId] = useState<string>(chairs[0]?.id || "");
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [switchingQueueItem, setSwitchingQueueItem] = useState<QueueItem | null>(null);
   const [isCallingNext, setIsCallingNext] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showInactiveModal, setShowInactiveModal] = useState(false);
@@ -736,9 +741,21 @@ export function QueueBoard({
                     </div>
 
                     {/* Dentist */}
-                    <div className="text-xs font-semibold text-[#4B5563] flex items-center gap-1.5 pt-1 border-t border-[#E4E4E7]/60">
-                      <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
-                      <span className="truncate">Dentist: {item.doctorName}</span>
+                    <div className="text-xs font-semibold text-[#4B5563] flex items-center justify-between gap-1.5 pt-1 border-t border-[#E4E4E7]/60">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
+                        <span className="truncate">Dentist: {item.doctorName}</span>
+                      </div>
+                      {doctors.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setSwitchingQueueItem(item)}
+                          className="p-1 rounded-lg text-slate-500 hover:text-[#2A5CAA] hover:bg-slate-100 transition cursor-pointer shrink-0"
+                          title={`Switch doctor for ${item.patientName}`}
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
 
                     {/* Check In & Quick Triage Actions */}
@@ -933,9 +950,21 @@ export function QueueBoard({
                       </div>
 
                       {/* Assigned Dentist */}
-                      <div className="text-xs font-semibold text-[#4B5563] flex items-center gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
-                        <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
-                        <span className="truncate">Dentist: {item.doctorName}</span>
+                      <div className="text-xs font-semibold text-[#4B5563] flex items-center justify-between gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
+                          <span className="truncate">Dentist: {item.doctorName}</span>
+                        </div>
+                        {doctors.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setSwitchingQueueItem(item)}
+                            className="p-1 rounded-lg text-slate-500 hover:text-[#2A5CAA] hover:bg-slate-100 transition cursor-pointer shrink-0"
+                            title={`Switch doctor for ${item.patientName}`}
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
 
                       {/* Send to Chair Action */}
@@ -1038,9 +1067,21 @@ export function QueueBoard({
                       </div>
 
                       {/* Dentist */}
-                      <div className="text-xs font-semibold text-[#4B5563] flex items-center gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
-                        <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
-                        <span className="truncate">Dentist: {item.doctorName}</span>
+                      <div className="text-xs font-semibold text-[#4B5563] flex items-center justify-between gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
+                          <span className="truncate">Dentist: {item.doctorName}</span>
+                        </div>
+                        {doctors.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setSwitchingQueueItem(item)}
+                            className="p-1 rounded-lg text-slate-500 hover:text-[#2A5CAA] hover:bg-slate-100 transition cursor-pointer shrink-0"
+                            title={`Switch doctor for ${item.patientName}`}
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
 
                       {/* Two Action Buttons: Write RX & Finish Treatment */}
@@ -1242,6 +1283,31 @@ export function QueueBoard({
         onRevertToBooked={handleRevertToBooked}
         processingId={processingId}
       />
+
+      {/* Switch Doctor Modal */}
+      {switchingQueueItem && (
+        <SwitchDoctorModal
+          isOpen={Boolean(switchingQueueItem)}
+          onClose={() => setSwitchingQueueItem(null)}
+          queueEntryId={switchingQueueItem.id}
+          appointmentId={switchingQueueItem.appointmentId}
+          patientId={switchingQueueItem.patientId}
+          patientName={switchingQueueItem.patientName}
+          currentDoctorId={switchingQueueItem.doctorId}
+          currentDoctorName={switchingQueueItem.doctorName}
+          doctors={doctors}
+          onSuccess={(newDoctorId, newDoctorName) => {
+            setItems((prev) =>
+              prev.map((it) =>
+                it.id === switchingQueueItem.id
+                  ? { ...it, doctorId: newDoctorId, doctorName: newDoctorName }
+                  : it
+              )
+            );
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -50,6 +50,7 @@ export interface RegisterPatientInput {
   allergyFlags: string[];
   allergyNotes?: string;
   medicalNotes?: string;
+  assignedDoctorId?: string | null;
 }
 
 export async function registerPatientAction(input: RegisterPatientInput) {
@@ -121,6 +122,7 @@ export async function registerPatientAction(input: RegisterPatientInput) {
       allergyFlags: input.allergyFlags || [],
       allergyNotes: input.allergyNotes?.trim() || null,
       medicalNotes: input.medicalNotes?.trim() || null,
+      assignedDoctorId: input.assignedDoctorId || (user.isDoctor ? user.id : null),
       createdBy: user.id,
     })
     .returning();
@@ -450,6 +452,7 @@ export interface UpdatePatientInput {
   allergyFlags: string[];
   allergyNotes?: string | null;
   medicalNotes?: string | null;
+  assignedDoctorId?: string | null;
 }
 
 export async function getPatientForEditAction(patientId: string) {
@@ -537,6 +540,7 @@ export async function updatePatientAction(input: UpdatePatientInput) {
       allergyFlags: input.allergyFlags,
       allergyNotes: input.allergyNotes?.trim() || null,
       medicalNotes: input.medicalNotes?.trim() || null,
+      assignedDoctorId: input.assignedDoctorId !== undefined ? input.assignedDoctorId : existingPatient.assignedDoctorId,
       updatedAt: new Date(),
     })
     .where(
@@ -554,6 +558,140 @@ export async function updatePatientAction(input: UpdatePatientInput) {
   revalidatePath("/app/prescriptions/new");
 
   return { success: true, patient: updated };
+}
+
+export async function reassignPatientDoctorAction(
+  patientId: string,
+  newDoctorId: string | null,
+  reason?: string
+) {
+  const { tenant, user } = await requireClinicStaff();
+
+  const [patient] = await db
+    .select({ id: schema.patients.id, name: schema.patients.name })
+    .from(schema.patients)
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        eq(schema.patients.id, patientId),
+        isNull(schema.patients.deletedAt)
+      )
+    )
+    .limit(1);
+
+  if (!patient) {
+    throw new Error("Patient not found or already deleted");
+  }
+
+  let doctorName = "Unassigned";
+  if (newDoctorId) {
+    const [doc] = await db
+      .select({ id: schema.users.id, name: schema.users.name })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenant.id),
+          eq(schema.users.id, newDoctorId),
+          eq(schema.users.isDoctor, true),
+          eq(schema.users.status, "active")
+        )
+      )
+      .limit(1);
+
+    if (!doc) {
+      throw new Error("Target doctor not found or is inactive");
+    }
+    doctorName = doc.name;
+  }
+
+  // 1. Update primary assigned doctor on patient record
+  await db
+    .update(schema.patients)
+    .set({
+      assignedDoctorId: newDoctorId,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.patients.tenantId, tenant.id),
+        eq(schema.patients.id, patientId)
+      )
+    );
+
+  const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  if (newDoctorId) {
+    // 2. Cascade update to today's active queue entry if any
+    await db
+      .update(schema.queueEntries)
+      .set({
+        doctorId: newDoctorId,
+        updatedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenant.id),
+          eq(schema.queueEntries.patientId, patientId),
+          eq(schema.queueEntries.date, todayDhakaStr),
+          sql`${schema.queueEntries.status} NOT IN ('done', 'cancelled', 'no_show')`
+        )
+      );
+
+    // 3. Cascade update to active / upcoming appointments if any
+    await db
+      .update(schema.appointments)
+      .set({
+        doctorId: newDoctorId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.patientId, patientId),
+          sql`${schema.appointments.status} NOT IN ('completed', 'cancelled', 'no_show')`
+        )
+      );
+  }
+
+  const { deleteCache } = await import("@/lib/cache");
+  await deleteCache(`queue:today:${tenant.id}`);
+
+  revalidatePath("/app/patients");
+  revalidatePath(`/app/patients/${patientId}`);
+  revalidatePath("/app/queue");
+  revalidatePath("/app/appointments");
+
+  return {
+    success: true,
+    patientId,
+    patientName: patient.name,
+    doctorId: newDoctorId,
+    doctorName,
+  };
+}
+
+export async function getTenantDoctorsAction() {
+  const { tenant } = await requireClinicStaff();
+  return db
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+    })
+    .from(schema.users)
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.isDoctor, true),
+        eq(schema.users.status, "active")
+      )
+    )
+    .orderBy(schema.users.name);
 }
 
 export async function deletePatientAction(patientId: string) {

@@ -35,6 +35,7 @@ export const patients = pgTable(
     allergyNotes: text("allergy_notes"),
     medicalNotes: text("medical_notes"),
     photoKey: text("photo_key"),
+    assignedDoctorId: text("assigned_doctor_id").references(() => users.id, { onDelete: "set null" }),
     createdBy: text("created_by")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -49,5 +50,6 @@ export const patients = pgTable(
     index("patients_tenant_name_idx").on(table.tenantId, table.name),
     index("patients_tenant_created_idx").on(table.tenantId, table.createdAt),
     index("patients_tenant_active_created_desc_idx").on(table.tenantId, table.createdAt),
+    index("patients_tenant_assigned_doc_idx").on(table.tenantId, table.assignedDoctorId),
   ]
 );

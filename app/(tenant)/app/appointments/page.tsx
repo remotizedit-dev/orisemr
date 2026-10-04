@@ -16,6 +16,13 @@ export default async function AppointmentsPage({ searchParams }: Props) {
   const { tenant, user } = await requireClinicStaff();
   const params = await searchParams;
 
+  const isPureDoctor = Boolean(
+    (user.isDoctor || user.role === "DOCTOR") &&
+    user.role !== "TENANT_ADMIN" &&
+    user.role !== "SUPER_ADMIN" &&
+    user.role !== "RECEPTIONIST"
+  );
+
   const canPrescribe = Boolean(
     user.isDoctor ||
     user.role === "DOCTOR" ||
@@ -53,7 +60,7 @@ export default async function AppointmentsPage({ searchParams }: Props) {
         )
       ),
 
-    // Appointments for target date
+    // Appointments for target date (filtered to doctor if pure doctor login)
     db
       .select({
         id: schema.appointments.id,
@@ -92,7 +99,8 @@ export default async function AppointmentsPage({ searchParams }: Props) {
         and(
           eq(schema.appointments.tenantId, tenant.id),
           sql`${schema.appointments.startTime} >= ${dayStart.toISOString()}`,
-          sql`${schema.appointments.startTime} <= ${dayEnd.toISOString()}`
+          sql`${schema.appointments.startTime} <= ${dayEnd.toISOString()}`,
+          isPureDoctor ? eq(schema.appointments.doctorId, user.id) : undefined
         )
       )
       .orderBy(schema.appointments.startTime),
@@ -168,6 +176,8 @@ export default async function AppointmentsPage({ searchParams }: Props) {
       doctors={doctors}
       appointments={formattedAppointments}
       canPrescribe={canPrescribe}
+      currentUserId={user.id}
+      isPureDoctor={isPureDoctor}
     />
   );
 }

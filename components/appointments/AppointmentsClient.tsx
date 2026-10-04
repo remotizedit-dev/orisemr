@@ -19,7 +19,9 @@ import {
   ExternalLink,
   Check,
   Armchair,
+  ArrowRightLeft,
 } from "lucide-react";
+import { SwitchDoctorModal } from "@/components/patients/SwitchDoctorModal";
 import { formatBdt, formatDhakaTime } from "@/lib/utils";
 import {
   updateAppointmentStatusAction,
@@ -65,6 +67,8 @@ interface Props {
   doctors: DoctorItem[];
   appointments: AppointmentItem[];
   canPrescribe?: boolean;
+  currentUserId?: string;
+  isPureDoctor?: boolean;
 }
 
 export default function AppointmentsClient({
@@ -72,10 +76,16 @@ export default function AppointmentsClient({
   doctors,
   appointments,
   canPrescribe = false,
+  currentUserId,
+  isPureDoctor = false,
 }: Props) {
   const router = useRouter();
+  const [apts, setApts] = useState<AppointmentItem[]>(appointments);
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("all");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
+    isPureDoctor && currentUserId ? currentUserId : "all"
+  );
+  const [switchingAppointment, setSwitchingAppointment] = useState<AppointmentItem | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -97,7 +107,7 @@ export default function AppointmentsClient({
     handleDateChange(nextStr);
   }
 
-  const filteredAppointments = appointments.filter((apt) => {
+  const filteredAppointments = apts.filter((apt) => {
     if (selectedDoctorId !== "all" && apt.doctorId !== selectedDoctorId) {
       return false;
     }
@@ -426,9 +436,19 @@ export default function AppointmentsClient({
 
                     {/* Services & Doctor & Chair */}
                     <div className="flex flex-wrap items-center gap-3 text-sm text-[#4B5563]">
-                      <span className="font-semibold text-[#1C1C1E]">
-                        Dr: {apt.doctorName}
-                      </span>
+                      <div className="flex items-center gap-1.5 font-semibold text-[#1C1C1E]">
+                        <span>Dr: {apt.doctorName}</span>
+                        {!isPureDoctor && doctors.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setSwitchingAppointment(apt)}
+                            className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-[#2A5CAA] transition cursor-pointer"
+                            title={`Switch doctor for ${apt.patientName}`}
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                       {apt.chairName && (
                         <span>• Chair: {apt.chairName}</span>
                       )}
@@ -597,6 +617,30 @@ export default function AppointmentsClient({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Switch Doctor Modal */}
+      {switchingAppointment && (
+        <SwitchDoctorModal
+          isOpen={Boolean(switchingAppointment)}
+          onClose={() => setSwitchingAppointment(null)}
+          appointmentId={switchingAppointment.id}
+          patientId={switchingAppointment.patientId}
+          patientName={switchingAppointment.patientName}
+          currentDoctorId={switchingAppointment.doctorId}
+          currentDoctorName={switchingAppointment.doctorName}
+          doctors={doctors}
+          onSuccess={(newDocId, newDocName) => {
+            setApts((prev) =>
+              prev.map((a) =>
+                a.id === switchingAppointment.id
+                  ? { ...a, doctorId: newDocId, doctorName: newDocName }
+                  : a
+              )
+            );
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );

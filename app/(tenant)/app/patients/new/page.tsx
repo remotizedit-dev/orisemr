@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ALLERGY_FLAGS, MEDICAL_CONDITIONS } from "@/lib/clinical-flags";
 import {
   checkDuplicatePhoneAction,
   registerPatientAction,
+  getTenantDoctorsAction,
 } from "../actions";
 import {
   AlertCircle,
@@ -20,6 +21,7 @@ import {
   Plus,
   User,
   UserPlus,
+  Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
 import { normalizeBdPhone } from "@/lib/utils";
@@ -41,6 +43,14 @@ export default function NewPatientPage() {
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [allergyNotes, setAllergyNotes] = useState("");
   const [medicalNotes, setMedicalNotes] = useState("");
+  const [assignedDoctorId, setAssignedDoctorId] = useState<string>("");
+  const [doctors, setDoctors] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    getTenantDoctorsAction()
+      .then(setDoctors)
+      .catch(() => {});
+  }, []);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<{
@@ -107,6 +117,7 @@ export default function NewPatientPage() {
         allergyFlags: selectedAllergies,
         allergyNotes: allergyNotes.trim() || undefined,
         medicalNotes: medicalNotes.trim() || undefined,
+        assignedDoctorId: assignedDoctorId || undefined,
       });
       toast.success("Patient registered successfully!");
       if (res?.emailDispatched) {
@@ -226,6 +237,25 @@ export default function NewPatientPage() {
                 placeholder="patient@example.com (for card & appointment emails)"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#1C1C1E] mb-1 flex items-center gap-1.5">
+                <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                <span>Assigned Attending Dentist</span>
+              </label>
+              <select
+                value={assignedDoctorId}
+                onChange={(e) => setAssignedDoctorId(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA]"
+              >
+                <option value="">Auto-assign or General Chamber</option>
+                {doctors.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    Dr. {d.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-2">

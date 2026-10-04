@@ -784,3 +784,94 @@ export async function getBookingFormDataAction() {
   );
 }
 
+export async function reassignAppointmentDoctorAction(
+  appointmentId: string,
+  newDoctorId: string
+) {
+  const { tenant, user } = await requireClinicStaff();
+
+  // 1. Verify appointment exists in tenant
+  const [apt] = await db
+    .select({
+      id: schema.appointments.id,
+      patientId: schema.appointments.patientId,
+      status: schema.appointments.status,
+    })
+    .from(schema.appointments)
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenant.id),
+        eq(schema.appointments.id, appointmentId)
+      )
+    )
+    .limit(1);
+
+  if (!apt) {
+    throw new Error("Appointment not found");
+  }
+
+  // 2. Verify target doctor
+  const [doc] = await db
+    .select({ id: schema.users.id, name: schema.users.name })
+    .from(schema.users)
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.id, newDoctorId),
+        eq(schema.users.isDoctor, true),
+        eq(schema.users.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (!doc) {
+    throw new Error("Target doctor was not found or is inactive");
+  }
+
+  // 3. Atomically update appointment, linked queue entry, and patient record
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.appointments)
+      .set({
+        doctorId: newDoctorId,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.appointments.id, appointmentId));
+
+    await tx
+      .update(schema.queueEntries)
+      .set({
+        doctorId: newDoctorId,
+        updatedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.queueEntries.appointmentId, appointmentId));
+
+    if (apt.patientId) {
+      await tx
+        .update(schema.patients)
+        .set({
+          assignedDoctorId: newDoctorId,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.patients.id, apt.patientId));
+    }
+  });
+
+  const { deleteCache } = await import("@/lib/cache");
+  await deleteCache(`queue:today:${tenant.id}`);
+
+  revalidatePath("/app/appointments");
+  revalidatePath("/app/queue");
+  revalidatePath("/app/patients");
+  if (apt.patientId) {
+    revalidatePath(`/app/patients/${apt.patientId}`);
+  }
+
+  return {
+    success: true,
+    doctorId: newDoctorId,
+    doctorName: doc.name,
+  };
+}
+

@@ -10,22 +10,33 @@ import {
   Printer,
   Pencil,
   Trash2,
+  ArrowRightLeft,
 } from "lucide-react";
 import { EditPatientModal, type EditablePatientData } from "./EditPatientModal";
 import { DeletePatientModal } from "./DeletePatientModal";
+import { SwitchDoctorModal } from "./SwitchDoctorModal";
 
 interface PatientHeaderActionsProps {
   patient: EditablePatientData;
   canPrescribe: boolean;
+  assignedDoctorId?: string | null;
+  assignedDoctorName?: string | null;
+  doctors?: { id: string; name: string }[];
+  canSwitchDoctor?: boolean;
 }
 
 export function PatientHeaderActions({
   patient,
   canPrescribe,
+  assignedDoctorId,
+  assignedDoctorName,
+  doctors,
+  canSwitchDoctor = true,
 }: PatientHeaderActionsProps) {
   const router = useRouter();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isSwitchDoctorOpen, setIsSwitchDoctorOpen] = useState(false);
 
   return (
     <>
@@ -65,6 +76,19 @@ export function PatientHeaderActions({
           <span>Print Card</span>
         </Link>
 
+        {/* Switch Doctor Button (Admin/Staff/Floor Management) */}
+        {canSwitchDoctor && doctors && doctors.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsSwitchDoctorOpen(true)}
+            className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 font-bold text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+            title="Switch or reassign attending doctor for this patient"
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600" />
+            <span>Switch Doctor</span>
+          </button>
+        )}
+
         {/* Edit Patient Button */}
         <button
           type="button"
@@ -87,6 +111,22 @@ export function PatientHeaderActions({
           <span>Delete</span>
         </button>
       </div>
+
+      {/* Switch Doctor Modal */}
+      {doctors && doctors.length > 0 && (
+        <SwitchDoctorModal
+          isOpen={isSwitchDoctorOpen}
+          onClose={() => setIsSwitchDoctorOpen(false)}
+          patientId={patient.id}
+          patientName={patient.name}
+          currentDoctorId={assignedDoctorId}
+          currentDoctorName={assignedDoctorName}
+          doctors={doctors}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
 
       {/* Edit Patient Modal */}
       <EditPatientModal

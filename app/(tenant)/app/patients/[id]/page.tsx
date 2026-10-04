@@ -25,7 +25,9 @@ import {
   ShieldAlert,
   Stethoscope,
   User,
+  ArrowRightLeft,
 } from "lucide-react";
+import { TakeOverPatientButton } from "@/components/patients/TakeOverPatientButton";
 
 export default async function PatientProfilePage({
   params,
@@ -42,10 +44,24 @@ export default async function PatientProfilePage({
     user.role === "SUPER_ADMIN"
   );
 
-  // 1. Fetch Patient
-  const [patient] = await db
-    .select()
+  const isPureDoctor = Boolean(
+    (user.isDoctor || user.role === "DOCTOR") &&
+    user.role !== "TENANT_ADMIN" &&
+    user.role !== "SUPER_ADMIN" &&
+    user.role !== "RECEPTIONIST"
+  );
+
+  // 1. Fetch Patient with assigned doctor info
+  const [patientRecord] = await db
+    .select({
+      patient: schema.patients,
+      assignedDoctorName: schema.users.name,
+    })
     .from(schema.patients)
+    .leftJoin(
+      schema.users,
+      eq(schema.patients.assignedDoctorId, schema.users.id)
+    )
     .where(
       and(
         eq(schema.patients.tenantId, tenant.id),
@@ -55,9 +71,35 @@ export default async function PatientProfilePage({
     )
     .limit(1);
 
-  if (!patient) {
+  if (!patientRecord) {
     notFound();
   }
+
+  const patient = patientRecord.patient;
+  const assignedDoctorName = patientRecord.assignedDoctorName;
+
+  // Doctor collaboration checks:
+  // If the logged in user is a doctor and viewing a patient assigned to another colleague,
+  // we do not lock them out—instead, we provide full clinical visibility and a 1-click "Take Over" action.
+  const isDoctorUser = Boolean(user.isDoctor || user.role === "DOCTOR");
+  const isAssignedToOther = isDoctorUser && Boolean(patient.assignedDoctorId && patient.assignedDoctorId !== user.id);
+  const isDoctorUnassigned = isDoctorUser && !patient.assignedDoctorId;
+
+  // Fetch active clinic doctors for switching
+  const doctors = await db
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+    })
+    .from(schema.users)
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.isDoctor, true),
+        eq(schema.users.status, "active")
+      )
+    )
+    .orderBy(schema.users.name);
 
   // Fetch patient clinical records, billing invoices, appointment history, and uploaded reports in parallel
   const [prescriptions, invoices, appointments, attachments] = await Promise.all([
@@ -153,10 +195,40 @@ export default async function PatientProfilePage({
 
   return (
     <div className="space-y-6">
+      {/* Collaborative Cross-Chamber Banner if patient is assigned to another dentist or unassigned */}
+      {(isAssignedToOther || isDoctorUnassigned) && (
+        <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/90 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 shrink-0">
+              <ArrowRightLeft className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-800">
+                  {isAssignedToOther ? "Cross-Chamber Coverage" : "Chamber Assignment"}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-200/80 font-bold text-amber-900">
+                  {assignedDoctorName ? `Assigned to Dr. ${assignedDoctorName}` : "Currently Unassigned"}
+                </span>
+              </div>
+              <p className="text-xs text-amber-900/90 mt-0.5">
+                You have full access to view medical history and clinical records. Are you attending this patient today?
+              </p>
+            </div>
+          </div>
+          <TakeOverPatientButton
+            patientId={patient.id}
+            patientName={patient.name}
+            targetDoctorId={user.id}
+            targetDoctorName={user.name}
+          />
+        </div>
+      )}
+
       {/* Patient Header Banner */}
       <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-2.5">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-extrabold text-[#1C1C1E] tracking-tight">
               {patient.name}
             </h1>
@@ -168,6 +240,13 @@ export default async function PatientProfilePage({
                 {patient.bloodGroup}
               </span>
             )}
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50/80 border border-blue-200/80 text-blue-900 text-xs font-semibold shadow-2xs">
+              <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA]" />
+              <span className="text-[#64748B]">Attending:</span>
+              <span className="font-bold text-[#1C1C1E]">
+                {assignedDoctorName ? `Dr. ${assignedDoctorName}` : "Unassigned"}
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-xs text-[#6B7280]">
@@ -278,7 +357,7 @@ export default async function PatientProfilePage({
           )}
         </div>
 
-        {/* Action Buttons including Edit & Delete */}
+        {/* Action Buttons including Edit, Switch Doctor & Delete */}
         <PatientHeaderActions
           patient={{
             id: patient.id,
@@ -299,6 +378,10 @@ export default async function PatientProfilePage({
             medicalNotes: patient.medicalNotes,
           }}
           canPrescribe={canPrescribe}
+          assignedDoctorId={patient.assignedDoctorId}
+          assignedDoctorName={assignedDoctorName}
+          doctors={doctors}
+          canSwitchDoctor={!isPureDoctor}
         />
       </div>
 
