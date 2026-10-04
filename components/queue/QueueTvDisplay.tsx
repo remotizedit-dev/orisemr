@@ -16,6 +16,7 @@ import {
   VolumeX,
   ArrowLeft,
   Sparkles,
+  Timer,
 } from "lucide-react";
 import {
   getLiveQueueItemsAction,
@@ -23,6 +24,7 @@ import {
   type QueueItem,
 } from "@/app/(tenant)/app/queue/actions";
 import { formatDhakaTime } from "@/lib/utils";
+import { calculateQueueEstimates } from "@/lib/queue-estimates";
 
 interface QueueTvDisplayProps {
   initialItems: QueueItem[];
@@ -237,6 +239,10 @@ export function QueueTvDisplay({
     .filter((i) => i.status === "done" || i.status === "billing")
     .slice(-6);
 
+  const { inChairEstimates, waitingEstimates } = calculateQueueEstimates(items, new Date());
+  const nextUpPatient = waitingItems[0];
+  const nextUpEstimate = nextUpPatient ? waitingEstimates.get(nextUpPatient.id) : undefined;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex flex-col font-sans select-none overflow-hidden">
       {/* Top Subtle Ambient Brand Tint */}
@@ -371,50 +377,71 @@ export function QueueTvDisplay({
           <div className="flex-1 flex flex-col gap-4">
             <AnimatePresence mode="popLayout">
               {inChairItems.length > 0 ? (
-                inChairItems.map((item) => (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, y: -15 }}
-                    transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                    className="p-6 sm:p-8 rounded-3xl bg-white border-2 border-emerald-500 shadow-xl shadow-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-6"
-                  >
-                    {/* Left: Serial Number Badge & Patient Name */}
-                    <div className="flex items-center gap-6">
-                      <div className="shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-emerald-600 text-white flex flex-col items-center justify-center text-center shadow-lg shadow-emerald-600/30">
-                        <span className="text-[11px] font-black uppercase tracking-widest text-emerald-100">
-                          SERIAL
-                        </span>
-                        <span className="text-4xl sm:text-5xl font-black text-white font-mono leading-none">
-                          #{item.serialNo ? String(item.serialNo).padStart(2, "0") : "--"}
-                        </span>
-                      </div>
-
-                      <div>
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black uppercase tracking-wider mb-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
-                          {item.chairName || "Dental Chair"}
+                inChairItems.map((item) => {
+                  const inChairEst = inChairEstimates.get(item.id);
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -15 }}
+                      transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                      className="p-6 sm:p-8 rounded-3xl bg-white border-2 border-emerald-500 shadow-xl shadow-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-6"
+                    >
+                      {/* Left: Serial Number Badge & Patient Name */}
+                      <div className="flex items-center gap-6">
+                        <div className="shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-emerald-600 text-white flex flex-col items-center justify-center text-center shadow-lg shadow-emerald-600/30">
+                          <span className="text-[11px] font-black uppercase tracking-widest text-emerald-100">
+                            SERIAL
+                          </span>
+                          <span className="text-4xl sm:text-5xl font-black text-white font-mono leading-none">
+                            #{item.serialNo ? String(item.serialNo).padStart(2, "0") : "--"}
+                          </span>
                         </div>
-                        <h3 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight">
-                          {item.patientName}
-                        </h3>
-                        <p className="text-sm font-semibold text-[#475569] mt-1 flex items-center gap-1.5">
-                          <Stethoscope className="w-4 h-4 text-emerald-600" />
-                          Attending: <span className="text-[#0F172A] font-bold">{item.doctorName}</span>
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Right: Status Pill */}
-                    <div className="sm:text-right shrink-0">
-                      <span className="px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-black uppercase tracking-widest inline-block shadow-2xs">
-                        In Progress
-                      </span>
-                    </div>
-                  </motion.div>
-                ))
+                        <div>
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black uppercase tracking-wider mb-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+                            {item.chairName || "Dental Chair"}
+                          </div>
+                          <h3 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight">
+                            {item.patientName}
+                          </h3>
+                          <p className="text-sm font-semibold text-[#475569] mt-1 flex items-center gap-1.5">
+                            <Stethoscope className="w-4 h-4 text-emerald-600" />
+                            Attending: <span className="text-[#0F172A] font-bold">{item.doctorName}</span>
+                          </p>
+                          {item.serviceNames && item.serviceNames.length > 0 && (
+                            <p className="text-xs text-[#64748B] font-medium mt-1 truncate">
+                              Treatment: <span className="text-[#334155] font-semibold">{item.serviceNames.join(", ")}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Status Pill & Live Progress */}
+                      <div className="sm:text-right shrink-0 flex flex-col sm:items-end gap-2">
+                        <span className="px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-black uppercase tracking-widest inline-flex items-center gap-1.5 shadow-2xs">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          In Progress
+                        </span>
+                        {inChairEst && (
+                          <div
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono tracking-tight inline-flex items-center gap-1.5 border shadow-2xs ${
+                              inChairEst.isOverrun
+                                ? "bg-amber-50 text-amber-900 border-amber-300"
+                                : "bg-emerald-50/80 text-emerald-900 border-emerald-200"
+                            }`}
+                          >
+                            <Timer className="w-3.5 h-3.5 shrink-0 text-emerald-700" />
+                            <span>{inChairEst.statusText}</span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })
               ) : (
                 <div className="flex-1 min-h-[300px] rounded-3xl border-2 border-dashed border-[#CBD5E1] bg-white/70 flex flex-col items-center justify-center text-center p-8 shadow-xs">
                   <div className="w-16 h-16 rounded-3xl bg-[#F1F5F9] flex items-center justify-center mb-4 text-[#94A3B8]">
@@ -447,62 +474,131 @@ export function QueueTvDisplay({
             </span>
           </div>
 
+          {/* Prominent Next Patient Call Spotlight Banner */}
+          {nextUpPatient && nextUpEstimate && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-white shadow-lg shadow-amber-500/20 flex items-center justify-between gap-3 border border-amber-400"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex flex-col items-center justify-center shrink-0 font-mono font-black text-white shadow-inner">
+                  <span className="text-[9px] uppercase tracking-wider text-amber-100 leading-none">NEXT</span>
+                  <span className="text-lg leading-none mt-0.5">
+                    #{nextUpPatient.serialNo ? String(nextUpPatient.serialNo).padStart(2, "0") : "--"}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-amber-100 flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                    </span>
+                    Next To Be Called
+                  </div>
+                  <div className="text-base font-black truncate text-white">
+                    {nextUpPatient.patientName}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-sm sm:text-base font-black font-mono tracking-tight text-white bg-black/20 px-3 py-1 rounded-xl backdrop-blur-md border border-white/20">
+                  {nextUpEstimate.badgeText}
+                </div>
+                <div className="text-[11px] font-mono text-amber-100 mt-0.5">
+                  Est. {nextUpEstimate.approxCallTimeFormatted}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           <div className="flex-1 flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-280px)] pr-1">
             <AnimatePresence mode="popLayout">
               {waitingItems.length > 0 ? (
-                waitingItems.map((item, index) => (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                    className={`p-4 sm:p-5 rounded-2xl border transition flex items-center justify-between gap-4 ${
-                      index === 0
-                        ? "bg-gradient-to-r from-amber-50 via-amber-50/80 to-white border-2 border-amber-400 shadow-md shadow-amber-400/10"
-                        : "bg-white border-[#E2E8F0] hover:border-[#CBD5E1] shadow-2xs"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div
-                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex flex-col items-center justify-center shrink-0 font-mono font-black ${
-                          index === 0
-                            ? "bg-amber-500 text-white shadow-md shadow-amber-500/25"
-                            : "bg-[#F1F5F9] text-[#0F172A] border border-[#CBD5E1]"
-                        }`}
-                      >
-                        <span className="text-[9px] font-extrabold tracking-wider uppercase">
-                          {index === 0 ? "NEXT" : "SL"}
-                        </span>
-                        <span className="text-xl sm:text-2xl font-black leading-none">
-                          #{item.serialNo ? String(item.serialNo).padStart(2, "0") : "--"}
-                        </span>
-                      </div>
+                waitingItems.map((item, index) => {
+                  const est = waitingEstimates.get(item.id);
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                      className={`p-4 sm:p-5 rounded-2xl border transition flex items-center justify-between gap-4 ${
+                        index === 0
+                          ? "bg-gradient-to-r from-amber-50/90 via-amber-50/50 to-white border-2 border-amber-400 shadow-md shadow-amber-400/10"
+                          : "bg-white border-[#E2E8F0] hover:border-[#CBD5E1] shadow-2xs"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div
+                          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex flex-col items-center justify-center shrink-0 font-mono font-black ${
+                            index === 0
+                              ? "bg-amber-500 text-white shadow-md shadow-amber-500/25"
+                              : "bg-[#F1F5F9] text-[#0F172A] border border-[#CBD5E1]"
+                          }`}
+                        >
+                          <span className="text-[9px] font-extrabold tracking-wider uppercase">
+                            {index === 0 ? "NEXT" : "SL"}
+                          </span>
+                          <span className="text-xl sm:text-2xl font-black leading-none">
+                            #{item.serialNo ? String(item.serialNo).padStart(2, "0") : "--"}
+                          </span>
+                        </div>
 
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-base sm:text-lg font-black text-[#0F172A] truncate">
-                            {item.patientName}
-                          </h4>
-                          {index === 0 && (
-                            <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 font-black text-[10px] uppercase tracking-wider shrink-0">
-                              Up Next
-                            </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-base sm:text-lg font-black text-[#0F172A] truncate">
+                              {item.patientName}
+                            </h4>
+                            {index === 0 && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 font-black text-[10px] uppercase tracking-wider shrink-0">
+                                Up Next
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[#64748B] truncate mt-0.5">
+                            Doctor: <span className="text-[#334155] font-bold">{item.doctorName}</span>
+                          </p>
+                          {item.serviceNames && item.serviceNames.length > 0 && (
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {item.serviceNames.join(", ")}
+                            </p>
                           )}
                         </div>
-                        <p className="text-xs text-[#64748B] truncate mt-0.5">
-                          Doctor: <span className="text-[#334155] font-bold">{item.doctorName}</span>
-                        </p>
                       </div>
-                    </div>
 
-                    <div className="text-right shrink-0 text-xs font-mono text-[#64748B]">
-                      <Clock className="w-3.5 h-3.5 inline mr-1 text-[#94A3B8]" />
-                      {item.startTimeRaw ? formatDhakaTime(item.startTimeRaw) : item.startTime}
-                    </div>
-                  </motion.div>
-                ))
+                      {/* Right: Dynamic Approx Wait Time Badge */}
+                      <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                        {est ? (
+                          <>
+                            <span
+                              className={`px-2.5 py-1 rounded-lg text-xs font-black font-mono tracking-tight border inline-flex items-center gap-1 ${
+                                est.badgeVariant === "urgent"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                  : est.badgeVariant === "soon"
+                                  ? "bg-amber-50 text-amber-900 border-amber-300"
+                                  : "bg-blue-50 text-blue-900 border-blue-200"
+                              }`}
+                            >
+                              <Clock className="w-3 h-3 text-slate-500" />
+                              {est.badgeText}
+                            </span>
+                            <span className="text-[11px] font-mono text-[#64748B]">
+                              Est. {est.approxCallTimeFormatted}
+                            </span>
+                          </>
+                        ) : (
+                          <div className="text-xs font-mono text-[#64748B]">
+                            <Clock className="w-3.5 h-3.5 inline mr-1 text-[#94A3B8]" />
+                            {item.startTimeRaw ? formatDhakaTime(item.startTimeRaw) : item.startTime}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })
               ) : (
                 <div className="flex-1 min-h-[200px] rounded-2xl border-2 border-dashed border-[#CBD5E1] bg-white/70 flex flex-col items-center justify-center text-center p-6 shadow-xs">
                   <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2" />

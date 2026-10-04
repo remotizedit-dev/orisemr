@@ -575,6 +575,10 @@ export interface QueueItem {
   doctorName: string;
   startTime: string;
   startTimeRaw?: string;
+  endTimeRaw?: string;
+  inChairAt?: string | null;
+  estimatedDurationMinutes?: number;
+  serviceNames?: string[];
 }
 
 export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[]> {
@@ -658,6 +662,8 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
           doctorId: schema.users.id,
           doctorName: schema.users.name,
           startTime: schema.appointments.startTime,
+          endTime: schema.appointments.endTime,
+          inChairAt: schema.queueEntries.inChairAt,
         })
         .from(schema.queueEntries)
         .innerJoin(
@@ -728,23 +734,66 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
           });
       }
 
-      return entries.map((e) => ({
-        id: e.id,
-        appointmentId: e.appointmentId,
-        status: e.status,
-        serialNo: e.serialNo,
-        chairId: e.chairId,
-        chairName: e.chairName || null,
-        patientId: e.patientId,
-        patientName: e.patientName,
-        patientPhone: e.patientPhone,
-        patientCard: e.patientCard,
-        allergyFlags: e.allergyFlags || [],
-        doctorId: e.doctorId,
-        doctorName: e.doctorName,
-        startTime: formatDhakaTime(e.startTime),
-        startTimeRaw: e.startTime.toISOString(),
-      }));
+      // Fetch booked services for all today's queue appointments to get planned duration
+      const aptIds = entries.map((e) => e.appointmentId).filter(Boolean);
+      const servicesMap: Record<string, { serviceName: string; durationMinutes: number }[]> = {};
+
+      if (aptIds.length > 0) {
+        const servicesRows = await db
+          .select({
+            appointmentId: schema.appointmentServices.appointmentId,
+            serviceName: schema.appointmentServices.serviceNameSnapshot,
+            durationMinutes: schema.appointmentServices.durationMinutesSnapshot,
+          })
+          .from(schema.appointmentServices)
+          .where(
+            and(
+              eq(schema.appointmentServices.tenantId, tenantId),
+              inArray(schema.appointmentServices.appointmentId, aptIds)
+            )
+          )
+          .orderBy(schema.appointmentServices.sortOrder);
+
+        for (const s of servicesRows) {
+          if (!servicesMap[s.appointmentId]) {
+            servicesMap[s.appointmentId] = [];
+          }
+          servicesMap[s.appointmentId].push({
+            serviceName: s.serviceName,
+            durationMinutes: s.durationMinutes,
+          });
+        }
+      }
+
+      return entries.map((e) => {
+        const itemServices = servicesMap[e.appointmentId] || [];
+        const totalServiceMins = itemServices.reduce((acc, s) => acc + s.durationMinutes, 0);
+        const plannedDuration = totalServiceMins > 0
+          ? totalServiceMins
+          : Math.max(10, Math.round((e.endTime.getTime() - e.startTime.getTime()) / 60000)) || 20;
+
+        return {
+          id: e.id,
+          appointmentId: e.appointmentId,
+          status: e.status,
+          serialNo: e.serialNo,
+          chairId: e.chairId,
+          chairName: e.chairName || null,
+          patientId: e.patientId,
+          patientName: e.patientName,
+          patientPhone: e.patientPhone,
+          patientCard: e.patientCard,
+          allergyFlags: e.allergyFlags || [],
+          doctorId: e.doctorId,
+          doctorName: e.doctorName,
+          startTime: formatDhakaTime(e.startTime),
+          startTimeRaw: e.startTime.toISOString(),
+          endTimeRaw: e.endTime.toISOString(),
+          inChairAt: e.inChairAt ? e.inChairAt.toISOString() : null,
+          estimatedDurationMinutes: plannedDuration,
+          serviceNames: itemServices.map((s) => s.serviceName),
+        };
+      });
     },
     3 // 3-second cache TTL to coalesce rapid polling into single DB queries
   );
