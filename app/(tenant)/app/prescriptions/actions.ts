@@ -50,7 +50,9 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
     user.role === "SUPER_ADMIN";
 
   if (!canPrescribe) {
-    throw new Error("Only clinical dentists or clinic administrators may issue prescriptions");
+    throw new Error(
+      "Access Denied: Only clinical dentists or clinic administrators are authorized to write or issue prescriptions. Staff accounts do not have prescription privileges."
+    );
   }
 
   // 1. Sanitize appointmentId (prevent invalid UUID crashes)
@@ -316,7 +318,19 @@ export async function updatePrescriptionDetailsAction(
   prescriptionId: string,
   input: UpdatePrescriptionDetailsInput
 ) {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
+
+  const canPrescribe =
+    user.isDoctor ||
+    user.role === "DOCTOR" ||
+    user.role === "TENANT_ADMIN" ||
+    user.role === "SUPER_ADMIN";
+
+  if (!canPrescribe) {
+    throw new Error(
+      "Access Denied: Only clinical dentists or clinic administrators are authorized to edit prescriptions. Staff accounts do not have prescription editing privileges."
+    );
+  }
 
   let cleanNextVisitDate: string | null = null;
   if (input.nextVisitDate && typeof input.nextVisitDate === "string") {

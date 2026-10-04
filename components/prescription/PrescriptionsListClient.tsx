@@ -41,9 +41,13 @@ interface PrescriptionSummary {
 
 interface Props {
   initialPrescriptions: PrescriptionSummary[];
+  canPrescribe?: boolean;
 }
 
-export function PrescriptionsListClient({ initialPrescriptions }: Props) {
+export function PrescriptionsListClient({
+  initialPrescriptions,
+  canPrescribe = false,
+}: Props) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewingRxId, setViewingRxId] = useState<string | null>(null);
@@ -270,6 +274,7 @@ export function PrescriptionsListClient({ initialPrescriptions }: Props) {
         isOpen={!!viewingRxId}
         onClose={() => setViewingRxId(null)}
         onUpdated={() => router.refresh()}
+        canEdit={canPrescribe}
       />
     </div>
   );

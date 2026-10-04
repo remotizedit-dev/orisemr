@@ -17,10 +17,12 @@ interface PrescriptionItem {
 
 interface PatientPrescriptionsListProps {
   prescriptions: PrescriptionItem[];
+  canEdit?: boolean;
 }
 
 export function PatientPrescriptionsList({
   prescriptions,
+  canEdit = false,
 }: PatientPrescriptionsListProps) {
   const router = useRouter();
   const [viewingRxId, setViewingRxId] = useState<string | null>(null);
@@ -88,6 +90,7 @@ export function PatientPrescriptionsList({
         isOpen={!!viewingRxId}
         onClose={() => setViewingRxId(null)}
         onUpdated={() => router.refresh()}
+        canEdit={canEdit}
       />
     </>
   );

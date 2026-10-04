@@ -14,6 +14,7 @@ export type Capability =
   | "manage_appointments"
   | "run_queue"
   | "write_prescription"
+  | "edit_prescription"
   | "view_prescriptions"
   | "view_clinical_notes"
   | "create_invoice"
@@ -45,6 +46,8 @@ export function can(user: UserPermissionContext | null | undefined, capability: 
       "manage_features",
       "broadcast",
       "manage_master_catalog",
+      "write_prescription",
+      "edit_prescription",
     ].includes(capability);
   }
 
@@ -77,10 +80,11 @@ export function can(user: UserPermissionContext | null | undefined, capability: 
       return ["TENANT_ADMIN", "DOCTOR", "RECEPTIONIST"].includes(role);
 
     case "write_prescription":
-      return isDoctor || role === "DOCTOR";
+    case "edit_prescription":
+      return isDoctor || role === "DOCTOR" || role === "TENANT_ADMIN";
 
     case "view_clinical_notes":
-      return isDoctor || role === "DOCTOR";
+      return isDoctor || role === "DOCTOR" || role === "TENANT_ADMIN";
 
     case "view_reports":
       return ["TENANT_ADMIN", "DOCTOR", "RECEPTIONIST"].includes(role);

@@ -64,12 +64,14 @@ interface Props {
   initialDate: string; // YYYY-MM-DD
   doctors: DoctorItem[];
   appointments: AppointmentItem[];
+  canPrescribe?: boolean;
 }
 
 export default function AppointmentsClient({
   initialDate,
   doctors,
   appointments,
+  canPrescribe = false,
 }: Props) {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(initialDate);
@@ -502,7 +504,7 @@ export default function AppointmentsClient({
                   {/* If in chair */}
                   {apt.queueStatus === "in_chair" && (
                     <div className="flex items-center gap-2">
-                      {apt.patientId ? (
+                      {apt.patientId && canPrescribe ? (
                         <Link
                           href={`/app/prescriptions/new?patientId=${apt.patientId}&appointmentId=${apt.id}`}
                           prefetch={false}

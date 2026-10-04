@@ -35,6 +35,13 @@ export default async function PatientProfilePage({
   const { tenant, user } = await requireClinicStaff();
   const { id } = await params;
 
+  const canPrescribe = Boolean(
+    user.isDoctor ||
+    user.role === "DOCTOR" ||
+    user.role === "TENANT_ADMIN" ||
+    user.role === "SUPER_ADMIN"
+  );
+
   // 1. Fetch Patient
   const [patient] = await db
     .select()
@@ -291,9 +298,7 @@ export default async function PatientProfilePage({
             allergyNotes: patient.allergyNotes,
             medicalNotes: patient.medicalNotes,
           }}
-          canPrescribe={Boolean(
-            user.isDoctor || user.role === "DOCTOR" || user.role === "TENANT_ADMIN"
-          )}
+          canPrescribe={canPrescribe}
         />
       </div>
 
@@ -308,7 +313,7 @@ export default async function PatientProfilePage({
                 <FileText className="w-4 h-4 text-[#2A5CAA]" />
                 <span>Prescriptions History ({prescriptions.length})</span>
               </h2>
-              {(user.isDoctor || user.role === "DOCTOR" || user.role === "TENANT_ADMIN") && (
+              {canPrescribe && (
                 <Link
                   href={`/app/prescriptions/new?patientId=${patient.id}`}
                   prefetch={false}
@@ -319,7 +324,7 @@ export default async function PatientProfilePage({
               )}
             </div>
 
-            <PatientPrescriptionsList prescriptions={prescriptions} />
+            <PatientPrescriptionsList prescriptions={prescriptions} canEdit={canPrescribe} />
           </div>
 
           {/* Appointments History */}

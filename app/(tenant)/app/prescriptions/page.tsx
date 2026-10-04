@@ -7,7 +7,14 @@ import { PrescriptionsListClient } from "@/components/prescription/Prescriptions
 import { FileText, Plus } from "lucide-react";
 
 export default async function PrescriptionsPage() {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
+
+  const canPrescribe = Boolean(
+    user.isDoctor ||
+    user.role === "DOCTOR" ||
+    user.role === "TENANT_ADMIN" ||
+    user.role === "SUPER_ADMIN"
+  );
 
   // Fetch all prescriptions for this tenant, joined with patient and doctor
   const rxList = await db
@@ -67,18 +74,20 @@ export default async function PrescriptionsPage() {
           >
             In-Chair Queue
           </Link>
-          <Link
-            href="/app/prescriptions/new"
-            className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-xs shadow-xs flex items-center gap-2 transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Write Prescription</span>
-          </Link>
+          {canPrescribe && (
+            <Link
+              href="/app/prescriptions/new"
+              className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-xs shadow-xs flex items-center gap-2 transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Write Prescription</span>
+            </Link>
+          )}
         </div>
       </div>
 
       {/* Interactive Prescription Table Client */}
-      <PrescriptionsListClient initialPrescriptions={rxList} />
+      <PrescriptionsListClient initialPrescriptions={rxList} canPrescribe={canPrescribe} />
     </div>
   );
 }

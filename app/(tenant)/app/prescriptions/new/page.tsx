@@ -131,7 +131,18 @@ export default async function NewPrescriptionPage({
 }: {
   searchParams: Promise<{ patientId?: string; appointmentId?: string }>;
 }) {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
+
+  const canPrescribe =
+    user.isDoctor ||
+    user.role === "DOCTOR" ||
+    user.role === "TENANT_ADMIN" ||
+    user.role === "SUPER_ADMIN";
+
+  if (!canPrescribe) {
+    redirect("/app/prescriptions");
+  }
+
   const { patientId: rawPatientId, appointmentId: rawAppointmentId } = await searchParams;
 
   const patientId = rawPatientId ? decodeURIComponent(rawPatientId).trim() : "";

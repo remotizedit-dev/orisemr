@@ -13,8 +13,15 @@ export const metadata = {
 };
 
 export default async function AppointmentsPage({ searchParams }: Props) {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
   const params = await searchParams;
+
+  const canPrescribe = Boolean(
+    user.isDoctor ||
+    user.role === "DOCTOR" ||
+    user.role === "TENANT_ADMIN" ||
+    user.role === "SUPER_ADMIN"
+  );
 
   const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dhaka",
@@ -160,6 +167,7 @@ export default async function AppointmentsPage({ searchParams }: Props) {
       initialDate={targetDateStr}
       doctors={doctors}
       appointments={formattedAppointments}
+      canPrescribe={canPrescribe}
     />
   );
 }

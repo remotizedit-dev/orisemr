@@ -48,11 +48,19 @@ export default async function LiveQueuePage() {
     .where(eq(schema.tenants.id, tenant.id))
     .limit(1);
 
+  const canPrescribe = Boolean(
+    user.isDoctor ||
+    user.role === "DOCTOR" ||
+    user.role === "TENANT_ADMIN" ||
+    user.role === "SUPER_ADMIN"
+  );
+
   return (
     <QueueBoard
       initialItems={formattedItems}
       currentUserId={user.id}
       currentUserIsDoctor={user.isDoctor}
+      canPrescribe={canPrescribe}
       doctors={doctors}
       chairs={chairs}
       tenantSlug={tenant.slug}

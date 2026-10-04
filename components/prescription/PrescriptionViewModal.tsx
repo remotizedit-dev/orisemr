@@ -31,6 +31,7 @@ interface PrescriptionViewModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdated?: () => void;
+  canEdit?: boolean;
 }
 
 export function PrescriptionViewModal({
@@ -38,6 +39,7 @@ export function PrescriptionViewModal({
   isOpen,
   onClose,
   onUpdated,
+  canEdit = false,
 }: PrescriptionViewModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -109,7 +111,7 @@ export function PrescriptionViewModal({
   }, [isOpen, prescriptionId, onClose]);
 
   const handleSave = async () => {
-    if (!prescriptionId) return;
+    if (!prescriptionId || !canEdit) return;
     setSaving(true);
     try {
       await updatePrescriptionDetailsAction(prescriptionId, {
@@ -201,39 +203,41 @@ export function PrescriptionViewModal({
                 </div>
 
                 <div className="flex items-center gap-2 self-end sm:self-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isEditing) {
-                        handleSave();
-                      } else {
-                        setIsEditing(true);
-                      }
-                    }}
-                    disabled={saving}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
-                      isEditing
-                        ? "bg-[#30D158] hover:bg-[#28b84d] text-white"
-                        : "bg-white border border-[#E4E4E7] hover:bg-[#F4F4F5] text-[#1C1C1E]"
-                    }`}
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Saving...</span>
-                      </>
-                    ) : isEditing ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>Save Changes</span>
-                      </>
-                    ) : (
-                      <>
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Edit Notes &amp; Findings</span>
-                      </>
-                    )}
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isEditing) {
+                          handleSave();
+                        } else {
+                          setIsEditing(true);
+                        }
+                      }}
+                      disabled={saving}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
+                        isEditing
+                          ? "bg-[#30D158] hover:bg-[#28b84d] text-white"
+                          : "bg-white border border-[#E4E4E7] hover:bg-[#F4F4F5] text-[#1C1C1E]"
+                      }`}
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : isEditing ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>Save Changes</span>
+                        </>
+                      ) : (
+                        <>
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit Notes &amp; Findings</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -313,7 +317,7 @@ export function PrescriptionViewModal({
                       </span>
                     </div>
 
-                    {!isEditing && (
+                    {canEdit && !isEditing && (
                       <button
                         type="button"
                         onClick={() => setIsEditing(true)}
@@ -343,7 +347,9 @@ export function PrescriptionViewModal({
                         <p className="whitespace-pre-wrap">{data.prescription.notes}</p>
                       ) : (
                         <span className="italic text-amber-700/80">
-                          No private clinical notes recorded for this prescription yet. Click &quot;Edit Note&quot; to add confidential notes.
+                          {canEdit
+                            ? 'No private clinical notes recorded for this prescription yet. Click "Edit Note" to add confidential notes.'
+                            : "No private clinical notes recorded for this prescription."}
                         </span>
                       )}
                     </div>

@@ -58,6 +58,7 @@ interface QueueBoardProps {
   initialItems: QueueItem[];
   currentUserId: string;
   currentUserIsDoctor: boolean;
+  canPrescribe?: boolean;
   doctors: { id: string; name: string }[];
   chairs?: ChairOption[];
   tenantSlug?: string;
@@ -68,6 +69,7 @@ export function QueueBoard({
   initialItems,
   currentUserId,
   currentUserIsDoctor,
+  canPrescribe = false,
   doctors,
   chairs = [],
   tenantSlug,
@@ -1043,14 +1045,16 @@ export function QueueBoard({
 
                       {/* Two Action Buttons: Write RX & Finish Treatment */}
                       <div className="space-y-2 pt-1 border-t border-[#E4E4E7]">
-                        <Link
-                          href={`/app/prescriptions/new?patientId=${item.patientId}&appointmentId=${item.appointmentId}`}
-                          prefetch={true}
-                          className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-[#E8EEF7] text-[#2A5CAA] border-2 border-[#2A5CAA]/30 hover:border-[#2A5CAA] text-sm font-bold flex items-center justify-center gap-2 transition"
-                        >
-                          <FileText className="w-4 h-4 text-[#2A5CAA]" />
-                          <span>Write Prescription</span>
-                        </Link>
+                        {canPrescribe && (
+                          <Link
+                            href={`/app/prescriptions/new?patientId=${item.patientId}&appointmentId=${item.appointmentId}`}
+                            prefetch={true}
+                            className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-[#E8EEF7] text-[#2A5CAA] border-2 border-[#2A5CAA]/30 hover:border-[#2A5CAA] text-sm font-bold flex items-center justify-center gap-2 transition"
+                          >
+                            <FileText className="w-4 h-4 text-[#2A5CAA]" />
+                            <span>Write Prescription</span>
+                          </Link>
+                        )}
 
                         <button
                           type="button"
