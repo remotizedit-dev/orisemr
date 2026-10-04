@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Image as ImageIcon, Loader2, Save, Trash2, Upload } from "lucide-react";
+import {
+  Check,
+  Image as ImageIcon,
+  Loader2,
+  Save,
+  Trash2,
+  Upload,
+  Lock,
+  ShieldAlert,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   updateGeneralSettingsAction,
@@ -30,6 +40,7 @@ interface Props {
     rxPrintLetterhead: boolean;
     rxTopMarginMm: number;
     invoicePaperSize: "A4" | "A5" | "THERMAL_80MM";
+    doctorPatientVisibilityMode?: string;
   };
   initialLogoUrl?: string | null;
 }
@@ -70,6 +81,8 @@ export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props)
     rxPrintLetterhead: tenant.rxPrintLetterhead,
     rxTopMarginMm: tenant.rxTopMarginMm,
     invoicePaperSize: tenant.invoicePaperSize,
+    doctorPatientVisibilityMode:
+      (tenant.doctorPatientVisibilityMode as "ISOLATED" | "COLLABORATIVE") || "ISOLATED",
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -297,6 +310,93 @@ export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props)
               placeholder="House #, Road #, Sector, City"
               className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Doctor & Patient Record Privacy Policy */}
+      <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-2">
+            <Lock className="w-4 h-4 text-[#2A5CAA]" />
+            <span>Doctor Patient Visibility &amp; Privacy Policy</span>
+          </h3>
+          <p className="text-xs text-[#6B7280] mt-0.5">
+            Configure how chamber dentists view and access patient clinical records across your clinic.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+          {/* Option 1: Strict Isolation */}
+          <div
+            onClick={() =>
+              setFormData({ ...formData, doctorPatientVisibilityMode: "ISOLATED" })
+            }
+            className={`p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between ${
+              formData.doctorPatientVisibilityMode === "ISOLATED"
+                ? "bg-blue-50/70 border-[#2A5CAA] ring-1 ring-[#2A5CAA] shadow-xs"
+                : "bg-white border-[#E4E4E7] hover:border-[#CBD5E1]"
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#0F172A] flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-[#2A5CAA]" />
+                  <span>Strict Doctor Isolation (Default)</span>
+                </span>
+                <input
+                  type="radio"
+                  name="doctorPatientVisibilityMode"
+                  checked={formData.doctorPatientVisibilityMode === "ISOLATED"}
+                  onChange={() =>
+                    setFormData({ ...formData, doctorPatientVisibilityMode: "ISOLATED" })
+                  }
+                  className="w-4 h-4 text-[#2A5CAA]"
+                />
+              </div>
+              <p className="text-xs text-[#64748B] mt-2">
+                Doctors can <strong>only see and access patients assigned to their chamber</strong>. Other doctors&apos; patient lists and clinical histories are completely hidden and locked. Reassignments must be performed by Admin or Receptionist.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-md mt-3 w-fit">
+              Maximum Doctor Privacy &amp; Data Siloing
+            </span>
+          </div>
+
+          {/* Option 2: Collaborative */}
+          <div
+            onClick={() =>
+              setFormData({ ...formData, doctorPatientVisibilityMode: "COLLABORATIVE" })
+            }
+            className={`p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between ${
+              formData.doctorPatientVisibilityMode === "COLLABORATIVE"
+                ? "bg-blue-50/70 border-[#2A5CAA] ring-1 ring-[#2A5CAA] shadow-xs"
+                : "bg-white border-[#E4E4E7] hover:border-[#CBD5E1]"
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#0F172A] flex items-center gap-2">
+                  <Users className="w-4 h-4 text-emerald-600" />
+                  <span>Collaborative Cross-Coverage</span>
+                </span>
+                <input
+                  type="radio"
+                  name="doctorPatientVisibilityMode"
+                  checked={formData.doctorPatientVisibilityMode === "COLLABORATIVE"}
+                  onChange={() =>
+                    setFormData({ ...formData, doctorPatientVisibilityMode: "COLLABORATIVE" })
+                  }
+                  className="w-4 h-4 text-[#2A5CAA]"
+                />
+              </div>
+              <p className="text-xs text-[#64748B] mt-2">
+                Doctors default to their own chamber patients, but have an <strong>All Clinic Patients</strong> tab to look up any chart. If a colleague is delayed or leaves, the attending doctor can view records and click <strong>Take Over Patient</strong> directly.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md mt-3 w-fit">
+              Faster Emergency Handovers &amp; Collaboration
+            </span>
           </div>
         </div>
       </div>

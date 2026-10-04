@@ -78,12 +78,75 @@ export default async function PatientProfilePage({
   const patient = patientRecord.patient;
   const assignedDoctorName = patientRecord.assignedDoctorName;
 
-  // Doctor collaboration checks:
-  // If the logged in user is a doctor and viewing a patient assigned to another colleague,
-  // we do not lock them out—instead, we provide full clinical visibility and a 1-click "Take Over" action.
+  const visibilityMode =
+    (tenant.doctorPatientVisibilityMode as "ISOLATED" | "COLLABORATIVE") || "ISOLATED";
+
+  // If clinic operates in ISOLATED mode, pure doctors are restricted from viewing
+  // patients not assigned to them and with whom they have no clinical history.
+  if (visibilityMode === "ISOLATED" && isPureDoctor && patient.assignedDoctorId !== user.id) {
+    const [hasAppointment] = await db
+      .select({ id: schema.appointments.id })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.patientId, id),
+          eq(schema.appointments.doctorId, user.id)
+        )
+      )
+      .limit(1);
+
+    const [hasPrescription] = !hasAppointment
+      ? await db
+          .select({ id: schema.prescriptions.id })
+          .from(schema.prescriptions)
+          .where(
+            and(
+              eq(schema.prescriptions.tenantId, tenant.id),
+              eq(schema.prescriptions.patientId, id),
+              eq(schema.prescriptions.doctorId, user.id)
+            )
+          )
+          .limit(1)
+      : [null];
+
+    if (!hasAppointment && !hasPrescription) {
+      return (
+        <div className="max-w-xl mx-auto py-16 text-center space-y-4">
+          <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-black text-[#1C1C1E]">
+            Patient Not Assigned to You
+          </h2>
+          <p className="text-sm text-[#64748B] max-w-md mx-auto">
+            This patient is currently assigned to{" "}
+            <span className="font-bold text-[#1C1C1E]">
+              {assignedDoctorName ? `Dr. ${assignedDoctorName}` : "another clinic doctor"}
+            </span>
+            . Under your clinic&apos;s privacy settings, you can only access records for patients assigned to your chamber. Please ask the clinic admin or receptionist to reassign this patient to you.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/app/patients"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2A5CAA] text-white font-bold text-xs hover:bg-[#1E4282] transition"
+            >
+              Return to My Patients
+            </Link>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Doctor collaboration checks (when in COLLABORATIVE mode):
   const isDoctorUser = Boolean(user.isDoctor || user.role === "DOCTOR");
-  const isAssignedToOther = isDoctorUser && Boolean(patient.assignedDoctorId && patient.assignedDoctorId !== user.id);
-  const isDoctorUnassigned = isDoctorUser && !patient.assignedDoctorId;
+  const isAssignedToOther =
+    visibilityMode === "COLLABORATIVE" &&
+    isDoctorUser &&
+    Boolean(patient.assignedDoctorId && patient.assignedDoctorId !== user.id);
+  const isDoctorUnassigned =
+    visibilityMode === "COLLABORATIVE" && isDoctorUser && !patient.assignedDoctorId;
 
   // Fetch active clinic doctors for switching
   const doctors = await db

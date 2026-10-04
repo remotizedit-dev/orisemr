@@ -36,11 +36,19 @@ export default async function PatientsListPage() {
     )
     .orderBy(schema.users.name);
 
+  const visibilityMode =
+    (tenant.doctorPatientVisibilityMode as "ISOLATED" | "COLLABORATIVE") || "ISOLATED";
   const isDoctorUser = Boolean(user.isDoctor || user.role === "DOCTOR");
 
-  // If user is a doctor, identify all patients associated with them
-  // (via assignedDoctorId, or having appointments/queue/prescriptions with this doctor)
+  // In ISOLATED mode, pure doctors are restricted at database query level:
+  // they only receive patients assigned to them or whom they previously treated.
+  let whereClause = and(
+    eq(schema.patients.tenantId, tenant.id),
+    isNull(schema.patients.deletedAt)
+  );
+
   const myPatientIdSet = new Set<string>();
+
   if (isDoctorUser) {
     const [myApts, myQueue, myRx] = await Promise.all([
       db
@@ -75,6 +83,28 @@ export default async function PatientsListPage() {
     myApts.forEach((a) => a.patientId && myPatientIdSet.add(a.patientId));
     myQueue.forEach((q) => q.patientId && myPatientIdSet.add(q.patientId));
     myRx.forEach((r) => r.patientId && myPatientIdSet.add(r.patientId));
+
+    if (isPureDoctor && visibilityMode === "ISOLATED") {
+      whereClause = and(
+        eq(schema.patients.tenantId, tenant.id),
+        isNull(schema.patients.deletedAt),
+        or(
+          eq(schema.patients.assignedDoctorId, user.id),
+          sql`${schema.patients.id} IN (
+            SELECT patient_id FROM ${schema.appointments} 
+            WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id} AND patient_id IS NOT NULL
+          )`,
+          sql`${schema.patients.id} IN (
+            SELECT patient_id FROM ${schema.queueEntries} 
+            WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id}
+          )`,
+          sql`${schema.patients.id} IN (
+            SELECT patient_id FROM ${schema.prescriptions} 
+            WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id}
+          )`
+        )
+      );
+    }
   }
 
   const patientList = await db
@@ -96,12 +126,7 @@ export default async function PatientsListPage() {
       schema.users,
       eq(schema.patients.assignedDoctorId, schema.users.id)
     )
-    .where(
-      and(
-        eq(schema.patients.tenantId, tenant.id),
-        isNull(schema.patients.deletedAt)
-      )
-    )
+    .where(whereClause)
     .orderBy(desc(schema.patients.createdAt));
 
   const formattedPatients: PatientRow[] = patientList.map((p) => ({
@@ -130,7 +155,9 @@ export default async function PatientsListPage() {
           </h1>
           <p className="text-sm text-[#6B7280]">
             {isPureDoctor
-              ? `Displaying patients assigned to you (Dr. ${user.name}).`
+              ? visibilityMode === "ISOLATED"
+                ? `Chamber Privacy Active: Displaying patients assigned to Dr. ${user.name}.`
+                : `Displaying patients assigned to you (Dr. ${user.name}). Toggle tabs to view all clinic records.`
               : "Search registered chamber records, card numbers, and assigned dentists."}
           </p>
         </div>
@@ -150,6 +177,7 @@ export default async function PatientsListPage() {
         isPureDoctor={isPureDoctor}
         currentDoctorName={user.name}
         doctors={doctors}
+        visibilityMode={visibilityMode}
       />
     </div>
   );

@@ -45,6 +45,7 @@ interface PatientsListClientProps {
   isPureDoctor?: boolean;
   currentDoctorName?: string;
   doctors?: DoctorOption[];
+  visibilityMode?: "ISOLATED" | "COLLABORATIVE";
 }
 
 export default function PatientsListClient({
@@ -52,6 +53,7 @@ export default function PatientsListClient({
   isPureDoctor = false,
   currentDoctorName,
   doctors = [],
+  visibilityMode = "ISOLATED",
 }: PatientsListClientProps) {
   const router = useRouter();
   const [patients, setPatients] = useState<PatientRow[]>(initialPatients);
@@ -71,8 +73,8 @@ export default function PatientsListClient({
   } | null>(null);
 
   const filteredPatients = patients.filter((p) => {
-    // 0. Doctor view scope filter (My Chamber vs All Clinic)
-    if (isPureDoctor && viewScope === "my" && !p.isMyPatient) {
+    // 0. Doctor view scope filter (only applies in collaborative mode when "my" is selected)
+    if (isPureDoctor && visibilityMode === "COLLABORATIVE" && viewScope === "my" && !p.isMyPatient) {
       return false;
     }
 
@@ -118,8 +120,23 @@ export default function PatientsListClient({
 
   return (
     <div className="space-y-4">
-      {/* Doctor View Tab Toggle */}
-      {isPureDoctor && (
+      {/* Doctor View Notice Banner (Strict Isolation Mode) */}
+      {isPureDoctor && visibilityMode === "ISOLATED" && (
+        <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/80 text-blue-900 text-xs font-bold flex items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <Stethoscope className="w-4 h-4 text-[#2A5CAA]" />
+            <span>
+              Chamber Privacy Active: Only displaying patients assigned to <strong>Dr. {currentDoctorName}</strong>.
+            </span>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-white text-[#2A5CAA] border border-blue-200 font-mono text-[11px] font-black">
+            {filteredPatients.length} Assigned
+          </span>
+        </div>
+      )}
+
+      {/* Doctor View Tab Toggle (Collaborative Mode) */}
+      {isPureDoctor && visibilityMode === "COLLABORATIVE" && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-2xl bg-white border border-[#E4E4E7] shadow-2xs">
           <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#F4F4F5]">
             <button

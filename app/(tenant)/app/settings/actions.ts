@@ -26,6 +26,7 @@ export interface UpdateGeneralSettingsInput {
   rxPrintLetterhead: boolean;
   rxTopMarginMm: number;
   invoicePaperSize: (typeof schema.paperSizeEnum.enumValues)[number];
+  doctorPatientVisibilityMode?: "ISOLATED" | "COLLABORATIVE";
 }
 
 export async function updateGeneralSettingsAction(input: UpdateGeneralSettingsInput) {
@@ -55,11 +56,15 @@ export async function updateGeneralSettingsAction(input: UpdateGeneralSettingsIn
       rxPrintLetterhead: input.rxPrintLetterhead,
       rxTopMarginMm: input.rxTopMarginMm,
       invoicePaperSize: input.invoicePaperSize,
+      ...(input.doctorPatientVisibilityMode ? { doctorPatientVisibilityMode: input.doctorPatientVisibilityMode } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.tenants.id, tenant.id));
 
   revalidatePath("/app/settings");
+  revalidatePath("/app/patients");
+  revalidatePath("/app/appointments");
+  revalidatePath("/app/queue");
   revalidatePath("/app");
   return { success: true };
 }
