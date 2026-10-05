@@ -195,8 +195,8 @@ export function QueueBoard({
         const tokenLabel = res.serialCode || (res.serialNo ? `#${res.serialNo}` : "");
         toast.success(`Patient checked in! Assigned Token ${tokenLabel}`);
       }
-    } catch {
-      toast.error("Failed to check in patient");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to check in patient");
       router.refresh();
     } finally {
       setProcessingId(null);
@@ -982,7 +982,11 @@ export function QueueBoard({
                         {doctors.length > 1 && (
                           <button
                             type="button"
-                            onClick={() => setSwitchingQueueItem(item)}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSwitchingQueueItem(item);
+                            }}
                             className="p-1 rounded-lg text-slate-500 hover:text-[#2A5CAA] hover:bg-slate-100 transition cursor-pointer shrink-0"
                             title={`Switch doctor for ${item.patientName}`}
                           >
@@ -1330,11 +1334,17 @@ export function QueueBoard({
           currentDoctorId={switchingQueueItem.doctorId}
           currentDoctorName={switchingQueueItem.doctorName}
           doctors={doctors}
-          onSuccess={(newDoctorId, newDoctorName) => {
+          onSuccess={(newDoctorId, newDoctorName, res) => {
             setItems((prev) =>
               prev.map((it) =>
                 it.id === switchingQueueItem.id
-                  ? { ...it, doctorId: newDoctorId, doctorName: newDoctorName }
+                  ? {
+                      ...it,
+                      doctorId: newDoctorId,
+                      doctorName: newDoctorName,
+                      serialNo: res?.serialNo ?? it.serialNo,
+                      serialCode: res?.serialCode ?? it.serialCode,
+                    }
                   : it
               )
             );

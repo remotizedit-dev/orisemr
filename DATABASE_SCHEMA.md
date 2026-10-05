@@ -619,7 +619,8 @@ ALTER TABLE doctor_schedules ADD CONSTRAINT ds_chk
 -- Partial unique indexes
 CREATE UNIQUE INDEX invoices_code_uq    ON invoices (tenant_id, invoice_code) WHERE invoice_code IS NOT NULL;
 CREATE UNIQUE INDEX attachments_rpt_uq  ON attachments (tenant_id, report_code) WHERE report_code IS NOT NULL;
-CREATE UNIQUE INDEX queue_serial_uq     ON queue_entries (tenant_id, date, serial_no) WHERE serial_no IS NOT NULL;
+CREATE UNIQUE INDEX queue_doctor_serial_uq ON queue_entries (tenant_id, date, doctor_id, serial_no) WHERE serial_no IS NOT NULL;
+CREATE UNIQUE INDEX queue_serial_code_uq   ON queue_entries (tenant_id, date, serial_code) WHERE serial_code IS NOT NULL;
 -- One per clinic catalog table (service_categories, services, medicines, dosage_patterns,
 -- meal_timings, duration_options, advice_templates, quick_texts):
 CREATE UNIQUE INDEX services_master_uq  ON services (tenant_id, master_id) WHERE master_id IS NOT NULL;

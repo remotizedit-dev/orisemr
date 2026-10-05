@@ -680,6 +680,22 @@ export async function reassignQueueDoctorAction(
       const assignedNum = Number(maxSerialRow?.maxSerial || 0) + 1;
       const assignedCode = formatDoctorSerialCode(prefixLetter, assignedNum);
 
+      // Keep tenantCounters in sync for the new doctor
+      const counterKey = `SERIAL:${todayDhakaStr}:${newDoctorId}`;
+      await tx
+        .insert(schema.tenantCounters)
+        .values({
+          tenantId: tenant.id,
+          key: counterKey,
+          nextValue: assignedNum + 1,
+        })
+        .onConflictDoUpdate({
+          target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
+          set: {
+            nextValue: sql`GREATEST(${schema.tenantCounters.nextValue}, ${assignedNum + 1})`,
+          },
+        });
+
       await tx
         .update(schema.queueEntries)
         .set({
@@ -719,6 +735,16 @@ export async function reassignQueueDoctorAction(
       .where(eq(schema.patients.id, entry.patientId));
   });
 
+  // Re-fetch updated entry to return exact serial details
+  const [updatedEntry] = await db
+    .select({
+      serialNo: schema.queueEntries.serialNo,
+      serialCode: schema.queueEntries.serialCode,
+    })
+    .from(schema.queueEntries)
+    .where(eq(schema.queueEntries.id, entry.id))
+    .limit(1);
+
   await deleteCache(`queue:today:${tenant.id}`);
 
   revalidatePath("/app/queue");
@@ -730,6 +756,8 @@ export async function reassignQueueDoctorAction(
     success: true,
     doctorId: newDoctorId,
     doctorName: doctor.name,
+    serialNo: updatedEntry?.serialNo ?? null,
+    serialCode: updatedEntry?.serialCode ?? null,
   };
 }
 

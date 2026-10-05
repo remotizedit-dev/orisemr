@@ -32,7 +32,7 @@ interface SwitchDoctorModalProps {
   currentDoctorId?: string | null;
   currentDoctorName?: string | null;
   doctors: DoctorOption[];
-  onSuccess?: (newDoctorId: string, newDoctorName: string) => void;
+  onSuccess?: (newDoctorId: string, newDoctorName: string, result?: any) => void;
 }
 
 export function SwitchDoctorModal({
@@ -71,12 +71,13 @@ export function SwitchDoctorModal({
 
     setIsSubmitting(true);
     try {
+      let result: any = null;
       if (queueEntryId) {
-        await reassignQueueDoctorAction(queueEntryId, selectedDoctorId);
+        result = await reassignQueueDoctorAction(queueEntryId, selectedDoctorId);
       } else if (appointmentId) {
-        await reassignAppointmentDoctorAction(appointmentId, selectedDoctorId);
+        result = await reassignAppointmentDoctorAction(appointmentId, selectedDoctorId);
       } else if (patientId) {
-        await reassignPatientDoctorAction(patientId, selectedDoctorId, reason);
+        result = await reassignPatientDoctorAction(patientId, selectedDoctorId, reason);
       } else {
         throw new Error("No target patient, queue, or appointment specified");
       }
@@ -85,7 +86,7 @@ export function SwitchDoctorModal({
         `Doctor switched to Dr. ${targetName}! ${patientName} has been reassigned.`
       );
       if (onSuccess) {
-        onSuccess(selectedDoctorId, targetName);
+        onSuccess(selectedDoctorId, targetName, result);
       }
       onClose();
     } catch (err: any) {

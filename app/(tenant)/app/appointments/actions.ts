@@ -911,6 +911,22 @@ export async function reassignAppointmentDoctorAction(
         const newSerial = Number(maxSerialRow?.maxSerial || 0) + 1;
         const newSerialCode = formatDoctorSerialCode(prefixLetter, newSerial);
 
+        // Keep tenantCounters in sync
+        const counterKey = `SERIAL:${qEntry.date}:${newDoctorId}`;
+        await tx
+          .insert(schema.tenantCounters)
+          .values({
+            tenantId: tenant.id,
+            key: counterKey,
+            nextValue: newSerial + 1,
+          })
+          .onConflictDoUpdate({
+            target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
+            set: {
+              nextValue: sql`GREATEST(${schema.tenantCounters.nextValue}, ${newSerial + 1})`,
+            },
+          });
+
         queuePatch.serialNo = newSerial;
         queuePatch.serialCode = newSerialCode;
         queuePatch.queuePosition = newSerial;
