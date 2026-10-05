@@ -122,4 +122,76 @@ describe("Queue Estimates Engine", () => {
     expect(wait1?.estimatedWaitMinutes).toBe(0);
     expect(wait1?.badgeText).toBe("Calling Next");
   });
+
+  it("calculates independent wait times per doctor in multi-doctor clinics", () => {
+    const now = new Date("2026-10-05T10:00:00Z");
+    const items: QueueEstimateInputItem[] = [
+      // Doctor A is active in chair with 30 mins remaining
+      {
+        id: "chair-doc-a",
+        status: "in_chair",
+        doctorId: "doc-a",
+        doctorName: "Dr. Alice",
+        serialNo: 1,
+        serialCode: "A-01",
+        patientName: "Doc A Patient 1",
+        inChairAt: "2026-10-05T10:00:00Z",
+        estimatedDurationMinutes: 30,
+      },
+      // Waiting for Doctor A
+      {
+        id: "wait-doc-a-1",
+        status: "waiting",
+        doctorId: "doc-a",
+        doctorName: "Dr. Alice",
+        serialNo: 2,
+        serialCode: "A-02",
+        patientName: "Doc A Waiting 1",
+        estimatedDurationMinutes: 20,
+      },
+      // Doctor B is completely FREE (no in_chair item)
+      // Waiting for Doctor B - should be 0 mins ("Calling Next")
+      {
+        id: "wait-doc-b-1",
+        status: "waiting",
+        doctorId: "doc-b",
+        doctorName: "Dr. Bob",
+        serialNo: 1,
+        serialCode: "B-01",
+        patientName: "Doc B Waiting 1",
+        estimatedDurationMinutes: 15,
+      },
+      // Second waiting patient for Doctor B - should be 15 mins (after B-01)
+      {
+        id: "wait-doc-b-2",
+        status: "waiting",
+        doctorId: "doc-b",
+        doctorName: "Dr. Bob",
+        serialNo: 2,
+        serialCode: "B-02",
+        patientName: "Doc B Waiting 2",
+        estimatedDurationMinutes: 25,
+      },
+    ];
+
+    const result = calculateQueueEstimates(items, now);
+
+    // Doctor B is free, so B-01 is called immediately (0 mins)
+    const waitB1 = result.waitingEstimates.get("wait-doc-b-1");
+    expect(waitB1?.estimatedWaitMinutes).toBe(0);
+    expect(waitB1?.badgeText).toBe("Calling Next");
+
+    // B-02 waits for B-01's 15 min duration
+    const waitB2 = result.waitingEstimates.get("wait-doc-b-2");
+    expect(waitB2?.estimatedWaitMinutes).toBe(15);
+    expect(waitB2?.badgeText).toBe("Within ~15 mins");
+
+    // Doctor A is busy for 30 mins, so A-02 waits 30 mins regardless of Doctor B's availability
+    const waitA1 = result.waitingEstimates.get("wait-doc-a-1");
+    expect(waitA1?.estimatedWaitMinutes).toBe(30);
+    expect(waitA1?.badgeText).toBe("Within ~30 mins");
+
+    // Earliest call time in the clinic is 0 mins (Doctor B is ready)
+    expect(result.nextCallWaitMinutes).toBe(0);
+  });
 });

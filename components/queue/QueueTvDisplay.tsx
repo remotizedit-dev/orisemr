@@ -231,15 +231,22 @@ export function QueueTvDisplay({
     .filter((i) => i.status === "in_chair")
     .sort((a, b) => (a.serialNo || 999999) - (b.serialNo || 999999));
 
+  const { inChairEstimates, waitingEstimates } = calculateQueueEstimates(items, new Date());
+
+  // In multi-doctor clinics, sort waiting lounge patients by estimated call time (earliest first), then serial
   const waitingItems = items
     .filter((i) => i.status === "waiting")
-    .sort((a, b) => (a.serialNo || 999999) - (b.serialNo || 999999));
+    .sort((a, b) => {
+      const estA = waitingEstimates.get(a.id)?.estimatedWaitMinutes ?? 999999;
+      const estB = waitingEstimates.get(b.id)?.estimatedWaitMinutes ?? 999999;
+      if (estA !== estB) return estA - estB;
+      return (a.serialNo || 999999) - (b.serialNo || 999999);
+    });
 
   const recentlyDoneItems = items
     .filter((i) => i.status === "done" || i.status === "billing")
     .slice(-6);
 
-  const { inChairEstimates, waitingEstimates } = calculateQueueEstimates(items, new Date());
   const nextUpPatient = waitingItems[0];
   const nextUpEstimate = nextUpPatient ? waitingEstimates.get(nextUpPatient.id) : undefined;
 
@@ -499,6 +506,12 @@ export function QueueTvDisplay({
                   <div className="text-base font-black truncate text-white">
                     {nextUpPatient.patientName}
                   </div>
+                  {nextUpPatient.doctorName && (
+                    <div className="text-xs text-amber-100 font-medium truncate flex items-center gap-1 mt-0.5">
+                      <Stethoscope className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                      <span>Attending: {nextUpPatient.doctorName}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="text-right shrink-0">
