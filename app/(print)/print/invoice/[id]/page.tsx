@@ -61,6 +61,15 @@ export default async function PrintInvoicePage({ params, searchParams }: Props) 
     .where(eq(schema.patients.id, invoice.patientId))
     .limit(1);
 
+  const doctor = invoice.doctorId
+    ? await db
+        .select({ name: schema.users.name })
+        .from(schema.users)
+        .where(eq(schema.users.id, invoice.doctorId))
+        .limit(1)
+        .then((res) => res[0])
+    : null;
+
   const items = await db
     .select()
     .from(schema.invoiceItems)
@@ -136,6 +145,12 @@ export default async function PrintInvoicePage({ params, searchParams }: Props) 
             <span className="font-bold">Invoice Date:</span>{" "}
             {formatDhakaDate(invoice.createdAt, "dd MMM yyyy")}
           </div>
+          {doctor?.name && (
+            <div>
+              <span className="font-bold">Attending Doctor:</span>{" "}
+              <span>{doctor.name.startsWith("Dr.") ? doctor.name : `Dr. ${doctor.name}`}</span>
+            </div>
+          )}
           <div>
             <span className="font-bold">Status:</span>{" "}
             <span className="uppercase font-bold">{invoice.status}</span>

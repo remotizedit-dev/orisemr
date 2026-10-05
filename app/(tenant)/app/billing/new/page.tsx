@@ -12,8 +12,24 @@ interface Props {
 }
 
 export default async function NewInvoicePage({ searchParams }: Props) {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
   const params = await searchParams;
+
+  // Active doctors in tenant clinic
+  const doctors = await db
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+    })
+    .from(schema.users)
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.isDoctor, true),
+        eq(schema.users.status, "active")
+      )
+    )
+    .orderBy(schema.users.name);
 
   // Active services in tenant catalog
   const services = await db
@@ -78,6 +94,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     invoiceId: string;
     message?: string;
   } | null = null;
+  let resolvedDoctorId: string | undefined = undefined;
 
   // 1. If appointmentId is provided, resolve patient and services from appointment
   if (appointmentId) {
@@ -105,6 +122,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .select({
         id: schema.appointments.id,
         patientId: schema.appointments.patientId,
+        doctorId: schema.appointments.doctorId,
       })
       .from(schema.appointments)
       .where(
@@ -114,6 +132,10 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         )
       )
       .limit(1);
+
+    if (apt?.doctorId) {
+      resolvedDoctorId = apt.doctorId;
+    }
 
     if (apt?.patientId) {
       if (!cleanPatientId) cleanPatientId = apt.patientId;
@@ -156,6 +178,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         rxCode: schema.prescriptions.rxCode,
         diagnosis: schema.prescriptions.diagnosis,
         toothCodes: schema.prescriptions.toothCodes,
+        doctorId: schema.prescriptions.doctorId,
       })
       .from(schema.prescriptions)
       .where(
@@ -167,6 +190,9 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .limit(1);
 
     if (rx) {
+      if (rx.doctorId && !resolvedDoctorId) {
+        resolvedDoctorId = rx.doctorId;
+      }
       prescriptionInfo = {
         id: rx.id,
         rxCode: rx.rxCode,
@@ -205,6 +231,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
 
   // 2. Fetch preselected patient info (support UUID or 10-digit CardNumber)
   let resolvedPatientId: string | null = null;
+  let patientAssignedDocId: string | null = null;
   if (cleanPatientId) {
     const isUuid = /^[0-9a-fA-F-]{36}$/.test(cleanPatientId);
     const [p] = await db
@@ -213,6 +240,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         name: schema.patients.name,
         cardNumber: schema.patients.cardNumber,
         phone: schema.patients.phone,
+        assignedDoctorId: schema.patients.assignedDoctorId,
       })
       .from(schema.patients)
       .where(
@@ -226,8 +254,17 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       .limit(1);
 
     if (p) {
-      preselectedPatient = p;
+      preselectedPatient = {
+        id: p.id,
+        name: p.name,
+        cardNumber: p.cardNumber,
+        phone: p.phone,
+      };
       resolvedPatientId = p.id;
+      patientAssignedDocId = p.assignedDoctorId;
+      if (p.assignedDoctorId && !resolvedDoctorId) {
+        resolvedDoctorId = p.assignedDoctorId;
+      }
     }
   }
 
@@ -456,6 +493,11 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     };
   }
 
+  const defaultDoctorId =
+    resolvedDoctorId ||
+    patientAssignedDocId ||
+    ((user.isDoctor || user.role === "DOCTOR") ? user.id : undefined);
+
   return (
     <NewInvoiceClient
       services={services}
@@ -465,6 +507,8 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       patientDues={patientDues}
       prescriptionInfo={prescriptionInfo}
       alreadyBilledInfo={alreadyBilledInfo}
+      doctors={doctors}
+      defaultDoctorId={defaultDoctorId}
     />
   );
 }

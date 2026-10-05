@@ -21,6 +21,7 @@ import {
   Sparkles,
   UserPlus,
   X,
+  Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBdt, formatPaymentMethod } from "@/lib/utils";
@@ -84,6 +85,8 @@ interface Props {
     invoiceId: string;
     message?: string;
   } | null;
+  doctors?: { id: string; name: string }[];
+  defaultDoctorId?: string;
 }
 
 export default function NewInvoiceClient({
@@ -94,6 +97,8 @@ export default function NewInvoiceClient({
   patientDues,
   prescriptionInfo,
   alreadyBilledInfo,
+  doctors = [],
+  defaultDoctorId,
 }: Props) {
   const router = useRouter();
 
@@ -102,6 +107,7 @@ export default function NewInvoiceClient({
   const [patientResults, setPatientResults] = useState<any[]>([]);
   const [isSearchingPatient, setIsSearchingPatient] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(defaultDoctorId || "");
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [currentPatientDues, setCurrentPatientDues] = useState(patientDues);
   const [currentPrescriptionInfo, setCurrentPrescriptionInfo] = useState(prescriptionInfo);
@@ -238,6 +244,10 @@ export default function NewInvoiceClient({
         setCurrentPrescriptionId(context.prescriptionInfo?.id || undefined);
         setCurrentAlreadyBilledInfo(context.alreadyBilledInfo || null);
 
+        if (context.doctorId) {
+          setSelectedDoctorId(context.doctorId);
+        }
+
         if (context.prescriptionInfo) {
           setCurrentPrescriptionInfo(context.prescriptionInfo);
         } else {
@@ -354,6 +364,7 @@ export default function NewInvoiceClient({
       setIsSubmitting(true);
       const res = await createInvoiceAction({
         patientId: selectedPatient.id,
+        doctorId: selectedDoctorId || undefined,
         appointmentId: currentAppointmentId,
         prescriptionId: currentPrescriptionId,
         discountBdt,
@@ -813,6 +824,40 @@ export default function NewInvoiceClient({
           initialName={patientQuery}
         />
       </div>
+
+      {/* Attending Doctor Attribution (Served By) */}
+      {doctors.length > 0 && (
+        <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] space-y-3.5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-[#1C1C1E] uppercase tracking-wider flex items-center gap-2">
+              <Stethoscope className="w-4 h-4 text-[#2A5CAA]" />
+              <span>Attending Doctor (Served By)</span>
+            </span>
+            {selectedDoctorId && (
+              <span className="text-[11px] font-bold text-[#2A5CAA] bg-[#EBF2FC] px-2.5 py-0.5 rounded-full border border-[#2A5CAA]/20">
+                Revenue &amp; Patient Count Linked
+              </span>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <select
+              value={selectedDoctorId}
+              onChange={(e) => setSelectedDoctorId(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-2xl border border-[#E4E4E7] bg-white text-sm font-semibold text-[#1C1C1E] focus:outline-hidden focus:ring-2 focus:ring-[#2A5CAA]/20 focus:border-[#2A5CAA] cursor-pointer"
+            >
+              <option value="">General Clinic / No specific doctor...</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name.startsWith("Dr.") ? d.name : `Dr. ${d.name}`}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-[#6B7280]">
+              Attributing the bill calculates the patient count and revenue earned by this doctor, visible in their portal and clinic reports.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Billable Line Items */}
       <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] space-y-4 shadow-2xs">

@@ -4,7 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { formatBdt } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Plus, Stethoscope, Users, CreditCard, DollarSign, CheckCircle2, TrendingUp } from "lucide-react";
 import InvoicesListClient, { type InvoiceRow } from "@/components/billing/InvoicesListClient";
 
 export const metadata = {
@@ -12,8 +12,9 @@ export const metadata = {
 };
 
 export default async function BillingPage() {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
 
+  // 1. Fetch all invoices with patient details and attending doctor attribution
   const invoices = await db
     .select({
       id: schema.invoices.id,
@@ -25,16 +26,38 @@ export default async function BillingPage() {
       patientId: schema.invoices.patientId,
       patientName: schema.patients.name,
       patientCard: schema.patients.cardNumber,
+      doctorId: schema.invoices.doctorId,
+      doctorName: schema.users.name,
     })
     .from(schema.invoices)
     .innerJoin(
       schema.patients,
       eq(schema.invoices.patientId, schema.patients.id)
     )
+    .leftJoin(
+      schema.users,
+      eq(schema.invoices.doctorId, schema.users.id)
+    )
     .where(eq(schema.invoices.tenantId, tenant.id))
     .orderBy(desc(schema.invoices.createdAt));
 
-  // Today's payments collection breakdown
+  // 2. Fetch active clinic doctors for attribution & filtering
+  const clinicDoctors = await db
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+    })
+    .from(schema.users)
+    .where(
+      and(
+        eq(schema.users.tenantId, tenant.id),
+        eq(schema.users.isDoctor, true),
+        eq(schema.users.status, "active")
+      )
+    )
+    .orderBy(schema.users.name);
+
+  // 3. Today's payments collection breakdown
   const allPayments = await db
     .select()
     .from(schema.payments)
@@ -55,6 +78,92 @@ export default async function BillingPage() {
     }
   }
 
+  // 4. Calculate Doctor Performance & Earnings Breakdown
+  const doctorMap = new Map<
+    string,
+    {
+      doctorId: string;
+      doctorName: string;
+      patientIds: Set<string>;
+      totalBilledBdt: number;
+      totalCollectedBdt: number;
+      totalDueBdt: number;
+      invoicesCount: number;
+    }
+  >();
+
+  // Pre-seed all active doctors
+  for (const doc of clinicDoctors) {
+    doctorMap.set(doc.id, {
+      doctorId: doc.id,
+      doctorName: doc.name.startsWith("Dr.") ? doc.name : `Dr. ${doc.name}`,
+      patientIds: new Set(),
+      totalBilledBdt: 0,
+      totalCollectedBdt: 0,
+      totalDueBdt: 0,
+      invoicesCount: 0,
+    });
+  }
+
+  let unassignedBilled = 0;
+  let unassignedCollected = 0;
+  let unassignedDue = 0;
+  const unassignedPatients = new Set<string>();
+  let unassignedInvoices = 0;
+
+  for (const inv of invoices) {
+    if (inv.doctorId && doctorMap.has(inv.doctorId)) {
+      const d = doctorMap.get(inv.doctorId)!;
+      d.patientIds.add(inv.patientId);
+      d.totalBilledBdt += inv.totalBdt;
+      d.totalCollectedBdt += inv.paidBdt;
+      d.totalDueBdt += Math.max(0, inv.totalBdt - inv.paidBdt);
+      d.invoicesCount += 1;
+    } else if (inv.doctorId) {
+      const docName = inv.doctorName
+        ? (inv.doctorName.startsWith("Dr.") ? inv.doctorName : `Dr. ${inv.doctorName}`)
+        : "Attending Doctor";
+      doctorMap.set(inv.doctorId, {
+        doctorId: inv.doctorId,
+        doctorName: docName,
+        patientIds: new Set([inv.patientId]),
+        totalBilledBdt: inv.totalBdt,
+        totalCollectedBdt: inv.paidBdt,
+        totalDueBdt: Math.max(0, inv.totalBdt - inv.paidBdt),
+        invoicesCount: 1,
+      });
+    } else {
+      unassignedPatients.add(inv.patientId);
+      unassignedBilled += inv.totalBdt;
+      unassignedCollected += inv.paidBdt;
+      unassignedDue += Math.max(0, inv.totalBdt - inv.paidBdt);
+      unassignedInvoices += 1;
+    }
+  }
+
+  const doctorBreakdown = Array.from(doctorMap.values()).map((d) => ({
+    doctorId: d.doctorId,
+    doctorName: d.doctorName,
+    uniquePatients: d.patientIds.size,
+    totalBilledBdt: d.totalBilledBdt,
+    totalCollectedBdt: d.totalCollectedBdt,
+    totalDueBdt: d.totalDueBdt,
+    invoicesCount: d.invoicesCount,
+  }));
+
+  const isDoctor = Boolean(user.isDoctor || user.role === "DOCTOR");
+  const myStats = isDoctor
+    ? doctorBreakdown.find((d) => d.doctorId === user.id) || {
+        doctorId: user.id,
+        doctorName: user.name || "Doctor",
+        uniquePatients: 0,
+        totalBilledBdt: 0,
+        totalCollectedBdt: 0,
+        totalDueBdt: 0,
+        invoicesCount: 0,
+      }
+    : null;
+
   const formattedInvoices: InvoiceRow[] = invoices.map((inv) => ({
     id: inv.id,
     code: inv.code,
@@ -65,17 +174,20 @@ export default async function BillingPage() {
     patientId: inv.patientId,
     patientName: inv.patientName,
     patientCard: inv.patientCard,
+    doctorId: inv.doctorId,
+    doctorName: inv.doctorName,
   }));
 
   return (
     <div className="space-y-6">
+      {/* Page Title & Quick Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1C1C1E] tracking-tight">
+          <h1 className="text-2xl font-black text-[#1C1C1E] tracking-tight">
             Billing &amp; Invoices
           </h1>
           <p className="text-sm text-[#6B7280]">
-            Patient invoicing, partial payment receipts, and digital money reconciliation.
+            Attributed doctor earnings, patient billing, partial payments, and money reconciliation.
           </p>
         </div>
 
@@ -98,11 +210,85 @@ export default async function BillingPage() {
         </div>
       </div>
 
+      {/* Doctor-Specific Chamber Performance Highlight (when logged in as a Doctor) */}
+      {isDoctor && myStats && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-[#2A5CAA]/10 via-[#2A5CAA]/5 to-transparent border border-[#2A5CAA]/25 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#2A5CAA] text-white flex items-center justify-center shadow-xs">
+                <Stethoscope className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-[#1C1C1E]">
+                  My Chamber Revenue &amp; Patients Served
+                </h2>
+                <p className="text-xs text-[#6B7280]">
+                  Performance summary for {user.name.startsWith("Dr.") ? user.name : `Dr. ${user.name}`}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-extrabold text-[#2A5CAA] bg-white px-3 py-1 rounded-full border border-[#2A5CAA]/20 shadow-2xs">
+              Doctor Chamber Portal
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-3.5 rounded-2xl border border-[#E4E4E7] shadow-2xs">
+              <span className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider block">
+                Patients Served by Me
+              </span>
+              <span className="text-xl font-black text-[#1C1C1E] block mt-1">
+                {myStats.uniquePatients}
+              </span>
+              <span className="text-[11px] text-[#6B7280] block mt-0.5">
+                Across {myStats.invoicesCount} invoice(s)
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-2xl border border-[#E4E4E7] shadow-2xs">
+              <span className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider block">
+                Total Billed by Me
+              </span>
+              <span className="text-xl font-black text-[#1C1C1E] block mt-1">
+                {formatBdt(myStats.totalBilledBdt)}
+              </span>
+              <span className="text-[11px] text-[#6B7280] block mt-0.5">
+                Procedures &amp; visits
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-2xl border border-[#E4E4E7] shadow-2xs">
+              <span className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider block">
+                Total Collected / Earned
+              </span>
+              <span className="text-xl font-black text-[#30D158] block mt-1">
+                {formatBdt(myStats.totalCollectedBdt)}
+              </span>
+              <span className="text-[11px] text-[#30D158] block mt-0.5">
+                Cash, MFS &amp; Cards
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-2xl border border-[#E4E4E7] shadow-2xs">
+              <span className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider block">
+                My Pending Patient Dues
+              </span>
+              <span className="text-xl font-black text-[#FF453A] block mt-1">
+                {formatBdt(myStats.totalDueBdt)}
+              </span>
+              <span className="text-[11px] text-[#FF453A] block mt-0.5">
+                Awaiting collection
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Today's Reconciliation Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
           <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
-            Total Collection
+            Clinic Total Collection
           </span>
           <span className="text-2xl font-black text-[#1C1C1E] block mt-1">
             {formatBdt(totalCollected)}
@@ -137,9 +323,105 @@ export default async function BillingPage() {
         </div>
       </div>
 
-      {/* Invoices List with Search, Filter & 25/100 Pagination */}
-      <InvoicesListClient invoices={formattedInvoices} />
+      {/* Doctor Performance & Earnings Attribution Summary (for Admin & Staff Overview) */}
+      <div className="glass-panel rounded-3xl border border-[#E4E4E7] p-5 space-y-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E4E4E7]">
+          <div className="flex items-center gap-2">
+            <Stethoscope className="w-5 h-5 text-[#2A5CAA]" />
+            <h2 className="text-base font-extrabold text-[#1C1C1E]">
+              Doctor Earnings &amp; Patient Attribution
+            </h2>
+          </div>
+          <span className="text-xs text-[#6B7280]">
+            Track which doctor served which patient and total revenue generated/collected
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-[#E4E4E7] text-[#6B7280] uppercase tracking-wider font-bold">
+                <th className="py-2.5 px-3">Attending Doctor</th>
+                <th className="py-2.5 px-3 text-center">Patients Served</th>
+                <th className="py-2.5 px-3 text-center">Invoices</th>
+                <th className="py-2.5 px-3 text-right">Total Billed (Tk)</th>
+                <th className="py-2.5 px-3 text-right">Collected / Earned (Tk)</th>
+                <th className="py-2.5 px-3 text-right">Pending Due (Tk)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E4E4E7]">
+              {doctorBreakdown.map((doc) => {
+                const isMe = user.id === doc.doctorId;
+                return (
+                  <tr
+                    key={doc.doctorId}
+                    className={`hover:bg-[#F8FAFC] transition ${
+                      isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
+                    }`}
+                  >
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[#1C1C1E]">{doc.doctorName}</span>
+                        {isMe && (
+                          <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded-md bg-[#2A5CAA] text-white">
+                            You
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center font-bold text-[#1C1C1E]">
+                      {doc.uniquePatients}
+                    </td>
+                    <td className="py-3 px-3 text-center text-[#6B7280]">
+                      {doc.invoicesCount}
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-[#1C1C1E]">
+                      {formatBdt(doc.totalBilledBdt)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-[#30D158]">
+                      {formatBdt(doc.totalCollectedBdt)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-[#FF453A]">
+                      {formatBdt(doc.totalDueBdt)}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {unassignedInvoices > 0 && (
+                <tr className="hover:bg-[#F8FAFC] transition text-[#6B7280] italic">
+                  <td className="py-3 px-3 font-semibold">
+                    General Clinic (Unassigned Doctor)
+                  </td>
+                  <td className="py-3 px-3 text-center font-bold">
+                    {unassignedPatients.size}
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    {unassignedInvoices}
+                  </td>
+                  <td className="py-3 px-3 text-right font-bold text-[#1C1C1E]">
+                    {formatBdt(unassignedBilled)}
+                  </td>
+                  <td className="py-3 px-3 text-right font-bold text-[#30D158]">
+                    {formatBdt(unassignedCollected)}
+                  </td>
+                  <td className="py-3 px-3 text-right font-bold text-[#FF453A]">
+                    {formatBdt(unassignedDue)}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Invoices List with Doctor Filter, Search, Pagination & Take Payment modal */}
+      <InvoicesListClient
+        invoices={formattedInvoices}
+        doctors={clinicDoctors}
+        currentUserId={user.id}
+        isDoctor={isDoctor}
+      />
     </div>
   );
 }
-

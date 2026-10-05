@@ -140,6 +140,7 @@ export interface InvoiceItemInput {
 
 export interface CreateInvoiceInput {
   patientId: string;
+  doctorId?: string | null;
   appointmentId?: string;
   prescriptionId?: string;
   discountBdt: number;
@@ -228,6 +229,7 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
       name: schema.patients.name,
       email: schema.patients.email,
       cardNumber: schema.patients.cardNumber,
+      assignedDoctorId: schema.patients.assignedDoctorId,
     })
     .from(schema.patients)
     .where(
@@ -240,6 +242,36 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
 
   if (!patient) {
     throw new Error("Patient not found in this clinic");
+  }
+
+  // Resolve which doctor served this patient
+  let finalDoctorId =
+    input.doctorId && input.doctorId.trim() ? input.doctorId.trim() : null;
+
+  if (!finalDoctorId && cleanAppointmentId) {
+    const [apt] = await db
+      .select({ doctorId: schema.appointments.doctorId })
+      .from(schema.appointments)
+      .where(eq(schema.appointments.id, cleanAppointmentId))
+      .limit(1);
+    if (apt?.doctorId) finalDoctorId = apt.doctorId;
+  }
+
+  if (!finalDoctorId && cleanPrescriptionId) {
+    const [rx] = await db
+      .select({ doctorId: schema.prescriptions.doctorId })
+      .from(schema.prescriptions)
+      .where(eq(schema.prescriptions.id, cleanPrescriptionId))
+      .limit(1);
+    if (rx?.doctorId) finalDoctorId = rx.doctorId;
+  }
+
+  if (!finalDoctorId && patient.assignedDoctorId) {
+    finalDoctorId = patient.assignedDoctorId;
+  }
+
+  if (!finalDoctorId && (user.isDoctor || user.role === "DOCTOR")) {
+    finalDoctorId = user.id;
   }
 
   try {
@@ -270,6 +302,7 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
           tenantId: tenant.id,
           invoiceCode,
           patientId: input.patientId,
+          doctorId: finalDoctorId,
           appointmentId: cleanAppointmentId,
           prescriptionId: cleanPrescriptionId,
           subtotalBdt,
@@ -551,6 +584,7 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
       name: schema.patients.name,
       cardNumber: schema.patients.cardNumber,
       phone: schema.patients.phone,
+      assignedDoctorId: schema.patients.assignedDoctorId,
     })
     .from(schema.patients)
     .where(
@@ -819,12 +853,35 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     }));
   }
 
+  // Resolve target doctor attribution
+  let targetDoctorId: string | null = null;
+  if (targetAppointmentId) {
+    const [apt] = await db
+      .select({ doctorId: schema.appointments.doctorId })
+      .from(schema.appointments)
+      .where(eq(schema.appointments.id, targetAppointmentId))
+      .limit(1);
+    if (apt?.doctorId) targetDoctorId = apt.doctorId;
+  }
+  if (!targetDoctorId && targetRx) {
+    const [rx] = await db
+      .select({ doctorId: schema.prescriptions.doctorId })
+      .from(schema.prescriptions)
+      .where(eq(schema.prescriptions.id, targetRx.id))
+      .limit(1);
+    if (rx?.doctorId) targetDoctorId = rx.doctorId;
+  }
+  if (!targetDoctorId && patient.assignedDoctorId) {
+    targetDoctorId = patient.assignedDoctorId;
+  }
+
   return {
     patient,
     appointmentId: targetAppointmentId,
     bookedServices,
     prescriptionInfo,
     alreadyBilledInfo,
+    doctorId: targetDoctorId,
     patientDues: {
       totalDueBdt: unpaid.reduce((sum, it) => sum + it.dueBdt, 0),
       unpaidInvoices: unpaid,

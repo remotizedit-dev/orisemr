@@ -32,6 +32,9 @@ export const invoices = pgTable(
     prescriptionId: uuid("prescription_id").references(() => prescriptions.id, {
       onDelete: "set null",
     }),
+    doctorId: text("doctor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     subtotalBdt: integer("subtotal_bdt").notNull(),
     discountBdt: integer("discount_bdt").default(0).notNull(),
     discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }),
@@ -54,6 +57,7 @@ export const invoices = pgTable(
     index("invoices_tenant_status_created_idx").on(table.tenantId, table.status, table.createdAt),
     index("invoices_unpaid_created_idx").on(table.tenantId, table.createdAt),
     index("invoices_tenant_patient_idx").on(table.tenantId, table.patientId),
+    index("invoices_tenant_doctor_idx").on(table.tenantId, table.doctorId),
     index("invoices_tenant_created_idx").on(table.tenantId, table.createdAt),
     index("invoices_tenant_code_idx").on(table.tenantId, table.invoiceCode),
     index("invoices_tenant_appt_idx").on(table.tenantId, table.appointmentId),

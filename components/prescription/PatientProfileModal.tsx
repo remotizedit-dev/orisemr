@@ -594,9 +594,18 @@ export function PatientProfileModal({
                             ৳{inv.totalBdt}
                           </p>
                           {inv.totalBdt > inv.paidBdt && (
-                            <p className="text-xs font-bold text-[#DC2626]">
-                              Due: ৳{inv.totalBdt - inv.paidBdt}
-                            </p>
+                            <div className="space-y-1 mt-1">
+                              <p className="text-xs font-bold text-[#DC2626]">
+                                Due: ৳{inv.totalBdt - inv.paidBdt}
+                              </p>
+                              <Link
+                                href={`/app/billing/dues?invoiceId=${inv.id}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-[11px] font-bold shadow-2xs transition"
+                              >
+                                <CreditCard className="w-3 h-3" />
+                                <span>Take Payment</span>
+                              </Link>
+                            </div>
                           )}
                         </div>
                       </div>
