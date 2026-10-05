@@ -12,6 +12,7 @@ export interface QueueEstimateInputItem {
   id: string;
   status: "booked" | "waiting" | "in_chair" | "billing" | "done" | "no_show" | "cancelled";
   serialNo: number | null;
+  serialCode?: string | null;
   patientName: string;
   chairId?: string | null;
   chairName?: string | null;
@@ -24,6 +25,7 @@ export interface QueueEstimateInputItem {
 export interface WaitingItemEstimate {
   id: string;
   serialNo: number | null;
+  serialCode?: string | null;
   patientName: string;
   estimatedWaitMinutes: number;
   badgeText: string;
@@ -34,6 +36,7 @@ export interface WaitingItemEstimate {
 export interface InChairItemEstimate {
   id: string;
   serialNo: number | null;
+  serialCode?: string | null;
   patientName: string;
   chairName: string;
   serviceDurationMinutes: number;
@@ -99,6 +102,7 @@ export function calculateQueueEstimates(
     inChairEstimates.set(item.id, {
       id: item.id,
       serialNo: item.serialNo,
+      serialCode: item.serialCode,
       patientName: item.patientName,
       chairName: item.chairName || "Dental Chair",
       serviceDurationMinutes: plannedDuration,
@@ -168,6 +172,7 @@ export function calculateQueueEstimates(
     waitingEstimates.set(item.id, {
       id: item.id,
       serialNo: item.serialNo,
+      serialCode: item.serialCode,
       patientName: item.patientName,
       estimatedWaitMinutes: waitMins,
       badgeText,

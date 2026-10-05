@@ -58,3 +58,27 @@ export function parseRecordCode(input: string): ParsedRecordCode {
     raw: trimmed,
   };
 }
+
+/**
+ * Returns a doctor prefix letter ('A', 'B', 'C' ... 'Z', 'AA', 'AB'...)
+ * based on doctor index among active clinic doctors.
+ */
+export function getDoctorPrefixLetter(doctorIndex: number): string {
+  if (doctorIndex < 0) return "Q";
+  let prefix = "";
+  let num = doctorIndex;
+  while (num >= 0) {
+    prefix = String.fromCharCode(65 + (num % 26)) + prefix;
+    num = Math.floor(num / 26) - 1;
+  }
+  return prefix;
+}
+
+/**
+ * Formats doctor-scoped serial token code: e.g. "A-01", "B-03"
+ */
+export function formatDoctorSerialCode(prefixLetter: string, serialNo: number): string {
+  const padded = String(serialNo).padStart(2, "0");
+  return `${prefixLetter}-${padded}`;
+}
+

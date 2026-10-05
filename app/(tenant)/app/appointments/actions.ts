@@ -10,7 +10,11 @@ import {
   computeWorkingHoursIntersection,
   type CandidateDoctor,
 } from "@/lib/scheduling/slot-engine";
-import { generateRecordCode } from "@/lib/barcode/codes";
+import {
+  generateRecordCode,
+  getDoctorPrefixLetter,
+  formatDoctorSerialCode,
+} from "@/lib/barcode/codes";
 import {
   sendEmailInBackground,
   renderAppointmentConfirmationHtml,
@@ -346,7 +350,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     }
   }
 
-  const { newAppointmentId, appointmentCode, assignedSerial } = await db.transaction(async (tx) => {
+  const { newAppointmentId, appointmentCode, assignedSerial, assignedSerialCode } = await db.transaction(async (tx) => {
     // Increment appointment counter
     const [counter] = await tx
       .insert(schema.tenantCounters)
@@ -402,12 +406,28 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     }
 
     let assignedSerial: number | null = null;
+    let assignedSerialCode: string | null = null;
 
     // If appointment is for today (Asia/Dhaka), manage queue entry
     if (input.dateStr === todayDhakaStr) {
       if (input.checkInImmediately) {
-        // Compute collision-proof serial number
-        const counterKey = `SERIAL:${todayDhakaStr}`;
+        // Resolve doctor prefix letter based on doctor index in clinic
+        const clinicDoctors = await tx
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(
+            and(
+              eq(schema.users.tenantId, tenant.id),
+              eq(schema.users.isDoctor, true)
+            )
+          )
+          .orderBy(schema.users.createdAt);
+
+        const docIndex = clinicDoctors.findIndex((d) => d.id === input.doctorId);
+        const prefixLetter = getDoctorPrefixLetter(docIndex >= 0 ? docIndex : 0);
+
+        // Compute collision-proof serial number scoped to this doctor
+        const counterKey = `SERIAL:${todayDhakaStr}:${input.doctorId || "general"}`;
         const [maxSerialRow] = await tx
           .select({
             maxSerial: sql<number>`COALESCE(MAX(${schema.queueEntries.serialNo}), 0)`,
@@ -416,7 +436,8 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
           .where(
             and(
               eq(schema.queueEntries.tenantId, tenant.id),
-              eq(schema.queueEntries.date, todayDhakaStr)
+              eq(schema.queueEntries.date, todayDhakaStr),
+              eq(schema.queueEntries.doctorId, input.doctorId)
             )
           );
 
@@ -438,6 +459,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
           .returning();
 
         assignedSerial = Math.max(Number(counter.nextValue) - 1, currentMax + 1);
+        assignedSerialCode = formatDoctorSerialCode(prefixLetter, assignedSerial);
 
         await tx.insert(schema.queueEntries).values({
           tenantId: tenant.id,
@@ -448,6 +470,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
           date: todayDhakaStr,
           status: "waiting",
           serialNo: assignedSerial,
+          serialCode: assignedSerialCode,
           queuePosition: assignedSerial,
           checkedInAt: new Date(),
           updatedBy: user.id,
@@ -481,7 +504,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
         );
     }
 
-    return { newAppointmentId: created.id, appointmentCode, assignedSerial };
+    return { newAppointmentId: created.id, appointmentCode, assignedSerial, assignedSerialCode };
   });
 
   // Dispatch confirmation email asynchronously in background
@@ -520,6 +543,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     newAppointmentId,
     appointmentCode,
     serialNo: assignedSerial,
+    serialCode: assignedSerialCode,
   };
 }
 
@@ -838,14 +862,65 @@ export async function reassignAppointmentDoctorAction(
       })
       .where(eq(schema.appointments.id, appointmentId));
 
-    await tx
-      .update(schema.queueEntries)
-      .set({
+    // Fetch linked queue entry to check if already assigned a serial
+    const [qEntry] = await tx
+      .select({
+        id: schema.queueEntries.id,
+        serialNo: schema.queueEntries.serialNo,
+        date: schema.queueEntries.date,
+      })
+      .from(schema.queueEntries)
+      .where(eq(schema.queueEntries.appointmentId, appointmentId))
+      .limit(1);
+
+    if (qEntry) {
+      let queuePatch: Record<string, unknown> = {
         doctorId: newDoctorId,
         updatedBy: user.id,
         updatedAt: new Date(),
-      })
-      .where(eq(schema.queueEntries.appointmentId, appointmentId));
+      };
+
+      if (qEntry.serialNo) {
+        const clinicDoctors = await tx
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(
+            and(
+              eq(schema.users.tenantId, tenant.id),
+              eq(schema.users.isDoctor, true)
+            )
+          )
+          .orderBy(schema.users.createdAt);
+
+        const docIndex = clinicDoctors.findIndex((d) => d.id === newDoctorId);
+        const prefixLetter = getDoctorPrefixLetter(docIndex >= 0 ? docIndex : 0);
+
+        const [maxSerialRow] = await tx
+          .select({
+            maxSerial: sql<number>`COALESCE(MAX(${schema.queueEntries.serialNo}), 0)`,
+          })
+          .from(schema.queueEntries)
+          .where(
+            and(
+              eq(schema.queueEntries.tenantId, tenant.id),
+              eq(schema.queueEntries.date, qEntry.date),
+              eq(schema.queueEntries.doctorId, newDoctorId)
+            )
+          );
+
+        const newSerial = Number(maxSerialRow?.maxSerial || 0) + 1;
+        const newSerialCode = formatDoctorSerialCode(prefixLetter, newSerial);
+
+        queuePatch.serialNo = newSerial;
+        queuePatch.serialCode = newSerialCode;
+        queuePatch.queuePosition = newSerial;
+      }
+
+      await tx
+        .update(schema.queueEntries)
+        .set(queuePatch)
+        .where(eq(schema.queueEntries.id, qEntry.id));
+    }
 
     if (apt.patientId) {
       await tx

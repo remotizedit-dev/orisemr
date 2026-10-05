@@ -291,8 +291,9 @@ export default function NewAppointmentClient({
         return;
       }
 
-      if (res.serialNo) {
-        toast.success(`Appointment booked & patient checked in! Daily Serial #${res.serialNo}`);
+      const token = (res as any)?.serialCode || (res.serialNo ? `#${res.serialNo}` : "");
+      if (token) {
+        toast.success(`Appointment booked & patient checked in! Token ${token}`);
       } else {
         toast.success("Appointment successfully scheduled!");
       }

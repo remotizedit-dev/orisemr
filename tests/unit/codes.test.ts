@@ -3,6 +3,8 @@ import {
   generateAutoCardNumber,
   generateRecordCode,
   parseRecordCode,
+  getDoctorPrefixLetter,
+  formatDoctorSerialCode,
 } from "@/lib/barcode/codes";
 
 describe("Record Code Generation & Parsing Tests", () => {
@@ -31,5 +33,21 @@ describe("Record Code Generation & Parsing Tests", () => {
     expect(parseRecordCode("RANDOM-TEXT").isValid).toBe(false);
     expect(parseRecordCode("INV-D-12").isValid).toBe(false); // short code too short
     expect(parseRecordCode("XYZ-DDC-000123").isValid).toBe(false); // unknown prefix
+  });
+
+  it("Generates doctor prefix letters correctly (A, B, C... Z, AA)", () => {
+    expect(getDoctorPrefixLetter(0)).toBe("A");
+    expect(getDoctorPrefixLetter(1)).toBe("B");
+    expect(getDoctorPrefixLetter(2)).toBe("C");
+    expect(getDoctorPrefixLetter(25)).toBe("Z");
+    expect(getDoctorPrefixLetter(26)).toBe("AA");
+    expect(getDoctorPrefixLetter(-1)).toBe("Q");
+  });
+
+  it("Formats doctor-scoped serial tokens properly (e.g. A-01, B-03)", () => {
+    expect(formatDoctorSerialCode("A", 1)).toBe("A-01");
+    expect(formatDoctorSerialCode("A", 12)).toBe("A-12");
+    expect(formatDoctorSerialCode("B", 3)).toBe("B-03");
+    expect(formatDoctorSerialCode("C", 105)).toBe("C-105");
   });
 });

@@ -307,8 +307,9 @@ export function QuickAppointmentModal({
       }
 
       if (res?.success) {
-        if (res.serialNo) {
-          toast.success(`Appointment #${res.appointmentCode} booked & patient checked in with Daily Serial #${res.serialNo}!`);
+        const token = (res as any)?.serialCode || (res.serialNo ? `#${res.serialNo}` : "");
+        if (token) {
+          toast.success(`Appointment #${res.appointmentCode} booked & patient checked in with Token ${token}!`);
         } else {
           toast.success(`Appointment #${res.appointmentCode} booked successfully!`);
         }

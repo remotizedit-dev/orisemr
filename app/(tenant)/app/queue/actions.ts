@@ -5,7 +5,11 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
-import { generateAutoCardNumber } from "@/lib/barcode/codes";
+import {
+  generateAutoCardNumber,
+  getDoctorPrefixLetter,
+  formatDoctorSerialCode,
+} from "@/lib/barcode/codes";
 import { formatDhakaTime, normalizeBdPhone } from "@/lib/utils";
 import { getOrSetCache, deleteCache } from "@/lib/cache";
 
@@ -19,9 +23,8 @@ export async function checkInPatientAction(appointmentId: string) {
     day: "2-digit",
   }).format(new Date());
 
-  const counterKey = `SERIAL:${todayDhakaStr}`;
-
   let assignedSerial = 1;
+  let assignedSerialCode = "A-01";
 
   await db.transaction(async (tx) => {
     // 1. Fetch appointment details to verify and support upsert
@@ -122,6 +125,22 @@ export async function checkInPatientAction(appointmentId: string) {
         );
     }
 
+    // Resolve doctor prefix letter based on doctor index in clinic
+    const clinicDoctors = await tx
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenant.id),
+          eq(schema.users.isDoctor, true)
+        )
+      )
+      .orderBy(schema.users.createdAt);
+
+    const docIndex = clinicDoctors.findIndex((d) => d.id === appointment.doctorId);
+    const prefixLetter = getDoctorPrefixLetter(docIndex >= 0 ? docIndex : 0);
+    const counterKey = `SERIAL:${todayDhakaStr}:${appointment.doctorId || "general"}`;
+
     // 2. Fetch existing queue entry if any
     const [existingEntry] = await tx
       .select()
@@ -137,6 +156,10 @@ export async function checkInPatientAction(appointmentId: string) {
     // If entry already has a serial number assigned today, preserve it
     if (existingEntry && existingEntry.serialNo && existingEntry.date === todayDhakaStr) {
       assignedSerial = existingEntry.serialNo;
+      assignedSerialCode =
+        existingEntry.serialCode ||
+        formatDoctorSerialCode(prefixLetter, assignedSerial);
+
       await tx
         .update(schema.queueEntries)
         .set({
@@ -145,13 +168,14 @@ export async function checkInPatientAction(appointmentId: string) {
           doctorId: appointment.doctorId,
           chairId: appointment.chairId || null,
           date: todayDhakaStr,
+          serialCode: assignedSerialCode,
           checkedInAt: existingEntry.checkedInAt || new Date(),
           updatedBy: user.id,
           updatedAt: new Date(),
         })
         .where(eq(schema.queueEntries.id, existingEntry.id));
     } else {
-      // 3. Collision-proof serial number: query existing max serial for today
+      // 3. Collision-proof serial number: query existing max serial for this doctor today
       const [maxSerialRow] = await tx
         .select({
           maxSerial: sql<number>`COALESCE(MAX(${schema.queueEntries.serialNo}), 0)`,
@@ -160,7 +184,8 @@ export async function checkInPatientAction(appointmentId: string) {
         .where(
           and(
             eq(schema.queueEntries.tenantId, tenant.id),
-            eq(schema.queueEntries.date, todayDhakaStr)
+            eq(schema.queueEntries.date, todayDhakaStr),
+            eq(schema.queueEntries.doctorId, appointment.doctorId)
           )
         );
 
@@ -183,6 +208,7 @@ export async function checkInPatientAction(appointmentId: string) {
         .returning();
 
       assignedSerial = Math.max(Number(counter.nextValue) - 1, currentMax + 1);
+      assignedSerialCode = formatDoctorSerialCode(prefixLetter, assignedSerial);
 
       // 4. Update or Insert queue entry
       if (existingEntry) {
@@ -195,6 +221,7 @@ export async function checkInPatientAction(appointmentId: string) {
             chairId: appointment.chairId || null,
             date: todayDhakaStr,
             serialNo: assignedSerial,
+            serialCode: assignedSerialCode,
             queuePosition: assignedSerial,
             checkedInAt: new Date(),
             updatedBy: user.id,
@@ -211,6 +238,7 @@ export async function checkInPatientAction(appointmentId: string) {
           date: todayDhakaStr,
           status: "waiting",
           serialNo: assignedSerial,
+          serialCode: assignedSerialCode,
           queuePosition: assignedSerial,
           checkedInAt: new Date(),
           updatedBy: user.id,
@@ -245,7 +273,7 @@ export async function checkInPatientAction(appointmentId: string) {
   revalidatePath("/app/appointments");
   revalidatePath("/app");
 
-  return { success: true, serialNo: assignedSerial };
+  return { success: true, serialNo: assignedSerial, serialCode: assignedSerialCode };
 }
 
 export async function advanceQueueStatusAction(
@@ -429,7 +457,12 @@ export async function callNextPatientAction(doctorId?: string, chairId?: string)
   if (nextPatient) {
     try {
       await advanceQueueStatusAction(nextPatient.id, "in_chair", assignedChairId);
-      return { success: true, patientId: nextPatient.patientId, serialNo: nextPatient.serialNo };
+      return {
+        success: true,
+        patientId: nextPatient.patientId,
+        serialNo: nextPatient.serialNo,
+        serialCode: nextPatient.serialCode,
+      };
     } catch (err: any) {
       return { success: false, message: err?.message || "Failed to assign patient to chair." };
     }
@@ -609,14 +642,65 @@ export async function reassignQueueDoctorAction(
 
   // 3. Atomically update queueEntry, appointment, and patient record
   await db.transaction(async (tx) => {
-    await tx
-      .update(schema.queueEntries)
-      .set({
-        doctorId: newDoctorId,
-        updatedBy: user.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.queueEntries.id, entry.id));
+    if (entry.serialNo) {
+      const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Dhaka",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+
+      const clinicDoctors = await tx
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(
+          and(
+            eq(schema.users.tenantId, tenant.id),
+            eq(schema.users.isDoctor, true)
+          )
+        )
+        .orderBy(schema.users.createdAt);
+
+      const docIndex = clinicDoctors.findIndex((d) => d.id === newDoctorId);
+      const prefixLetter = getDoctorPrefixLetter(docIndex >= 0 ? docIndex : 0);
+
+      const [maxSerialRow] = await tx
+        .select({
+          maxSerial: sql<number>`COALESCE(MAX(${schema.queueEntries.serialNo}), 0)`,
+        })
+        .from(schema.queueEntries)
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.date, todayDhakaStr),
+            eq(schema.queueEntries.doctorId, newDoctorId)
+          )
+        );
+
+      const assignedNum = Number(maxSerialRow?.maxSerial || 0) + 1;
+      const assignedCode = formatDoctorSerialCode(prefixLetter, assignedNum);
+
+      await tx
+        .update(schema.queueEntries)
+        .set({
+          doctorId: newDoctorId,
+          serialNo: assignedNum,
+          serialCode: assignedCode,
+          queuePosition: assignedNum,
+          updatedBy: user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.queueEntries.id, entry.id));
+    } else {
+      await tx
+        .update(schema.queueEntries)
+        .set({
+          doctorId: newDoctorId,
+          updatedBy: user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.queueEntries.id, entry.id));
+    }
 
     await tx
       .update(schema.appointments)
@@ -654,6 +738,7 @@ export interface QueueItem {
   appointmentId: string;
   status: "booked" | "waiting" | "in_chair" | "billing" | "done" | "no_show" | "cancelled";
   serialNo: number | null;
+  serialCode?: string | null;
   chairId?: string | null;
   chairName?: string | null;
   patientId: string;
@@ -742,6 +827,7 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
           appointmentId: schema.queueEntries.appointmentId,
           status: schema.queueEntries.status,
           serialNo: schema.queueEntries.serialNo,
+          serialCode: schema.queueEntries.serialCode,
           chairId: schema.queueEntries.chairId,
           chairName: schema.chairs.name,
           patientId: schema.patients.id,
@@ -780,48 +866,60 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
         )
         .orderBy(schema.appointments.startTime);
 
-      // Auto-heal any checked-in active entries that might be missing a serial number
-      const unassignedActive = entries.filter(
-        (e) =>
-          e.status !== "booked" &&
-          e.status !== "cancelled" &&
-          e.status !== "no_show" &&
-          (e.serialNo === null || e.serialNo <= 0)
-      );
+      // Auto-heal any checked-in active entries that might be missing a serial number or serialCode
+      const clinicDoctors = await db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(
+          and(
+            eq(schema.users.tenantId, tenantId),
+            eq(schema.users.isDoctor, true)
+          )
+        )
+        .orderBy(schema.users.createdAt);
 
-      if (unassignedActive.length > 0) {
-        let currentMax = Math.max(
-          ...entries.map((e) => Number(e.serialNo) || 0),
-          0
-        );
+      const docIndexMap = new Map(clinicDoctors.map((d, idx) => [d.id, idx]));
 
-        for (const item of unassignedActive) {
-          currentMax += 1;
-          item.serialNo = currentMax;
-          await db
-            .update(schema.queueEntries)
-            .set({
-              serialNo: currentMax,
-              queuePosition: currentMax,
-              updatedAt: new Date(),
-            })
-            .where(eq(schema.queueEntries.id, item.id));
+      for (const item of entries) {
+        if (
+          item.status !== "booked" &&
+          item.status !== "cancelled" &&
+          item.status !== "no_show"
+        ) {
+          const docIdx = docIndexMap.get(item.doctorId) ?? 0;
+          const prefix = getDoctorPrefixLetter(docIdx);
+
+          if (item.serialNo === null || item.serialNo <= 0) {
+            const docSerials = entries
+              .filter((e) => e.doctorId === item.doctorId && e.serialNo && e.serialNo > 0)
+              .map((e) => Number(e.serialNo));
+            const currentMax = docSerials.length > 0 ? Math.max(...docSerials) : 0;
+            const assigned = currentMax + 1;
+            const code = formatDoctorSerialCode(prefix, assigned);
+            item.serialNo = assigned;
+            item.serialCode = code;
+
+            await db
+              .update(schema.queueEntries)
+              .set({
+                serialNo: assigned,
+                serialCode: code,
+                queuePosition: assigned,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.queueEntries.id, item.id));
+          } else if (!item.serialCode) {
+            const code = formatDoctorSerialCode(prefix, item.serialNo);
+            item.serialCode = code;
+            await db
+              .update(schema.queueEntries)
+              .set({
+                serialCode: code,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.queueEntries.id, item.id));
+          }
         }
-
-        const counterKey = `SERIAL:${todayDhakaStr}`;
-        await db
-          .insert(schema.tenantCounters)
-          .values({
-            tenantId,
-            key: counterKey,
-            nextValue: currentMax + 1,
-          })
-          .onConflictDoUpdate({
-            target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
-            set: {
-              nextValue: sql`GREATEST(${schema.tenantCounters.nextValue}, ${currentMax + 1})`,
-            },
-          });
       }
 
       // Fetch booked services for all today's queue appointments to get planned duration
@@ -867,6 +965,7 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
           appointmentId: e.appointmentId,
           status: e.status,
           serialNo: e.serialNo,
+          serialCode: e.serialCode || (e.serialNo ? String(e.serialNo) : null),
           chairId: e.chairId,
           chairName: e.chairName || null,
           patientId: e.patientId,
@@ -1005,6 +1104,8 @@ export async function reorderWaitingQueueAction(orderedItemIds: string[]) {
         .select({
           id: schema.queueEntries.id,
           serialNo: schema.queueEntries.serialNo,
+          serialCode: schema.queueEntries.serialCode,
+          doctorId: schema.queueEntries.doctorId,
         })
         .from(schema.queueEntries)
         .where(
@@ -1017,6 +1118,20 @@ export async function reorderWaitingQueueAction(orderedItemIds: string[]) {
         );
 
       if (currentEntries.length <= 1) return;
+
+      const clinicDoctors = await tx
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(
+          and(
+            eq(schema.users.tenantId, tenant.id),
+            eq(schema.users.isDoctor, true)
+          )
+        )
+        .orderBy(schema.users.createdAt);
+
+      const docIndexMap = new Map(clinicDoctors.map((d, idx) => [d.id, idx]));
+      const entryMap = new Map(currentEntries.map((e) => [e.id, e]));
 
       // Map existing entry serials
       const validSerials = currentEntries
@@ -1035,10 +1150,16 @@ export async function reorderWaitingQueueAction(orderedItemIds: string[]) {
       for (let i = 0; i < orderedItemIds.length; i++) {
         const entryId = orderedItemIds[i];
         const newSerial = validSerials[i];
+        const entry = entryMap.get(entryId);
+        const docIdx = entry?.doctorId ? (docIndexMap.get(entry.doctorId) ?? 0) : 0;
+        const prefix = getDoctorPrefixLetter(docIdx);
+        const newSerialCode = formatDoctorSerialCode(prefix, newSerial);
+
         await tx
           .update(schema.queueEntries)
           .set({
             serialNo: newSerial,
+            serialCode: newSerialCode,
             queuePosition: newSerial,
             updatedAt: new Date(),
           })

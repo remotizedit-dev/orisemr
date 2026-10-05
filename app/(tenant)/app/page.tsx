@@ -38,6 +38,7 @@ export default async function TenantDashboardPage() {
         id: schema.queueEntries.id,
         status: schema.queueEntries.status,
         serialNo: schema.queueEntries.serialNo,
+        serialCode: schema.queueEntries.serialCode,
         patientName: schema.patients.name,
         patientCard: schema.patients.cardNumber,
         doctorName: schema.users.name,

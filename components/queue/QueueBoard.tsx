@@ -188,11 +188,12 @@ export function QueueBoard({
         setItems((prev) =>
           prev.map((i) =>
             i.appointmentId === appointmentId
-              ? { ...i, status: "waiting", serialNo: res.serialNo }
+              ? { ...i, status: "waiting", serialNo: res.serialNo, serialCode: res.serialCode }
               : i
           )
         );
-        toast.success(`Patient checked in! Assigned Daily Serial #${res.serialNo}`);
+        const tokenLabel = res.serialCode || (res.serialNo ? `#${res.serialNo}` : "");
+        toast.success(`Patient checked in! Assigned Token ${tokenLabel}`);
       }
     } catch {
       toast.error("Failed to check in patient");
@@ -408,10 +409,11 @@ export function QueueBoard({
         enableChairManagement ? (selectedChairId || undefined) : undefined
       );
       if (res?.success) {
+        const tokenLabel = res.serialCode || (res.serialNo ? `#${res.serialNo}` : "");
         toast.success(
           enableChairManagement
-            ? `Called Serial #${res.serialNo} to the dental chair!`
-            : `Called Serial #${res.serialNo} to treatment!`
+            ? `Called Token ${tokenLabel} to the dental chair!`
+            : `Called Token ${tokenLabel} to treatment!`
         );
         router.refresh();
       } else {
@@ -908,8 +910,8 @@ export function QueueBoard({
                           </div>
 
                           {/* Serial Badge */}
-                          <div className="min-w-12 h-12 px-2 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white font-black text-xl flex items-center justify-center font-mono shadow-md border border-amber-500">
-                            #{item.serialNo || "?"}
+                          <div className="min-w-12 h-12 px-2 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white font-black text-lg flex items-center justify-center font-mono shadow-md border border-amber-500">
+                            {item.serialCode || (item.serialNo ? `#${item.serialNo}` : "?")}
                           </div>
 
                           {/* Up/Down buttons for quick SL swapping without dragging */}
@@ -1059,8 +1061,8 @@ export function QueueBoard({
                       {/* Big Serial Badge & Active Chair Tag */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-[#2A5CAA] to-[#1E4282] text-white font-black text-2xl flex items-center justify-center font-mono shadow-md border border-[#2A5CAA]">
-                            #{item.serialNo || "?"}
+                          <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-[#2A5CAA] to-[#1E4282] text-white font-black text-xl flex items-center justify-center font-mono shadow-md border border-[#2A5CAA]">
+                            {item.serialCode || (item.serialNo ? `#${item.serialNo}` : "?")}
                           </div>
                           <div>
                             <span className="text-xs font-bold uppercase tracking-wider text-[#2A5CAA] block">
@@ -1184,8 +1186,8 @@ export function QueueBoard({
                     {/* Header: BIG SERIAL NUMBER + Payment Flag */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 text-white font-black text-2xl flex items-center justify-center font-mono shadow-md border border-rose-500">
-                          #{item.serialNo || "?"}
+                        <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 text-white font-black text-xl flex items-center justify-center font-mono shadow-md border border-rose-500">
+                          {item.serialCode || (item.serialNo ? `#${item.serialNo}` : "?")}
                         </div>
                         <div>
                           <span className="text-xs font-bold uppercase tracking-wider text-rose-700 block">
@@ -1280,8 +1282,8 @@ export function QueueBoard({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center font-mono">
-                          #{item.serialNo || "✓"}
+                        <span className="min-w-8 h-8 px-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center font-mono">
+                          {item.serialCode || (item.serialNo ? `#${item.serialNo}` : "✓")}
                         </span>
                         <Link
                           href={`/app/patients/${item.patientId}`}

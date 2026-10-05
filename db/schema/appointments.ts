@@ -125,6 +125,7 @@ export const queueEntries = pgTable(
     date: date("date").notNull(),
     status: queueStatusEnum("status").default("booked").notNull(),
     serialNo: integer("serial_no"),
+    serialCode: text("serial_code"),
     queuePosition: integer("queue_position").default(0).notNull(),
     checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
     inChairAt: timestamp("in_chair_at", { withTimezone: true }),

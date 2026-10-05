@@ -393,10 +393,10 @@ export function QueueTvDisplay({
                       <div className="flex items-center gap-6">
                         <div className="shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-emerald-600 text-white flex flex-col items-center justify-center text-center shadow-lg shadow-emerald-600/30">
                           <span className="text-[11px] font-black uppercase tracking-widest text-emerald-100">
-                            SERIAL
+                            TOKEN
                           </span>
-                          <span className="text-4xl sm:text-5xl font-black text-white font-mono leading-none">
-                            #{item.serialNo ? String(item.serialNo).padStart(2, "0") : "--"}
+                          <span className="text-3xl sm:text-4xl font-black text-white font-mono leading-none tracking-tight">
+                            {item.serialCode || (item.serialNo ? `#${String(item.serialNo).padStart(2, "0")}` : "--")}
                           </span>
                         </div>
 
@@ -484,8 +484,8 @@ export function QueueTvDisplay({
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex flex-col items-center justify-center shrink-0 font-mono font-black text-white shadow-inner">
                   <span className="text-[9px] uppercase tracking-wider text-amber-100 leading-none">NEXT</span>
-                  <span className="text-lg leading-none mt-0.5">
-                    #{nextUpPatient.serialNo ? String(nextUpPatient.serialNo).padStart(2, "0") : "--"}
+                  <span className="text-base sm:text-lg leading-none mt-0.5 truncate px-1">
+                    {nextUpPatient.serialCode || (nextUpPatient.serialNo ? `#${String(nextUpPatient.serialNo).padStart(2, "0")}` : "--")}
                   </span>
                 </div>
                 <div className="min-w-0">
@@ -540,10 +540,10 @@ export function QueueTvDisplay({
                           }`}
                         >
                           <span className="text-[9px] font-extrabold tracking-wider uppercase">
-                            {index === 0 ? "NEXT" : "SL"}
+                            {index === 0 ? "NEXT" : "TOKEN"}
                           </span>
-                          <span className="text-xl sm:text-2xl font-black leading-none">
-                            #{item.serialNo ? String(item.serialNo).padStart(2, "0") : "--"}
+                          <span className="text-lg sm:text-xl font-black leading-none truncate px-1">
+                            {item.serialCode || (item.serialNo ? `#${String(item.serialNo).padStart(2, "0")}` : "--")}
                           </span>
                         </div>
 
@@ -633,7 +633,7 @@ export function QueueTvDisplay({
                   key={d.id}
                   className="px-2 py-0.5 rounded-md bg-[#F1F5F9] border border-[#E2E8F0] text-[#334155] text-[11px] font-mono font-bold"
                 >
-                  #{d.serialNo} {d.patientName.split(" ")[0]}
+                  {(d.serialCode || (d.serialNo ? `#${d.serialNo}` : ""))} {d.patientName.split(" ")[0]}
                 </span>
               ))}
             </div>

@@ -39,6 +39,7 @@ interface AppointmentItem {
   status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
   queueStatus?: "booked" | "waiting" | "in_chair" | "billing" | "done" | null;
   serialNo?: number | null;
+  serialCode?: string | null;
   isOverbooked: boolean;
   notes: string | null;
   patientId: string;
@@ -173,11 +174,11 @@ export default function AppointmentsClient({
     try {
       setIsUpdating(true);
       const res = await advanceAppointmentQueueAction(appointmentId, target);
-      const serial = (res as any)?.serialNo;
+      const serial = (res as any)?.serialCode || (res as any)?.serialNo;
       const label =
         target === "waiting"
           ? serial
-            ? `Patient Checked-In! Assigned Daily Serial #${serial}`
+            ? `Patient Checked-In! Assigned Token #${serial}`
             : "Patient Checked-In"
           : target === "in_chair"
           ? "Seated in Chair"
@@ -414,9 +415,9 @@ export default function AppointmentsClient({
                         <span className="inline-flex items-center gap-1.5 text-xs font-black px-2.5 py-0.5 rounded-full bg-[#EBF2FC] text-[#2A5CAA] border border-[#2A5CAA]/20">
                           <Armchair className="w-3.5 h-3.5" />
                           <span>In Chair</span>
-                          {apt.serialNo ? (
+                          {apt.serialCode || apt.serialNo ? (
                             <span className="bg-[#2A5CAA] text-white text-[10px] font-black px-1.5 py-0.2 rounded-md">
-                              SL #{apt.serialNo}
+                              Token #{apt.serialCode || apt.serialNo}
                             </span>
                           ) : null}
                         </span>
@@ -425,9 +426,9 @@ export default function AppointmentsClient({
                         <span className="inline-flex items-center gap-1.5 text-xs font-black px-2.5 py-0.5 rounded-full bg-[#FFF7EB] text-[#FF9F0A] border border-[#FF9F0A]/20">
                           <Clock className="w-3.5 h-3.5" />
                           <span>Waiting in Chamber</span>
-                          {apt.serialNo ? (
+                          {apt.serialCode || apt.serialNo ? (
                             <span className="bg-[#FF9F0A] text-white text-[10px] font-black px-1.5 py-0.2 rounded-md">
-                              SL #{apt.serialNo}
+                              Token #{apt.serialCode || apt.serialNo}
                             </span>
                           ) : null}
                         </span>
