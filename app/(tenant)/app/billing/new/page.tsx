@@ -446,6 +446,8 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     paidBdt: number;
     dueBdt: number;
     createdAt: string;
+    doctorId?: string | null;
+    doctorName?: string | null;
   }
 
   let patientDues: {
@@ -465,8 +467,11 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         paidBdt: schema.invoices.paidBdt,
         status: schema.invoices.status,
         createdAt: schema.invoices.createdAt,
+        doctorId: schema.invoices.doctorId,
+        doctorName: schema.users.name,
       })
       .from(schema.invoices)
+      .leftJoin(schema.users, eq(schema.invoices.doctorId, schema.users.id))
       .where(
         and(
           eq(schema.invoices.tenantId, tenant.id),
@@ -485,6 +490,8 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         paidBdt: inv.paidBdt,
         dueBdt: inv.totalBdt - inv.paidBdt,
         createdAt: inv.createdAt.toISOString(),
+        doctorId: inv.doctorId,
+        doctorName: inv.doctorName,
       }));
 
     patientDues = {

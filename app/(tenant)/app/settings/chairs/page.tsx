@@ -7,6 +7,14 @@ import ChairsClient from "@/components/settings/ChairsClient";
 export default async function SettingsChairsPage() {
   const { tenant } = await requireClinicStaff();
 
+  const [tenantRow] = await db
+    .select({
+      enableChairManagement: schema.tenants.enableChairManagement,
+    })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenant.id))
+    .limit(1);
+
   const chairRows = await db
     .select({
       id: schema.chairs.id,
@@ -19,8 +27,10 @@ export default async function SettingsChairsPage() {
 
   return (
     <div className="w-full">
-      <ChairsClient initialChairs={chairRows} />
+      <ChairsClient
+        initialChairs={chairRows}
+        initialEnableChairManagement={tenantRow?.enableChairManagement ?? true}
+      />
     </div>
   );
 }
-

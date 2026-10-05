@@ -82,7 +82,7 @@ export default async function PatientProfilePage({
     (tenant.doctorPatientVisibilityMode as "ISOLATED" | "COLLABORATIVE") || "ISOLATED";
 
   // If clinic operates in ISOLATED mode, pure doctors are restricted from viewing
-  // patients not assigned to them and with whom they have no clinical history.
+  // patients not assigned to them and with whom they have no clinical history or active visit/queue.
   if (visibilityMode === "ISOLATED" && isPureDoctor && patient.assignedDoctorId !== user.id) {
     const [hasAppointment] = await db
       .select({ id: schema.appointments.id })
@@ -110,7 +110,21 @@ export default async function PatientProfilePage({
           .limit(1)
       : [null];
 
-    if (!hasAppointment && !hasPrescription) {
+    const [hasQueueEntry] = (!hasAppointment && !hasPrescription)
+      ? await db
+          .select({ id: schema.queueEntries.id })
+          .from(schema.queueEntries)
+          .where(
+            and(
+              eq(schema.queueEntries.tenantId, tenant.id),
+              eq(schema.queueEntries.patientId, id),
+              eq(schema.queueEntries.doctorId, user.id)
+            )
+          )
+          .limit(1)
+      : [null];
+
+    if (!hasAppointment && !hasPrescription && !hasQueueEntry) {
       return (
         <div className="max-w-xl mx-auto py-16 text-center space-y-4">
           <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
@@ -124,7 +138,7 @@ export default async function PatientProfilePage({
             <span className="font-bold text-[#1C1C1E]">
               {assignedDoctorName ? `Dr. ${assignedDoctorName}` : "another clinic doctor"}
             </span>
-            . Under your clinic&apos;s privacy settings, you can only access records for patients assigned to your chamber. Please ask the clinic admin or receptionist to reassign this patient to you.
+            . Under your clinic&apos;s privacy settings, you can only access records for patients assigned to your chamber or queued for your visit today. Please ask the clinic admin or receptionist to queue or reassign this patient to you.
           </p>
           <div className="pt-2">
             <Link
@@ -139,14 +153,13 @@ export default async function PatientProfilePage({
     }
   }
 
-  // Doctor collaboration checks (when in COLLABORATIVE mode):
+  // Doctor collaboration & cross-chamber coverage checks:
   const isDoctorUser = Boolean(user.isDoctor || user.role === "DOCTOR");
   const isAssignedToOther =
-    visibilityMode === "COLLABORATIVE" &&
     isDoctorUser &&
     Boolean(patient.assignedDoctorId && patient.assignedDoctorId !== user.id);
   const isDoctorUnassigned =
-    visibilityMode === "COLLABORATIVE" && isDoctorUser && !patient.assignedDoctorId;
+    isDoctorUser && !patient.assignedDoctorId;
 
   // Fetch active clinic doctors for switching
   const doctors = await db

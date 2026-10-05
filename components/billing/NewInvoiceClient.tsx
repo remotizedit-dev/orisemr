@@ -55,6 +55,8 @@ export interface UnpaidInvoice {
   paidBdt: number;
   dueBdt: number;
   createdAt: string;
+  doctorId?: string | null;
+  doctorName?: string | null;
 }
 
 interface Props {
@@ -423,6 +425,19 @@ export default function NewInvoiceClient({
               </button>
             </div>
 
+            {/* Treating Doctor & Audit Attribution Notice */}
+            <div className="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-blue-950 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                <Stethoscope className="w-4 h-4 text-[#2A5CAA]" />
+                <span>
+                  Treating Doctor: {dueModalInvoice.doctorName ? (dueModalInvoice.doctorName.startsWith("Dr.") ? dueModalInvoice.doctorName : `Dr. ${dueModalInvoice.doctorName}`) : "Attending Doctor"}
+                </span>
+              </div>
+              <p className="text-[11px] text-blue-800 leading-relaxed">
+                Treatment revenue earned for this invoice remains credited to the treating doctor. Your user account will be recorded as the cashier/collector receiving physical funds.
+              </p>
+            </div>
+
             <div className="p-3.5 rounded-2xl bg-[#FFF7EB] border border-[#FF9F0A]/30 flex justify-between items-center text-sm">
               <span className="text-[#B45309] font-bold">Total Remaining Due:</span>
               <span className="font-black text-lg text-[#B45309]">
@@ -639,10 +654,17 @@ export default function NewInvoiceClient({
             {currentPatientDues.unpaidInvoices.slice(0, 3).map((dueInv) => (
               <div key={dueInv.id} className="py-2 flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-mono font-bold text-[#1C1C1E] mr-2">
-                    {dueInv.invoiceCode}
-                  </span>
-                  <span className="text-amber-800">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-[#1C1C1E]">
+                      {dueInv.invoiceCode}
+                    </span>
+                    {dueInv.doctorName && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/90 text-amber-900 border border-amber-300 shadow-2xs">
+                        Served by: {dueInv.doctorName.startsWith("Dr.") ? dueInv.doctorName : `Dr. ${dueInv.doctorName}`}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-amber-800 text-[11px] block mt-0.5">
                     Total: {formatBdt(dueInv.totalBdt)} (Paid: {formatBdt(dueInv.paidBdt)})
                   </span>
                 </div>

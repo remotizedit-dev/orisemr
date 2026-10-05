@@ -57,10 +57,18 @@ export default async function BillingPage() {
     )
     .orderBy(schema.users.name);
 
-  // 3. Today's payments collection breakdown
+  // 3. Today's payments collection breakdown & desk cash custody audit
   const allPayments = await db
-    .select()
+    .select({
+      id: schema.payments.id,
+      amountBdt: schema.payments.amountBdt,
+      method: schema.payments.method,
+      receivedBy: schema.payments.receivedBy,
+      receiverName: schema.users.name,
+      paidAt: schema.payments.paidAt,
+    })
     .from(schema.payments)
+    .leftJoin(schema.users, eq(schema.payments.receivedBy, schema.users.id))
     .where(eq(schema.payments.tenantId, tenant.id));
 
   let totalCollected = 0;
@@ -71,12 +79,53 @@ export default async function BillingPage() {
     card: 0,
   };
 
+  const receiverMap = new Map<
+    string,
+    {
+      userId: string;
+      name: string;
+      totalCollectedBdt: number;
+      cashBdt: number;
+      mfsBdt: number;
+      cardBdt: number;
+      count: number;
+    }
+  >();
+
   for (const p of allPayments) {
     totalCollected += p.amountBdt;
     if (methodTotals[p.method] !== undefined) {
       methodTotals[p.method] += p.amountBdt;
     }
+
+    const rId = p.receivedBy || "unknown";
+    const rName = p.receiverName || "Front Desk Staff";
+    if (!receiverMap.has(rId)) {
+      receiverMap.set(rId, {
+        userId: rId,
+        name: rName,
+        totalCollectedBdt: 0,
+        cashBdt: 0,
+        mfsBdt: 0,
+        cardBdt: 0,
+        count: 0,
+      });
+    }
+    const rec = receiverMap.get(rId)!;
+    rec.totalCollectedBdt += p.amountBdt;
+    if (p.method === "cash") {
+      rec.cashBdt += p.amountBdt;
+    } else if (p.method === "bkash" || p.method === "nagad") {
+      rec.mfsBdt += p.amountBdt;
+    } else {
+      rec.cardBdt += p.amountBdt;
+    }
+    rec.count += 1;
   }
+
+  const receiverBreakdown = Array.from(receiverMap.values()).sort(
+    (a, b) => b.totalCollectedBdt - a.totalCollectedBdt
+  );
 
   // 4. Calculate Doctor Performance & Earnings Breakdown
   const doctorMap = new Map<
@@ -409,6 +458,88 @@ export default async function BillingPage() {
                     {formatBdt(unassignedDue)}
                   </td>
                 </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Cash Custody & Desk Collection Audit (Received by Staff / Doctor) */}
+      <div className="glass-panel rounded-3xl border border-[#E4E4E7] p-5 space-y-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E4E4E7]">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-[#30D158]" />
+            <div>
+              <h2 className="text-base font-extrabold text-[#1C1C1E]">
+                Cash Custody &amp; Desk Collection Audit
+              </h2>
+              <p className="text-xs text-[#6B7280]">
+                Shows physical funds received at the counter by staff or doctors (distinct from clinical procedure earnings)
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-[#30D158] bg-[#E8F8EE] px-3 py-1 rounded-full border border-[#30D158]/30">
+            Cashier &amp; Register Reconciliation
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-[#E4E4E7] text-[#6B7280] uppercase tracking-wider font-bold">
+                <th className="py-2.5 px-3">Received By (Staff / Chamber)</th>
+                <th className="py-2.5 px-3 text-center">Transactions</th>
+                <th className="py-2.5 px-3 text-right">Physical Cash (Tk)</th>
+                <th className="py-2.5 px-3 text-right">bKash / Nagad (Tk)</th>
+                <th className="py-2.5 px-3 text-right">Card / POS (Tk)</th>
+                <th className="py-2.5 px-3 text-right font-black text-[#1C1C1E]">Total Collected (Tk)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E4E4E7]">
+              {receiverBreakdown.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-[#6B7280]">
+                    No payments recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                receiverBreakdown.map((rec) => {
+                  const isMe = user.id === rec.userId;
+                  return (
+                    <tr
+                      key={rec.userId}
+                      className={`hover:bg-[#F8FAFC] transition ${
+                        isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
+                      }`}
+                    >
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#1C1C1E]">{rec.name}</span>
+                          {isMe && (
+                            <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded-md bg-[#2A5CAA] text-white">
+                              You
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-center font-bold text-[#1C1C1E]">
+                        {rec.count}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-[#30D158]">
+                        {formatBdt(rec.cashBdt)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-[#E2136E]">
+                        {formatBdt(rec.mfsBdt)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-[#2A5CAA]">
+                        {formatBdt(rec.cardBdt)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-black text-[#1C1C1E]">
+                        {formatBdt(rec.totalCollectedBdt)}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

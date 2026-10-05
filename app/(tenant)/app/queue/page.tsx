@@ -41,12 +41,20 @@ export default async function LiveQueuePage() {
     )
     .orderBy(schema.chairs.sortOrder);
 
-  // 4. Fetch clinic TV secret key
+  // 4. Fetch clinic TV secret key & chair management toggle
   const [tenantRow] = await db
-    .select({ tvDisplaySecret: schema.tenants.tvDisplaySecret })
+    .select({
+      tvDisplaySecret: schema.tenants.tvDisplaySecret,
+      enableChairManagement: schema.tenants.enableChairManagement,
+    })
     .from(schema.tenants)
     .where(eq(schema.tenants.id, tenant.id))
     .limit(1);
+
+  const isAdmin = Boolean(
+    user.role === "TENANT_ADMIN" ||
+    user.role === "SUPER_ADMIN"
+  );
 
   const canPrescribe = Boolean(
     user.isDoctor ||
@@ -55,14 +63,18 @@ export default async function LiveQueuePage() {
     user.role === "SUPER_ADMIN"
   );
 
+  const isChairEnabled = tenantRow?.enableChairManagement ?? true;
+
   return (
     <QueueBoard
       initialItems={formattedItems}
       currentUserId={user.id}
       currentUserIsDoctor={user.isDoctor}
+      isAdmin={isAdmin}
       canPrescribe={canPrescribe}
       doctors={doctors}
-      chairs={chairs}
+      chairs={isChairEnabled ? chairs : []}
+      enableChairManagement={isChairEnabled}
       tenantSlug={tenant.slug}
       tvDisplaySecret={tenantRow?.tvDisplaySecret || undefined}
     />

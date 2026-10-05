@@ -219,6 +219,28 @@ export async function toggleChairAction(id: string, isActive: boolean) {
   return { success: true };
 }
 
+export async function toggleEnableChairManagementAction(enabled: boolean) {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "clinic_settings")) {
+    throw new Error("Only Chamber Admins may modify chamber configuration");
+  }
+
+  await db
+    .update(schema.tenants)
+    .set({
+      enableChairManagement: enabled,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.tenants.id, tenant.id));
+
+  revalidatePath("/app/settings/chairs");
+  revalidatePath("/app/queue");
+  revalidatePath("/app/appointments");
+  revalidatePath("/app");
+  return { success: true, enabled };
+}
+
 export async function updateServiceItemAction(
   id: string,
   priceBdt: number,

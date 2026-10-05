@@ -60,9 +60,11 @@ interface QueueBoardProps {
   initialItems: QueueItem[];
   currentUserId: string;
   currentUserIsDoctor: boolean;
+  isAdmin?: boolean;
   canPrescribe?: boolean;
   doctors: { id: string; name: string }[];
   chairs?: ChairOption[];
+  enableChairManagement?: boolean;
   tenantSlug?: string;
   tvDisplaySecret?: string;
 }
@@ -71,16 +73,18 @@ export function QueueBoard({
   initialItems,
   currentUserId,
   currentUserIsDoctor,
+  isAdmin = false,
   canPrescribe = false,
   doctors,
   chairs = [],
+  enableChairManagement = true,
   tenantSlug,
   tvDisplaySecret,
 }: QueueBoardProps) {
   const router = useRouter();
   const [items, setItems] = useState<QueueItem[]>(initialItems);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>(
-    currentUserIsDoctor ? currentUserId : "all"
+    isAdmin ? "all" : (currentUserIsDoctor ? currentUserId : "all")
   );
   const [selectedChairId, setSelectedChairId] = useState<string>(chairs[0]?.id || "");
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -352,7 +356,7 @@ export function QueueBoard({
     chairId?: string
   ) => {
     let effectiveChairId = chairId;
-    if (newStatus === "in_chair" && chairs.length > 0) {
+    if (enableChairManagement && newStatus === "in_chair" && chairs.length > 0) {
       if (effectiveChairId && occupiedChairIds.has(effectiveChairId)) {
         const vacant = getAvailableChairId();
         if (!vacant) {
@@ -399,9 +403,16 @@ export function QueueBoard({
     setIsCallingNext(true);
     try {
       const targetDoc = selectedDoctorFilter === "all" ? undefined : selectedDoctorFilter;
-      const res = await callNextPatientAction(targetDoc, selectedChairId || undefined);
+      const res = await callNextPatientAction(
+        targetDoc,
+        enableChairManagement ? (selectedChairId || undefined) : undefined
+      );
       if (res?.success) {
-        toast.success(`Called Serial #${res.serialNo} to the dental chair!`);
+        toast.success(
+          enableChairManagement
+            ? `Called Serial #${res.serialNo} to the dental chair!`
+            : `Called Serial #${res.serialNo} to treatment!`
+        );
         router.refresh();
       } else {
         toast.info(res?.message || "No patients currently waiting in lounge");
@@ -446,25 +457,34 @@ export function QueueBoard({
             <select
               value={selectedDoctorFilter}
               onChange={(e) => setSelectedDoctorFilter(e.target.value)}
-              className="bg-transparent text-sm font-bold text-[#1C1C1E] focus:outline-none cursor-pointer pr-1"
+              className="bg-transparent text-sm font-bold text-[#1C1C1E] focus:outline-hidden cursor-pointer pr-1"
             >
-              <option value="all">All Dentists</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} {d.id === currentUserId ? "(You)" : ""}
+              <option value="all">
+                {isAdmin ? "All Dentists & Patients" : "All Dentists"} ({items.length})
+              </option>
+              {currentUserIsDoctor && (
+                <option value={currentUserId}>
+                  ⭐ My Assigned Patients ({items.filter((i) => i.doctorId === currentUserId).length})
                 </option>
-              ))}
+              )}
+              {doctors
+                .filter((d) => !currentUserIsDoctor || d.id !== currentUserId)
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name.startsWith("Dr.") ? d.name : `Dr. ${d.name}`} ({items.filter((i) => i.doctorId === d.id).length})
+                  </option>
+                ))}
             </select>
           </div>
 
-          {/* Chair Selector */}
-          {chairs.length > 0 && (
+          {/* Chair Selector - only shown when Chair Tracking is enabled */}
+          {enableChairManagement && chairs.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-[#E4E4E7] rounded-2xl shadow-xs">
               <Armchair className="w-4 h-4 text-[#2A5CAA]" />
               <select
                 value={selectedChairId}
                 onChange={(e) => setSelectedChairId(e.target.value)}
-                className="bg-transparent text-sm font-bold text-[#1C1C1E] focus:outline-none cursor-pointer pr-2"
+                className="bg-transparent text-sm font-bold text-[#1C1C1E] focus:outline-hidden cursor-pointer pr-2"
               >
                 {chairs.map((c) => {
                   const isOccupied = occupiedChairIds.has(c.id);
@@ -661,7 +681,9 @@ export function QueueBoard({
               </p>
             </div>
             <div className="p-3 rounded-2xl bg-white border border-[#2A5CAA]/30">
-              <span className="font-bold text-[#2A5CAA] block mb-1">3. In Dental Chair</span>
+              <span className="font-bold text-[#2A5CAA] block mb-1">
+                {enableChairManagement ? "3. In Dental Chair" : "3. In Treatment / With Doctor"}
+              </span>
               <p className="text-[#6B7280]">
                 Treatment is underway. Doctor writes prescription and clicks <strong>&quot;Finish Treatment&quot;</strong>.
               </p>
@@ -967,21 +989,31 @@ export function QueueBoard({
                         )}
                       </div>
 
-                      {/* Send to Chair Action */}
+                      {/* Send to Chair / Start Treatment Action */}
                       <button
                         type="button"
                         onClick={() =>
-                          handleAdvance(item.id, "in_chair", selectedChairId || undefined)
+                          handleAdvance(
+                            item.id,
+                            "in_chair",
+                            enableChairManagement ? (selectedChairId || undefined) : undefined
+                          )
                         }
                         disabled={processingId === item.id}
                         className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 transition shadow-sm disabled:opacity-50 cursor-pointer"
                       >
                         {processingId === item.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
+                        ) : enableChairManagement ? (
                           <>
                             <Armchair className="w-4 h-4" />
                             <span>Send to Chair Now</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        ) : (
+                          <>
+                            <Stethoscope className="w-4 h-4" />
+                            <span>Start Treatment Now</span>
                             <ArrowRight className="w-4 h-4" />
                           </>
                         )}
@@ -994,7 +1026,7 @@ export function QueueBoard({
           </div>
 
           {/* ================================================================ */}
-          {/* Column 3: In Dental Chair (Active Treatment)                     */}
+          {/* Column 3: In Dental Chair / In Treatment                         */}
           {/* ================================================================ */}
           <div className="flex-1 min-w-[265px] xl:min-w-[275px] max-w-[340px] shrink-0 xl:shrink bg-[#E8EEF7]/50 rounded-3xl p-3.5 xl:p-4 border border-[#2A5CAA]/40 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between px-2">
@@ -1003,7 +1035,7 @@ export function QueueBoard({
                   3
                 </span>
                 <span className="text-sm font-extrabold uppercase text-[#2A5CAA] tracking-wide">
-                  In Dental Chair
+                  {enableChairManagement ? "In Dental Chair" : "In Treatment / With Doctor"}
                 </span>
               </div>
               <span className="px-2.5 py-0.5 rounded-full bg-[#2A5CAA] text-white font-black text-xs shadow-2xs animate-pulse">
@@ -1014,7 +1046,7 @@ export function QueueBoard({
             <div className="space-y-3 max-h-[660px] xl:max-h-[690px] overflow-y-auto pr-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {getColumnItems("in_chair").length === 0 ? (
                 <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-white/70 rounded-2xl border border-dashed border-[#2A5CAA]/30">
-                  All dental chairs vacant
+                  {enableChairManagement ? "All dental chairs vacant" : "No patients currently in treatment"}
                 </div>
               ) : (
                 getColumnItems("in_chair").map((item) => {
@@ -1032,7 +1064,7 @@ export function QueueBoard({
                           </div>
                           <div>
                             <span className="text-xs font-bold uppercase tracking-wider text-[#2A5CAA] block">
-                              Active in Chair
+                              {enableChairManagement ? "Active in Chair" : "In Treatment"}
                             </span>
                             <span className="font-mono text-xs font-bold text-[#6B7280]">
                               {item.patientCard}
@@ -1040,7 +1072,7 @@ export function QueueBoard({
                           </div>
                         </div>
 
-                        {chairName ? (
+                        {enableChairManagement && chairName ? (
                           <span className="px-2.5 py-1 rounded-lg bg-[#EBF2FC] text-[#2A5CAA] font-bold text-xs border border-[#2A5CAA]/30">
                             {chairName}
                           </span>
@@ -1304,6 +1336,11 @@ export function QueueBoard({
                   : it
               )
             );
+            // If the current filter was locked to the previous doctor, reset to "all" so the patient NEVER disappears!
+            if (selectedDoctorFilter !== "all" && selectedDoctorFilter !== newDoctorId) {
+              setSelectedDoctorFilter("all");
+              toast.info(`Switched view to "All Dentists" so ${switchingQueueItem.patientName} remains visible on your board.`);
+            }
             router.refresh();
           }}
         />

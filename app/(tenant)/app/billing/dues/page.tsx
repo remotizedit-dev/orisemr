@@ -10,35 +10,58 @@ export const metadata = {
 };
 
 export default async function DuesPage() {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
 
-  const dueInvoices = await db
-    .select({
-      id: schema.invoices.id,
-      code: schema.invoices.invoiceCode,
-      totalBdt: schema.invoices.totalBdt,
-      paidBdt: schema.invoices.paidBdt,
-      status: schema.invoices.status,
-      createdAt: schema.invoices.createdAt,
-      lastReminderSentAt: schema.invoices.lastReminderSentAt,
-      patientId: schema.invoices.patientId,
-      patientName: schema.patients.name,
-      patientCard: schema.patients.cardNumber,
-      patientPhone: schema.patients.phone,
-      patientEmail: schema.patients.email,
-    })
-    .from(schema.invoices)
-    .innerJoin(
-      schema.patients,
-      eq(schema.invoices.patientId, schema.patients.id)
-    )
-    .where(
-      and(
-        eq(schema.invoices.tenantId, tenant.id),
-        inArray(schema.invoices.status, ["due", "partial"])
+  const [dueInvoices, clinicDoctors] = await Promise.all([
+    db
+      .select({
+        id: schema.invoices.id,
+        code: schema.invoices.invoiceCode,
+        totalBdt: schema.invoices.totalBdt,
+        paidBdt: schema.invoices.paidBdt,
+        status: schema.invoices.status,
+        createdAt: schema.invoices.createdAt,
+        lastReminderSentAt: schema.invoices.lastReminderSentAt,
+        patientId: schema.invoices.patientId,
+        patientName: schema.patients.name,
+        patientCard: schema.patients.cardNumber,
+        patientPhone: schema.patients.phone,
+        patientEmail: schema.patients.email,
+        doctorId: schema.invoices.doctorId,
+        doctorName: schema.users.name,
+      })
+      .from(schema.invoices)
+      .innerJoin(
+        schema.patients,
+        eq(schema.invoices.patientId, schema.patients.id)
       )
-    )
-    .orderBy(desc(schema.invoices.createdAt));
+      .leftJoin(
+        schema.users,
+        eq(schema.invoices.doctorId, schema.users.id)
+      )
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          inArray(schema.invoices.status, ["due", "partial"])
+        )
+      )
+      .orderBy(desc(schema.invoices.createdAt)),
+
+    db
+      .select({
+        id: schema.users.id,
+        name: schema.users.name,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.tenantId, tenant.id),
+          eq(schema.users.isDoctor, true),
+          eq(schema.users.status, "active")
+        )
+      )
+      .orderBy(schema.users.name),
+  ]);
 
   const nowMs = Date.now();
   let totalDuesSum = 0;
@@ -66,10 +89,20 @@ export default async function DuesPage() {
       patientCard: inv.patientCard,
       patientPhone: inv.patientPhone,
       patientEmail: inv.patientEmail,
+      doctorId: inv.doctorId,
+      doctorName: inv.doctorName,
     };
   });
 
+  const isDoctor = Boolean(user.isDoctor || user.role === "DOCTOR");
+
   return (
-    <DuesClient invoices={formattedInvoices} totalDuesSum={totalDuesSum} />
+    <DuesClient
+      invoices={formattedInvoices}
+      totalDuesSum={totalDuesSum}
+      doctors={clinicDoctors}
+      currentUserId={user.id}
+      isDoctor={isDoctor}
+    />
   );
 }

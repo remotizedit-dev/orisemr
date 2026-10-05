@@ -169,7 +169,7 @@ export default async function TenantDashboardPage() {
         >
           <div className="flex items-center justify-between">
             <span className="text-sm font-extrabold uppercase text-[#4B5563] tracking-wide">
-              In Dental Chair
+              {tenant.enableChairManagement ? "In Dental Chair" : "In Treatment"}
             </span>
             <div className="w-3 h-3 rounded-full bg-[#2A5CAA] animate-ping" />
           </div>
@@ -178,7 +178,7 @@ export default async function TenantDashboardPage() {
               {inChairCount}
             </span>
             <span className="text-sm text-[#2A5CAA] font-bold group-hover:underline">
-              Chair active →
+              {tenant.enableChairManagement ? "Chair active →" : "View active →"}
             </span>
           </div>
         </Link>

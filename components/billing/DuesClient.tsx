@@ -13,6 +13,7 @@ import {
   CheckCircle,
   Loader2,
   Calendar,
+  Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBdt } from "@/lib/utils";
@@ -36,18 +37,30 @@ interface DueInvoice {
   patientCard: string;
   patientPhone: string;
   patientEmail: string | null;
+  doctorId?: string | null;
+  doctorName?: string | null;
 }
 
 interface Props {
   invoices: DueInvoice[];
   totalDuesSum: number;
+  doctors?: { id: string; name: string }[];
+  currentUserId?: string;
+  isDoctor?: boolean;
 }
 
-export default function DuesClient({ invoices, totalDuesSum }: Props) {
+export default function DuesClient({
+  invoices,
+  totalDuesSum,
+  doctors = [],
+  currentUserId,
+  isDoctor = false,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const invoiceIdParam = searchParams.get("invoiceId");
   const [agingFilter, setAgingFilter] = useState<"all" | "recent" | "medium" | "old">("all");
+  const [doctorFilter, setDoctorFilter] = useState<string>("all");
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
@@ -70,9 +83,20 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
   }, [invoiceIdParam, invoices]);
 
   const filteredInvoices = invoices.filter((inv) => {
-    if (agingFilter === "recent") return inv.daysOverdue <= 7;
-    if (agingFilter === "medium") return inv.daysOverdue > 7 && inv.daysOverdue <= 30;
-    if (agingFilter === "old") return inv.daysOverdue > 30;
+    // Aging filter
+    if (agingFilter === "recent" && inv.daysOverdue > 7) return false;
+    if (agingFilter === "medium" && (inv.daysOverdue <= 7 || inv.daysOverdue > 30)) return false;
+    if (agingFilter === "old" && inv.daysOverdue <= 30) return false;
+
+    // Doctor filter
+    if (doctorFilter === "mine") {
+      if (inv.doctorId !== currentUserId) return false;
+    } else if (doctorFilter === "unassigned") {
+      if (inv.doctorId) return false;
+    } else if (doctorFilter !== "all") {
+      if (inv.doctorId !== doctorFilter) return false;
+    }
+
     return true;
   });
 
@@ -180,35 +204,66 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
         </div>
       </div>
 
-      {/* Aging Filter Tabs */}
-      <div className="flex items-center gap-2 glass-panel p-2 rounded-2xl border border-[#E4E4E7]">
-        {[
-          { key: "all", label: `All Dues (${invoices.length})` },
-          {
-            key: "recent",
-            label: `0 - 7 Days (${invoices.filter((i) => i.daysOverdue <= 7).length})`,
-          },
-          {
-            key: "medium",
-            label: `8 - 30 Days (${invoices.filter((i) => i.daysOverdue > 7 && i.daysOverdue <= 30).length})`,
-          },
-          {
-            key: "old",
-            label: `30+ Days (${invoices.filter((i) => i.daysOverdue > 30).length})`,
-          },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => handleAgingFilter(tab.key as any)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
-              agingFilter === tab.key
-                ? "bg-[#2A5CAA] text-white shadow-xs"
-                : "text-[#6B7280] hover:text-[#1C1C1E] hover:bg-white"
-            }`}
+      {/* Aging & Doctor Filter Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 glass-panel p-2 rounded-2xl border border-[#E4E4E7] overflow-x-auto">
+          {[
+            { key: "all", label: `All Aging (${invoices.length})` },
+            {
+              key: "recent",
+              label: `0 - 7 Days (${invoices.filter((i) => i.daysOverdue <= 7).length})`,
+            },
+            {
+              key: "medium",
+              label: `8 - 30 Days (${invoices.filter((i) => i.daysOverdue > 7 && i.daysOverdue <= 30).length})`,
+            },
+            {
+              key: "old",
+              label: `30+ Days (${invoices.filter((i) => i.daysOverdue > 30).length})`,
+            },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => handleAgingFilter(tab.key as any)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition shrink-0 cursor-pointer ${
+                agingFilter === tab.key
+                  ? "bg-[#2A5CAA] text-white shadow-xs"
+                  : "text-[#6B7280] hover:text-[#1C1C1E] hover:bg-white"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Doctor Chamber Filter */}
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <Stethoscope className="w-4 h-4 text-[#2A5CAA] shrink-0" />
+          <select
+            value={doctorFilter}
+            onChange={(e) => {
+              setDoctorFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs font-bold text-[#1C1C1E] outline-none focus:border-[#2A5CAA] shadow-2xs cursor-pointer"
           >
-            {tab.label}
-          </button>
-        ))}
+            <option value="all">All Doctors ({invoices.length} dues)</option>
+            {isDoctor && currentUserId && (
+              <option value="mine">
+                My Chamber Dues ({invoices.filter((i) => i.doctorId === currentUserId).length})
+              </option>
+            )}
+            {doctors.map((doc) => (
+              <option key={doc.id} value={doc.id}>
+                {doc.name.startsWith("Dr.") ? doc.name : `Dr. ${doc.name}`} (
+                {invoices.filter((i) => i.doctorId === doc.id).length})
+              </option>
+            ))}
+            <option value="unassigned">
+              General / Unassigned ({invoices.filter((i) => !i.doctorId).length})
+            </option>
+          </select>
+        </div>
       </div>
 
       {/* Dues List */}
@@ -219,6 +274,7 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
               <tr className="border-b border-[#E4E4E7] bg-white/50 text-[11px] font-bold text-[#6B7280] uppercase tracking-wider">
                 <th className="py-3 px-4">Invoice / Date</th>
                 <th className="py-3 px-4">Patient</th>
+                <th className="py-3 px-4">Attending Doctor</th>
                 <th className="py-3 px-4">Aging Bracket</th>
                 <th className="py-3 px-4">Total</th>
                 <th className="py-3 px-4">Paid</th>
@@ -229,7 +285,7 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
             <tbody className="divide-y divide-[#E4E4E7]">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-xs text-[#6B7280]">
+                  <td colSpan={8} className="py-8 text-center text-xs text-[#6B7280]">
                     No outstanding dues in this category. All clear!
                   </td>
                 </tr>
@@ -260,6 +316,19 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
                         <span className="text-[11px] text-[#6B7280]">
                           {inv.patientPhone} {inv.patientCard && `• ${inv.patientCard}`}
                         </span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        {inv.doctorName ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-[#30D158] shrink-0" />
+                            <span className="text-xs font-bold text-[#1C1C1E]">
+                              {inv.doctorName.startsWith("Dr.") ? inv.doctorName : `Dr. ${inv.doctorName}`}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-[#9CA3AF] italic">Unassigned</span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4">
@@ -367,6 +436,19 @@ export default function DuesClient({ invoices, totalDuesSum }: Props) {
               Patient: <strong>{paymentInvoice.patientName}</strong> • Due:{" "}
               <strong className="text-[#FF453A]">{formatBdt(paymentInvoice.dueBdt)}</strong>
             </p>
+
+            {/* Treating Doctor Revenue Attribution Notice */}
+            <div className="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-blue-950 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                <Stethoscope className="w-4 h-4 text-[#2A5CAA]" />
+                <span>
+                  Treating Doctor: {paymentInvoice.doctorName ? (paymentInvoice.doctorName.startsWith("Dr.") ? paymentInvoice.doctorName : `Dr. ${paymentInvoice.doctorName}`) : "Attending Doctor"}
+                </span>
+              </div>
+              <p className="text-[11px] text-blue-800 leading-relaxed">
+                This payment will be attributed to the treating doctor&apos;s earned revenue audit, while recording you as the cashier/collector receiving physical funds.
+              </p>
+            </div>
 
             <div className="space-y-3 pt-1">
               <div>

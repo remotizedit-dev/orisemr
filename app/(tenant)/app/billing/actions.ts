@@ -612,8 +612,11 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
       totalBdt: schema.invoices.totalBdt,
       paidBdt: schema.invoices.paidBdt,
       createdAt: schema.invoices.createdAt,
+      doctorId: schema.invoices.doctorId,
+      doctorName: schema.users.name,
     })
     .from(schema.invoices)
+    .leftJoin(schema.users, eq(schema.invoices.doctorId, schema.users.id))
     .where(
       and(
         eq(schema.invoices.tenantId, tenant.id),
@@ -844,6 +847,8 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
       paidBdt: inv.paidBdt,
       dueBdt: inv.totalBdt - inv.paidBdt,
       createdAt: inv.createdAt.toISOString(),
+      doctorId: inv.doctorId,
+      doctorName: inv.doctorName,
     }));
 
   if (targetRx?.toothCodes && targetRx.toothCodes.length > 0 && bookedServices.length > 0) {
