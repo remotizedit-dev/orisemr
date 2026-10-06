@@ -6,6 +6,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { generateRecordCode } from "@/lib/barcode/codes";
+import { canDoctorAccessPatient } from "@/lib/patient-privacy";
 
 export interface RecordPaymentInput {
   invoiceId: string;
@@ -242,6 +243,14 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
 
   if (!patient) {
     throw new Error("Patient not found in this clinic");
+  }
+
+  // Strict privacy check: Pure doctors in ISOLATED mode cannot bill unassigned patients
+  const hasAccess = await canDoctorAccessPatient(tenant, user, input.patientId, patient.assignedDoctorId);
+  if (!hasAccess) {
+    throw new Error(
+      "Access Denied: This patient is not assigned to you under your chamber's strict privacy settings."
+    );
   }
 
   // Resolve which doctor served this patient

@@ -29,11 +29,14 @@ export interface UpdateGeneralSettingsInput {
   doctorPatientVisibilityMode?: "ISOLATED" | "COLLABORATIVE";
 }
 
+import { invalidateTenantSessions } from "@/lib/session";
+import { deleteCache } from "@/lib/cache";
+
 export async function updateGeneralSettingsAction(input: UpdateGeneralSettingsInput) {
   const { tenant, user } = await requireClinicStaff();
 
   if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "clinic_settings")) {
-    throw new Error("Only Chamber Admins may modify clinic configuration");
+    throw new Error("Only Chamber Admins are authorized to modify chamber settings.");
   }
 
   await db
@@ -61,11 +64,21 @@ export async function updateGeneralSettingsAction(input: UpdateGeneralSettingsIn
     })
     .where(eq(schema.tenants.id, tenant.id));
 
-  revalidatePath("/app/settings");
-  revalidatePath("/app/patients");
-  revalidatePath("/app/appointments");
-  revalidatePath("/app/queue");
-  revalidatePath("/app");
+  // Invalidate in-memory session cache and Redis/memory cache immediately (0s delay)
+  invalidateTenantSessions(tenant.id);
+  await Promise.all([
+    deleteCache(`booking:page:${tenant.slug}`),
+    deleteCache(`clinic:booking-form:${tenant.id}`),
+    deleteCache(`display:tenant:${tenant.slug}`),
+  ]);
+
+  revalidatePath("/app/settings", "layout");
+  revalidatePath("/app/patients", "layout");
+  revalidatePath("/app/appointments", "layout");
+  revalidatePath("/app/queue", "layout");
+  revalidatePath("/app", "layout");
+  revalidatePath(`/book/${tenant.slug}`);
+  revalidatePath(`/display/${tenant.slug}`);
   return { success: true };
 }
 
@@ -223,7 +236,7 @@ export async function toggleEnableChairManagementAction(enabled: boolean) {
   const { tenant, user } = await requireClinicStaff();
 
   if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "clinic_settings")) {
-    throw new Error("Only Chamber Admins may modify chamber configuration");
+    throw new Error("Only Chamber Admins are authorized to modify chamber configuration.");
   }
 
   await db
@@ -234,12 +247,19 @@ export async function toggleEnableChairManagementAction(enabled: boolean) {
     })
     .where(eq(schema.tenants.id, tenant.id));
 
-  revalidatePath("/app/settings/chairs");
-  revalidatePath("/app/queue");
-  revalidatePath("/app/appointments");
-  revalidatePath("/app");
+  invalidateTenantSessions(tenant.id);
+  await Promise.all([
+    deleteCache(`clinic:booking-form:${tenant.id}`),
+    deleteCache(`queue:today:${tenant.id}`),
+  ]);
+
+  revalidatePath("/app/settings/chairs", "layout");
+  revalidatePath("/app/queue", "layout");
+  revalidatePath("/app/appointments", "layout");
+  revalidatePath("/app", "layout");
   return { success: true, enabled };
 }
+
 
 export async function updateServiceItemAction(
   id: string,

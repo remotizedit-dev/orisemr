@@ -376,7 +376,7 @@ export async function advanceQueueStatusAction(
 
 export async function callNextPatientAction(doctorId?: string, chairId?: string) {
   const { tenant, user } = await requireClinicStaff();
-  const targetDocId = doctorId || user.id;
+  const targetDocId = doctorId !== undefined ? doctorId : (user.isDoctor ? user.id : undefined);
 
   const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dhaka",
@@ -448,7 +448,7 @@ export async function callNextPatientAction(doctorId?: string, chairId?: string)
         eq(schema.queueEntries.tenantId, tenant.id),
         eq(schema.queueEntries.date, todayDhakaStr),
         eq(schema.queueEntries.status, "waiting"),
-        doctorId ? eq(schema.queueEntries.doctorId, targetDocId) : undefined
+        targetDocId ? eq(schema.queueEntries.doctorId, targetDocId) : undefined
       )
     )
     .orderBy(schema.queueEntries.serialNo, schema.queueEntries.checkedInAt)
@@ -765,6 +765,7 @@ export interface QueueItem {
   id: string;
   appointmentId: string;
   status: "booked" | "waiting" | "in_chair" | "billing" | "done" | "no_show" | "cancelled";
+  appointmentStatus?: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
   serialNo: number | null;
   serialCode?: string | null;
   chairId?: string | null;
@@ -853,6 +854,7 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
         .select({
           id: schema.queueEntries.id,
           appointmentId: schema.queueEntries.appointmentId,
+          appointmentStatus: schema.appointments.status,
           status: schema.queueEntries.status,
           serialNo: schema.queueEntries.serialNo,
           serialCode: schema.queueEntries.serialCode,
@@ -991,6 +993,7 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
         return {
           id: e.id,
           appointmentId: e.appointmentId,
+          appointmentStatus: e.appointmentStatus,
           status: e.status,
           serialNo: e.serialNo,
           serialCode: e.serialCode || (e.serialNo ? String(e.serialNo) : null),
@@ -1111,6 +1114,49 @@ export async function resetTvSecretAction(): Promise<{
     };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to reset TV secret key" };
+  }
+}
+
+export async function getOrEnsureTvSecretAction(): Promise<{
+  success: boolean;
+  secret: string;
+  tvUrl: string;
+}> {
+  try {
+    const { tenant } = await requireClinicStaff();
+    if (tenant.tvDisplaySecret) {
+      return {
+        success: true,
+        secret: tenant.tvDisplaySecret,
+        tvUrl: `/display/${tenant.slug}?key=${tenant.tvDisplaySecret}`,
+      };
+    }
+
+    const crypto = await import("crypto");
+    const newSecret = crypto.randomBytes(12).toString("hex");
+
+    await db
+      .update(schema.tenants)
+      .set({
+        tvDisplaySecret: newSecret,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.tenants.id, tenant.id));
+
+    await deleteCache(`tenant:public:${tenant.slug}`);
+    await deleteCache(`tenant:details:${tenant.id}`);
+
+    return {
+      success: true,
+      secret: newSecret,
+      tvUrl: `/display/${tenant.slug}?key=${newSecret}`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      secret: "",
+      tvUrl: "",
+    };
   }
 }
 

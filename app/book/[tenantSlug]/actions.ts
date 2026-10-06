@@ -1,5 +1,4 @@
-"use server";
-
+import { headers } from "next/headers";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -9,11 +8,33 @@ import {
   type CandidateDoctor,
 } from "@/lib/scheduling/slot-engine";
 import { generateRecordCode, generateAutoCardNumber } from "@/lib/barcode/codes";
-import { normalizeBdPhone } from "@/lib/utils";
+import { normalizeBdPhone, getDhakaTodayStr, addDhakaDays, formatDoctorName } from "@/lib/utils";
 import {
   sendEmailInBackground,
   renderAppointmentConfirmationHtml,
 } from "@/lib/email/mailer";
+
+// In-memory sliding window rate limiter for public booking
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkPublicBookingRateLimit(clientKey: string): boolean {
+  const now = Date.now();
+  const windowMs = 5 * 60 * 1000; // 5 minutes
+  const maxAttempts = 12;
+
+  const current = rateLimitMap.get(clientKey);
+  if (!current || now > current.resetAt) {
+    rateLimitMap.set(clientKey, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (current.count >= maxAttempts) {
+    return false;
+  }
+
+  current.count += 1;
+  return true;
+}
 
 export async function getPublicAvailableSlots(
   tenantId: string,
@@ -100,6 +121,15 @@ export async function getPublicAvailableSlots(
 
   if (!tenant) return [];
 
+  // Enforce public booking window (days ahead) in Asia/Dhaka
+  const dhakaTodayStr = getDhakaTodayStr();
+  const maxDaysAhead = tenant.publicBookingDaysAhead ?? 14;
+  const maxAllowedDateStr = addDhakaDays(dhakaTodayStr, maxDaysAhead);
+
+  if (dateStr < dhakaTodayStr || dateStr > maxAllowedDateStr) {
+    return [];
+  }
+
   const totalDurationMinutes = selectedServices.reduce(
     (acc, s) => acc + s.duration,
     0
@@ -137,19 +167,20 @@ export async function getPublicAvailableSlots(
   });
 }
 
-export async function lookupPublicPatientByCard(tenantId: string, cardNumber: string) {
+export async function lookupPublicPatientByCard(
+  tenantId: string,
+  cardNumber: string,
+  phone?: string
+) {
   if (!cardNumber || !cardNumber.trim()) {
-    return { found: false };
+    return { found: false, verified: false };
   }
 
   const cleanCard = cardNumber.trim();
   const [patient] = await db
     .select({
       id: schema.patients.id,
-      name: schema.patients.name,
       phone: schema.patients.phone,
-      email: schema.patients.email,
-      cardNumber: schema.patients.cardNumber,
     })
     .from(schema.patients)
     .where(
@@ -162,13 +193,20 @@ export async function lookupPublicPatientByCard(tenantId: string, cardNumber: st
     .limit(1);
 
   if (!patient) {
-    return { found: false };
+    return { found: false, verified: false };
   }
 
-  return {
-    found: true,
-    patient,
-  };
+  // If phone is provided, verify match without returning any patient name
+  if (phone) {
+    const normEntered = normalizeBdPhone(phone);
+    const normPatient = normalizeBdPhone(patient.phone);
+    if (normEntered && normEntered === normPatient) {
+      return { found: true, verified: true };
+    }
+    return { found: true, verified: false };
+  }
+
+  return { found: true, verified: false };
 }
 
 export interface SubmitPublicBookingInput {
@@ -196,6 +234,19 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
   let isAutoConfirmed = false;
   let finalAssignedCardNumber: string | null = null;
 
+  // Enforce rate limiting
+  const reqHeaders = await headers();
+  const clientIp =
+    reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    reqHeaders.get("x-real-ip") ||
+    "client";
+
+  if (!checkPublicBookingRateLimit(`${clientIp}:${input.tenantId}`)) {
+    throw new Error(
+      "Too many booking attempts. Please wait a few minutes before trying again."
+    );
+  }
+
   const [tenant] = await db
     .select()
     .from(schema.tenants)
@@ -203,6 +254,17 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
     .limit(1);
 
   if (!tenant) throw new Error("Chamber not found");
+
+  // Enforce public booking window on server
+  const dhakaTodayStr = getDhakaTodayStr();
+  const maxDaysAhead = tenant.publicBookingDaysAhead ?? 14;
+  const maxAllowedDateStr = addDhakaDays(dhakaTodayStr, maxDaysAhead);
+
+  if (input.date < dhakaTodayStr || input.date > maxAllowedDateStr) {
+    throw new Error(
+      `Appointments can only be booked between ${dhakaTodayStr} and ${maxAllowedDateStr} (within ${maxDaysAhead} days).`
+    );
+  }
 
   if (input.isExistingPatient && input.cardNumber) {
     // 1. Existing Patient with Chamber Card ID
@@ -221,6 +283,12 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
     if (!patient) {
       throw new Error("We couldn't find a registered patient with that chamber card number.");
     }
+
+    // Strict validation: Card is only accepted when entered phone matches patient's phone on file
+    if (!normPhone || normPhone !== normalizeBdPhone(patient.phone)) {
+      throw new Error("Chamber card number and mobile phone number do not match our records.");
+    }
+
     patientId = patient.id;
     patientName = patient.name;
     patientPhone = patient.phone;
@@ -411,7 +479,7 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
       appointmentCode,
       isAutoConfirmed,
       patientCardNumber: finalAssignedCardNumber,
-      patientName,
+      // Patient name omitted to prevent leaking names via public confirmation screens
     };
   });
 
@@ -425,7 +493,7 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
         .limit(1);
 
       const docName = assignedDoctor
-        ? `${assignedDoctor.title || "Dr."} ${assignedDoctor.name}`
+        ? formatDoctorName(assignedDoctor.name, assignedDoctor.title)
         : "Dental Surgeon";
 
       sendEmailInBackground({

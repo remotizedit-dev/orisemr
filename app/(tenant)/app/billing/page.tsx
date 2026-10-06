@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
-import { formatBdt } from "@/lib/utils";
+import { formatBdt, formatDoctorName } from "@/lib/utils";
 import { Plus, Stethoscope, Users, CreditCard, DollarSign, CheckCircle2, TrendingUp } from "lucide-react";
 import InvoicesListClient, { type InvoiceRow } from "@/components/billing/InvoicesListClient";
 
@@ -145,7 +145,7 @@ export default async function BillingPage() {
   for (const doc of clinicDoctors) {
     doctorMap.set(doc.id, {
       doctorId: doc.id,
-      doctorName: doc.name.startsWith("Dr.") ? doc.name : `Dr. ${doc.name}`,
+      doctorName: formatDoctorName(doc.name),
       patientIds: new Set(),
       totalBilledBdt: 0,
       totalCollectedBdt: 0,
@@ -201,10 +201,17 @@ export default async function BillingPage() {
   }));
 
   const isDoctor = Boolean(user.isDoctor || user.role === "DOCTOR");
+  const isPureDoctor = Boolean(
+    isDoctor &&
+    user.role !== "TENANT_ADMIN" &&
+    user.role !== "SUPER_ADMIN" &&
+    user.role !== "RECEPTIONIST"
+  );
+
   const myStats = isDoctor
     ? doctorBreakdown.find((d) => d.doctorId === user.id) || {
         doctorId: user.id,
-        doctorName: user.name || "Doctor",
+        doctorName: formatDoctorName(user.name),
         uniquePatients: 0,
         totalBilledBdt: 0,
         totalCollectedBdt: 0,
@@ -213,7 +220,12 @@ export default async function BillingPage() {
       }
     : null;
 
-  const formattedInvoices: InvoiceRow[] = invoices.map((inv) => ({
+  // Pure doctors only see invoices for patients they served
+  const visibleInvoices = isPureDoctor
+    ? invoices.filter((inv) => inv.doctorId === user.id)
+    : invoices;
+
+  const formattedInvoices: InvoiceRow[] = visibleInvoices.map((inv) => ({
     id: inv.id,
     code: inv.code,
     totalBdt: inv.totalBdt,
@@ -224,7 +236,7 @@ export default async function BillingPage() {
     patientName: inv.patientName,
     patientCard: inv.patientCard,
     doctorId: inv.doctorId,
-    doctorName: inv.doctorName,
+    doctorName: inv.doctorName ? formatDoctorName(inv.doctorName) : undefined,
   }));
 
   return (
@@ -333,218 +345,225 @@ export default async function BillingPage() {
         </div>
       )}
 
-      {/* Today's Reconciliation Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
-          <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
-            Clinic Total Collection
-          </span>
-          <span className="text-2xl font-black text-[#1C1C1E] block mt-1">
-            {formatBdt(totalCollected)}
-          </span>
-        </div>
+      {/* Whole-clinic Financial Overview (Admins & Reception Desk Only) */}
+      {!isPureDoctor && (
+        <>
+          {/* Today's Reconciliation Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
+              <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
+                Clinic Total Collection
+              </span>
+              <span className="text-2xl font-black text-[#1C1C1E] block mt-1">
+                {formatBdt(totalCollected)}
+              </span>
+            </div>
 
-        <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
-          <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
-            Cash Collection
-          </span>
-          <span className="text-2xl font-bold text-[#30D158] block mt-1">
-            {formatBdt(methodTotals.cash)}
-          </span>
-        </div>
+            <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
+              <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
+                Cash Collection
+              </span>
+              <span className="text-2xl font-bold text-[#30D158] block mt-1">
+                {formatBdt(methodTotals.cash)}
+              </span>
+            </div>
 
-        <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
-          <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
-            bKash Payments
-          </span>
-          <span className="text-2xl font-bold text-[#E2136E] block mt-1">
-            {formatBdt(methodTotals.bkash)}
-          </span>
-        </div>
+            <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
+              <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
+                bKash Payments
+              </span>
+              <span className="text-2xl font-bold text-[#E2136E] block mt-1">
+                {formatBdt(methodTotals.bkash)}
+              </span>
+            </div>
 
-        <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
-          <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
-            Nagad &amp; Cards
-          </span>
-          <span className="text-2xl font-bold text-[#2A5CAA] block mt-1">
-            {formatBdt(methodTotals.nagad + methodTotals.card)}
-          </span>
-        </div>
-      </div>
-
-      {/* Doctor Performance & Earnings Attribution Summary (for Admin & Staff Overview) */}
-      <div className="glass-panel rounded-3xl border border-[#E4E4E7] p-5 space-y-4 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E4E4E7]">
-          <div className="flex items-center gap-2">
-            <Stethoscope className="w-5 h-5 text-[#2A5CAA]" />
-            <h2 className="text-base font-extrabold text-[#1C1C1E]">
-              Doctor Earnings &amp; Patient Attribution
-            </h2>
-          </div>
-          <span className="text-xs text-[#6B7280]">
-            Track which doctor served which patient and total revenue generated/collected
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-[#E4E4E7] text-[#6B7280] uppercase tracking-wider font-bold">
-                <th className="py-2.5 px-3">Attending Doctor</th>
-                <th className="py-2.5 px-3 text-center">Patients Served</th>
-                <th className="py-2.5 px-3 text-center">Invoices</th>
-                <th className="py-2.5 px-3 text-right">Total Billed (Tk)</th>
-                <th className="py-2.5 px-3 text-right">Collected / Earned (Tk)</th>
-                <th className="py-2.5 px-3 text-right">Pending Due (Tk)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E4E4E7]">
-              {doctorBreakdown.map((doc) => {
-                const isMe = user.id === doc.doctorId;
-                return (
-                  <tr
-                    key={doc.doctorId}
-                    className={`hover:bg-[#F8FAFC] transition ${
-                      isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
-                    }`}
-                  >
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-[#1C1C1E]">{doc.doctorName}</span>
-                        {isMe && (
-                          <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded-md bg-[#2A5CAA] text-white">
-                            You
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-center font-bold text-[#1C1C1E]">
-                      {doc.uniquePatients}
-                    </td>
-                    <td className="py-3 px-3 text-center text-[#6B7280]">
-                      {doc.invoicesCount}
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold text-[#1C1C1E]">
-                      {formatBdt(doc.totalBilledBdt)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold text-[#30D158]">
-                      {formatBdt(doc.totalCollectedBdt)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold text-[#FF453A]">
-                      {formatBdt(doc.totalDueBdt)}
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {unassignedInvoices > 0 && (
-                <tr className="hover:bg-[#F8FAFC] transition text-[#6B7280] italic">
-                  <td className="py-3 px-3 font-semibold">
-                    General Clinic (Unassigned Doctor)
-                  </td>
-                  <td className="py-3 px-3 text-center font-bold">
-                    {unassignedPatients.size}
-                  </td>
-                  <td className="py-3 px-3 text-center">
-                    {unassignedInvoices}
-                  </td>
-                  <td className="py-3 px-3 text-right font-bold text-[#1C1C1E]">
-                    {formatBdt(unassignedBilled)}
-                  </td>
-                  <td className="py-3 px-3 text-right font-bold text-[#30D158]">
-                    {formatBdt(unassignedCollected)}
-                  </td>
-                  <td className="py-3 px-3 text-right font-bold text-[#FF453A]">
-                    {formatBdt(unassignedDue)}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Cash Custody & Desk Collection Audit (Received by Staff / Doctor) */}
-      <div className="glass-panel rounded-3xl border border-[#E4E4E7] p-5 space-y-4 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E4E4E7]">
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-[#30D158]" />
-            <div>
-              <h2 className="text-base font-extrabold text-[#1C1C1E]">
-                Cash Custody &amp; Desk Collection Audit
-              </h2>
-              <p className="text-xs text-[#6B7280]">
-                Shows physical funds received at the counter by staff or doctors (distinct from clinical procedure earnings)
-              </p>
+            <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7]">
+              <span className="text-[11px] font-bold uppercase text-[#6B7280] tracking-wider block">
+                Nagad &amp; Cards
+              </span>
+              <span className="text-2xl font-bold text-[#2A5CAA] block mt-1">
+                {formatBdt(methodTotals.nagad + methodTotals.card)}
+              </span>
             </div>
           </div>
-          <span className="text-xs font-bold text-[#30D158] bg-[#E8F8EE] px-3 py-1 rounded-full border border-[#30D158]/30">
-            Cashier &amp; Register Reconciliation
-          </span>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-[#E4E4E7] text-[#6B7280] uppercase tracking-wider font-bold">
-                <th className="py-2.5 px-3">Received By (Staff / Chamber)</th>
-                <th className="py-2.5 px-3 text-center">Transactions</th>
-                <th className="py-2.5 px-3 text-right">Physical Cash (Tk)</th>
-                <th className="py-2.5 px-3 text-right">bKash / Nagad (Tk)</th>
-                <th className="py-2.5 px-3 text-right">Card / POS (Tk)</th>
-                <th className="py-2.5 px-3 text-right font-black text-[#1C1C1E]">Total Collected (Tk)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E4E4E7]">
-              {receiverBreakdown.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-6 text-center text-[#6B7280]">
-                    No payments recorded yet.
-                  </td>
-                </tr>
-              ) : (
-                receiverBreakdown.map((rec) => {
-                  const isMe = user.id === rec.userId;
-                  return (
-                    <tr
-                      key={rec.userId}
-                      className={`hover:bg-[#F8FAFC] transition ${
-                        isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
-                      }`}
-                    >
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-[#1C1C1E]">{rec.name}</span>
-                          {isMe && (
-                            <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded-md bg-[#2A5CAA] text-white">
-                              You
-                            </span>
-                          )}
-                        </div>
+          {/* Doctor Performance & Earnings Attribution Summary (for Admin & Staff Overview) */}
+          <div className="glass-panel rounded-3xl border border-[#E4E4E7] p-5 space-y-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E4E4E7]">
+              <div className="flex items-center gap-2">
+                <Stethoscope className="w-5 h-5 text-[#2A5CAA]" />
+                <h2 className="text-base font-extrabold text-[#1C1C1E]">
+                  Doctor Earnings &amp; Patient Attribution
+                </h2>
+              </div>
+              <span className="text-xs text-[#6B7280]">
+                Track which doctor served which patient and total revenue generated/collected
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-[#E4E4E7] text-[#6B7280] uppercase tracking-wider font-bold">
+                    <th className="py-2.5 px-3">Attending Doctor</th>
+                    <th className="py-2.5 px-3 text-center">Patients Served</th>
+                    <th className="py-2.5 px-3 text-center">Invoices</th>
+                    <th className="py-2.5 px-3 text-right">Total Billed (Tk)</th>
+                    <th className="py-2.5 px-3 text-right">Collected / Earned (Tk)</th>
+                    <th className="py-2.5 px-3 text-right">Pending Due (Tk)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E4E4E7]">
+                  {doctorBreakdown.map((doc) => {
+                    const isMe = user.id === doc.doctorId;
+                    return (
+                      <tr
+                        key={doc.doctorId}
+                        className={`hover:bg-[#F8FAFC] transition ${
+                          isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
+                        }`}
+                      >
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[#1C1C1E]">{doc.doctorName}</span>
+                            {isMe && (
+                              <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded-md bg-[#2A5CAA] text-white">
+                                You
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-center font-bold text-[#1C1C1E]">
+                          {doc.uniquePatients}
+                        </td>
+                        <td className="py-3 px-3 text-center text-[#6B7280]">
+                          {doc.invoicesCount}
+                        </td>
+                        <td className="py-3 px-3 text-right font-bold text-[#1C1C1E]">
+                          {formatBdt(doc.totalBilledBdt)}
+                        </td>
+                        <td className="py-3 px-3 text-right font-bold text-[#30D158]">
+                          {formatBdt(doc.totalCollectedBdt)}
+                        </td>
+                        <td className="py-3 px-3 text-right font-bold text-[#FF453A]">
+                          {formatBdt(doc.totalDueBdt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {unassignedInvoices > 0 && (
+                    <tr className="hover:bg-[#F8FAFC] transition text-[#6B7280] italic">
+                      <td className="py-3 px-3 font-semibold">
+                        General Clinic (Unassigned Doctor)
                       </td>
-                      <td className="py-3 px-3 text-center font-bold text-[#1C1C1E]">
-                        {rec.count}
+                      <td className="py-3 px-3 text-center font-bold">
+                        {unassignedPatients.size}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {unassignedInvoices}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-[#1C1C1E]">
+                        {formatBdt(unassignedBilled)}
                       </td>
                       <td className="py-3 px-3 text-right font-bold text-[#30D158]">
-                        {formatBdt(rec.cashBdt)}
+                        {formatBdt(unassignedCollected)}
                       </td>
-                      <td className="py-3 px-3 text-right font-bold text-[#E2136E]">
-                        {formatBdt(rec.mfsBdt)}
-                      </td>
-                      <td className="py-3 px-3 text-right font-bold text-[#2A5CAA]">
-                        {formatBdt(rec.cardBdt)}
-                      </td>
-                      <td className="py-3 px-3 text-right font-black text-[#1C1C1E]">
-                        {formatBdt(rec.totalCollectedBdt)}
+                      <td className="py-3 px-3 text-right font-bold text-[#FF453A]">
+                        {formatBdt(unassignedDue)}
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Cash Custody & Desk Collection Audit (Received by Staff / Doctor) */}
+          <div className="glass-panel rounded-3xl border border-[#E4E4E7] p-5 space-y-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E4E4E7]">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-[#30D158]" />
+                <div>
+                  <h2 className="text-base font-extrabold text-[#1C1C1E]">
+                    Cash Custody &amp; Desk Collection Audit
+                  </h2>
+                  <p className="text-xs text-[#6B7280]">
+                    Shows physical funds received at the counter by staff or doctors (distinct from clinical procedure earnings)
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-[#30D158] bg-[#E8F8EE] px-3 py-1 rounded-full border border-[#30D158]/30">
+                Cashier &amp; Register Reconciliation
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-[#E4E4E7] text-[#6B7280] uppercase tracking-wider font-bold">
+                    <th className="py-2.5 px-3">Received By (Staff / Chamber)</th>
+                    <th className="py-2.5 px-3 text-center">Transactions</th>
+                    <th className="py-2.5 px-3 text-right">Physical Cash (Tk)</th>
+                    <th className="py-2.5 px-3 text-right">bKash / Nagad (Tk)</th>
+                    <th className="py-2.5 px-3 text-right">Card / POS (Tk)</th>
+                    <th className="py-2.5 px-3 text-right font-black text-[#1C1C1E]">Total Collected (Tk)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E4E4E7]">
+                  {receiverBreakdown.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-[#6B7280]">
+                        No payments recorded yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    receiverBreakdown.map((rec) => {
+                      const isMe = user.id === rec.userId;
+                      return (
+                        <tr
+                          key={rec.userId}
+                          className={`hover:bg-[#F8FAFC] transition ${
+                            isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
+                          }`}
+                        >
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[#1C1C1E]">{rec.name}</span>
+                              {isMe && (
+                                <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded-md bg-[#2A5CAA] text-white">
+                                  You
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold text-[#1C1C1E]">
+                            {rec.count}
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold text-[#30D158]">
+                            {formatBdt(rec.cashBdt)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold text-[#E2136E]">
+                            {formatBdt(rec.mfsBdt)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold text-[#2A5CAA]">
+                            {formatBdt(rec.cardBdt)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-black text-[#1C1C1E]">
+                            {formatBdt(rec.totalCollectedBdt)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Invoices List with Doctor Filter, Search, Pagination & Take Payment modal */}
 
       {/* Invoices List with Doctor Filter, Search, Pagination & Take Payment modal */}
       <InvoicesListClient

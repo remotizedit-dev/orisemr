@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { formatBdPhone } from "@/lib/utils";
+import { formatBdPhone, formatDoctorName } from "@/lib/utils";
 import {
   AlertCircle,
   Search,
@@ -218,7 +218,7 @@ export default function PatientsListClient({
                 <option value="all">All Dentists ({patients.length})</option>
                 {doctors.map((d) => (
                   <option key={d.id} value={d.id}>
-                    Dr. {d.name} ({patients.filter((p) => p.assignedDoctorId === d.id).length})
+                    {formatDoctorName(d.name)} ({patients.filter((p) => p.assignedDoctorId === d.id).length})
                   </option>
                 ))}
                 <option value="unassigned">
@@ -305,7 +305,7 @@ export default function PatientsListClient({
                         >
                           <Stethoscope className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate max-w-[130px]">
-                            {p.assignedDoctorName ? `Dr. ${p.assignedDoctorName}` : "Unassigned"}
+                            {p.assignedDoctorName ? formatDoctorName(p.assignedDoctorName) : "Unassigned"}
                           </span>
                         </span>
                         {doctors.length > 0 && (

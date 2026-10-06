@@ -146,3 +146,72 @@ export function generateRandomCode(length: number = 6): string {
   }
   return result;
 }
+
+/**
+ * Returns today's date formatted as YYYY-MM-DD in Asia/Dhaka (+06:00) timezone.
+ */
+export function getDhakaTodayStr(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/**
+ * Adds days to a date in Asia/Dhaka timezone and returns YYYY-MM-DD.
+ */
+export function addDhakaDays(baseDateStrOrDate: string | Date, days: number): string {
+  const baseStr =
+    typeof baseDateStrOrDate === "string"
+      ? baseDateStrOrDate
+      : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(baseDateStrOrDate);
+  const [y, m, d] = baseStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().split("T")[0];
+}
+
+/**
+ * Adds months to a date in Asia/Dhaka timezone and returns YYYY-MM-DD.
+ */
+export function addDhakaMonths(baseDateStrOrDate: string | Date, months: number): string {
+  const baseStr =
+    typeof baseDateStrOrDate === "string"
+      ? baseDateStrOrDate
+      : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(baseDateStrOrDate);
+  const [y, m, d] = baseStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1 + months, d));
+  return date.toISOString().split("T")[0];
+}
+
+/**
+ * Formats a doctor's name cleanly, ensuring no duplicate titles like "Dr. Dr. Shihab".
+ */
+export function formatDoctorName(name: string | null | undefined, title?: string | null): string {
+  if (!name) return "Doctor";
+  const trimmed = name.trim();
+  // Strip any existing leading "Dr." or "Dr" or "Doctor"
+  const cleanName = trimmed.replace(/^(Dr\.|Dr|Doctor)\s+/i, "");
+  const effectiveTitle = title?.trim() || "Dr.";
+  return `${effectiveTitle} ${cleanName}`;
+}
+
+/**
+ * Masks patient names for public displays (e.g. Smart TV screens) to preserve privacy.
+ * E.g. "QA Echo" -> "Q. Echo", "Sabrina Ahmed" -> "S. Ahmed", "Rahim" -> "R***m"
+ */
+export function maskPatientName(name: string | null | undefined): string {
+  if (!name) return "Patient";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) {
+    const single = parts[0];
+    if (single.length <= 2) return single;
+    return `${single.charAt(0)}***${single.slice(-1)}`;
+  }
+  const firstInitial = parts[0].charAt(0).toUpperCase();
+  const rest = parts.slice(1).join(" ");
+  return `${firstInitial}. ${rest}`;
+}
+

@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   getPublicAvailableSlots,
   submitPublicBooking,
   lookupPublicPatientByCard,
 } from "./actions";
-import { formatBdt } from "@/lib/utils";
+import {
+  formatBdt,
+  getDhakaTodayStr,
+  addDhakaDays,
+  formatDoctorName,
+} from "@/lib/utils";
 import {
   Calendar,
   CalendarDays,
@@ -58,15 +63,20 @@ export function PublicBookingClient({
 }: PublicBookingClientProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
+  const todayStr = useMemo(() => getDhakaTodayStr(), []);
+  const maxBookingDaysAhead = tenant.publicBookingDaysAhead ?? 14;
+  const maxBookingDateStr = useMemo(
+    () => addDhakaDays(todayStr, maxBookingDaysAhead),
+    [todayStr, maxBookingDaysAhead]
+  );
+
   // Form selections
   const [selectedServices, setSelectedServices] = useState<string[]>(
     services.length > 0 ? [services[0].id] : []
   );
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("any");
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1); // default tomorrow
-    return d.toISOString().split("T")[0];
+    return addDhakaDays(getDhakaTodayStr(), 1); // default tomorrow
   });
   const [availableSlots, setAvailableSlots] = useState<
     { time: string; displayTime: string; doctorId: string }[]
@@ -88,30 +98,32 @@ export function PublicBookingClient({
 
   // Card lookup state
   const [isLookingUpCard, setIsLookingUpCard] = useState(false);
-  const [cardLookupStatus, setCardLookupStatus] = useState<"idle" | "found" | "not_found">("idle");
-  const [verifiedPatientName, setVerifiedPatientName] = useState<string | null>(null);
+  const [cardLookupStatus, setCardLookupStatus] = useState<
+    "idle" | "verified" | "mismatch" | "not_found"
+  >("idle");
 
-  const handleCardLookup = async (cardNum: string) => {
-    const trimmed = cardNum.trim();
-    if (!trimmed || trimmed.length < 4) {
+  const handleCardLookup = async (cardNum: string, phoneNum: string) => {
+    const trimmedCard = cardNum.trim();
+    const trimmedPhone = phoneNum.trim();
+    if (!trimmedCard || trimmedCard.length < 4) {
       setCardLookupStatus("idle");
-      setVerifiedPatientName(null);
       return;
     }
 
     setIsLookingUpCard(true);
     try {
-      const res = await lookupPublicPatientByCard(tenant.id, trimmed);
-      if (res.found && res.patient) {
-        setCardLookupStatus("found");
-        setVerifiedPatientName(res.patient.name);
-        setName(res.patient.name);
-        setPhone(res.patient.phone);
-        if (res.patient.email) setEmail(res.patient.email);
-        toast.success(`Registered card verified for ${res.patient.name}`);
+      const res = await lookupPublicPatientByCard(tenant.id, trimmedCard, trimmedPhone);
+      if (res.found) {
+        if (res.verified) {
+          setCardLookupStatus("verified");
+          toast.success("Chamber card verified with your registered phone number");
+        } else if (trimmedPhone) {
+          setCardLookupStatus("mismatch");
+        } else {
+          setCardLookupStatus("idle");
+        }
       } else {
         setCardLookupStatus("not_found");
-        setVerifiedPatientName(null);
       }
     } catch (err) {
       console.error("Card lookup error:", err);
@@ -126,7 +138,6 @@ export function PublicBookingClient({
     appointmentCode: string;
     isAutoConfirmed: boolean;
     patientCardNumber?: string | null;
-    patientName?: string;
   } | null>(null);
 
   const toggleService = (id: string) => {
@@ -169,12 +180,9 @@ export function PublicBookingClient({
   }, [tenant.id, selectedDate, selectedDoctorId, selectedServices]);
 
   const shiftDate = (days: number) => {
-    const cur = new Date(selectedDate);
-    cur.setDate(cur.getDate() + days);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (cur >= today) {
-      setSelectedDate(cur.toISOString().split("T")[0]);
+    const nextDate = addDhakaDays(selectedDate, days);
+    if (nextDate >= todayStr && nextDate <= maxBookingDateStr) {
+      setSelectedDate(nextDate);
       setSelectedSlot(null);
     }
   };
@@ -243,7 +251,7 @@ export function PublicBookingClient({
 
         {confirmedBooking.patientCardNumber && (
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium max-w-sm mx-auto">
-            Patient: <strong>{confirmedBooking.patientName}</strong> • Card ID:{" "}
+            Chamber Card Verified • Card ID:{" "}
             <span className="font-mono font-black text-emerald-800">
               {confirmedBooking.patientCardNumber}
             </span>
@@ -376,7 +384,7 @@ export function PublicBookingClient({
                   }`}
                 >
                   <span className="block font-bold">
-                    {d.doctorTitle} {d.name}
+                    {formatDoctorName(d.name, d.doctorTitle)}
                   </span>
                   <span className="text-[11px] font-normal text-[#6B7280]">
                     {d.doctorSpecialty || "Dental Surgeon"}
@@ -394,7 +402,8 @@ export function PublicBookingClient({
             <input
               type="date"
               value={selectedDate}
-              min={new Date().toISOString().split("T")[0]}
+              min={todayStr}
+              max={maxBookingDateStr}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-full p-2.5 rounded-lg border border-[#E4E4E7] bg-white text-xs font-mono"
             />
@@ -448,7 +457,8 @@ export function PublicBookingClient({
               <input
                 type="date"
                 value={selectedDate}
-                min={new Date().toISOString().split("T")[0]}
+                min={todayStr}
+                max={maxBookingDateStr}
                 onChange={(e) => {
                   setSelectedDate(e.target.value);
                   setSelectedSlot(null);
@@ -595,20 +605,29 @@ export function PublicBookingClient({
                   onChange={(e) => {
                     const val = e.target.value;
                     setCardNumber(val);
-                    if (val.trim().length >= 6) {
-                      handleCardLookup(val);
+                    if (val.trim().length >= 6 && phone.trim().length >= 10) {
+                      handleCardLookup(val, phone);
                     } else {
                       setCardLookupStatus("idle");
-                      setVerifiedPatientName(null);
                     }
                   }}
-                  onBlur={() => handleCardLookup(cardNumber)}
+                  onBlur={() => {
+                    if (cardNumber.trim() && phone.trim()) {
+                      handleCardLookup(cardNumber, phone);
+                    }
+                  }}
                   placeholder="Enter your card number (e.g. 1000000001)"
                   className="w-full p-2.5 pr-20 rounded-lg border border-[#E4E4E7] bg-white text-xs font-mono font-bold focus:outline-none focus:border-[#2A5CAA]"
                 />
                 <button
                   type="button"
-                  onClick={() => handleCardLookup(cardNumber)}
+                  onClick={() => {
+                    if (!phone.trim()) {
+                      toast.info("Please enter your registered mobile number below to verify your card.");
+                      return;
+                    }
+                    handleCardLookup(cardNumber, phone);
+                  }}
                   disabled={isLookingUpCard || !cardNumber.trim()}
                   className="absolute right-1.5 top-1.5 px-2.5 py-1 rounded bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-[11px] font-bold transition disabled:opacity-50 flex items-center gap-1 cursor-pointer"
                 >
@@ -621,15 +640,24 @@ export function PublicBookingClient({
                 </button>
               </div>
 
-              {cardLookupStatus === "found" && verifiedPatientName && (
+              {cardLookupStatus === "verified" && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <div>
-                    <span className="font-bold">Verified Cardholder: {verifiedPatientName}</span>
+                    <span className="font-bold">Card Verified</span>
                     <p className="text-[11px] text-emerald-700">
-                      Your registered contact details have been automatically filled below.
+                      Card number matches your registered mobile phone number.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {cardLookupStatus === "mismatch" && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    The mobile phone number below does not match the registered record for this card number.
+                  </span>
                 </div>
               )}
 
@@ -677,7 +705,13 @@ export function PublicBookingClient({
               type="tel"
               required
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setPhone(val);
+                if (isExistingPatient && cardNumber.trim().length >= 6 && val.trim().length >= 10) {
+                  handleCardLookup(cardNumber, val);
+                }
+              }}
               placeholder="01712345678"
               className="w-full p-2.5 rounded-lg border border-[#E4E4E7] bg-white text-xs font-mono"
             />

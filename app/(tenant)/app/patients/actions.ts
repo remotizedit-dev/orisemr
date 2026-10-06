@@ -6,8 +6,13 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
-import { generateAutoCardNumber, generateRecordCode } from "@/lib/barcode/codes";
-import { normalizeBdPhone } from "@/lib/utils";
+import {
+  generateAutoCardNumber,
+  generateRecordCode,
+  getDoctorPrefixLetter,
+  formatDoctorSerialCode,
+} from "@/lib/barcode/codes";
+import { normalizeBdPhone, formatDoctorName } from "@/lib/utils";
 
 import { sendEmailInBackground, renderPatientWelcomeHtml } from "@/lib/email/mailer";
 
@@ -62,6 +67,15 @@ export async function registerPatientAction(input: RegisterPatientInput) {
   }
 
   let finalCardNumber = input.cardNumber?.trim();
+
+  // Validate manual card number length if provided
+  if (finalCardNumber) {
+    const cleanDigits = finalCardNumber.replace(/\D/g, "");
+    const minLen = tenant.patientIdMinLen || 10;
+    if (cleanDigits.length < minLen) {
+      throw new Error(`Patient Card ID must be at least ${minLen} digits.`);
+    }
+  }
 
   // If in AUTO_GENERATE mode or card number not provided, generate from CARD counter
   if (tenant.patientIdMode === "AUTO_GENERATE" || !finalCardNumber) {
@@ -503,22 +517,30 @@ export async function updatePatientAction(input: UpdatePatientInput) {
   }
 
   // If card number is being changed, ensure uniqueness within this clinic
-  if (input.cardNumber && input.cardNumber.trim() !== existingPatient.cardNumber) {
-    const [cardConflict] = await db
-      .select({ id: schema.patients.id, name: schema.patients.name })
-      .from(schema.patients)
-      .where(
-        and(
-          eq(schema.patients.tenantId, tenant.id),
-          eq(schema.patients.cardNumber, input.cardNumber.trim()),
-          ne(schema.patients.id, input.patientId),
-          isNull(schema.patients.deletedAt)
-        )
-      )
-      .limit(1);
+  if (input.cardNumber && input.cardNumber.trim()) {
+    const cleanDigits = input.cardNumber.trim().replace(/\D/g, "");
+    const minLen = tenant.patientIdMinLen || 10;
+    if (cleanDigits.length < minLen) {
+      throw new Error(`Patient Card ID must be at least ${minLen} digits.`);
+    }
 
-    if (cardConflict) {
-      throw new Error(`Card number ${input.cardNumber} is already assigned to ${cardConflict.name}`);
+    if (input.cardNumber.trim() !== existingPatient.cardNumber) {
+      const [cardConflict] = await db
+        .select({ id: schema.patients.id, name: schema.patients.name })
+        .from(schema.patients)
+        .where(
+          and(
+            eq(schema.patients.tenantId, tenant.id),
+            eq(schema.patients.cardNumber, input.cardNumber.trim()),
+            ne(schema.patients.id, input.patientId),
+            isNull(schema.patients.deletedAt)
+          )
+        )
+        .limit(1);
+
+      if (cardConflict) {
+        throw new Error(`Card number ${input.cardNumber} is already assigned to ${cardConflict.name}`);
+      }
     }
   }
 
@@ -563,7 +585,8 @@ export async function updatePatientAction(input: UpdatePatientInput) {
 export async function reassignPatientDoctorAction(
   patientId: string,
   newDoctorId: string | null,
-  reason?: string
+  reason?: string,
+  allowOverbook?: boolean
 ) {
   const { tenant, user } = await requireClinicStaff();
 
@@ -584,9 +607,14 @@ export async function reassignPatientDoctorAction(
   }
 
   let doctorName = "Unassigned";
+  let targetDocTitle: string | null = null;
   if (newDoctorId) {
     const [doc] = await db
-      .select({ id: schema.users.id, name: schema.users.name })
+      .select({
+        id: schema.users.id,
+        name: schema.users.name,
+        doctorTitle: schema.users.doctorTitle,
+      })
       .from(schema.users)
       .where(
         and(
@@ -602,21 +630,52 @@ export async function reassignPatientDoctorAction(
       throw new Error("Target doctor not found or is inactive");
     }
     doctorName = doc.name;
-  }
+    targetDocTitle = doc.doctorTitle;
 
-  // 1. Update primary assigned doctor on patient record
-  await db
-    .update(schema.patients)
-    .set({
-      assignedDoctorId: newDoctorId,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.patients.tenantId, tenant.id),
-        eq(schema.patients.id, patientId)
-      )
-    );
+    // Check if target doctor has an overlap with patient's upcoming appointment today
+    if (!allowOverbook) {
+      const [patientApt] = await db
+        .select({
+          id: schema.appointments.id,
+          startTime: schema.appointments.startTime,
+          endTime: schema.appointments.endTime,
+        })
+        .from(schema.appointments)
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.patientId, patientId),
+            sql`${schema.appointments.status} NOT IN ('completed', 'cancelled', 'no_show')`
+          )
+        )
+        .limit(1);
+
+      if (patientApt) {
+        const overlapping = await db
+          .select({ id: schema.appointments.id })
+          .from(schema.appointments)
+          .where(
+            and(
+              eq(schema.appointments.tenantId, tenant.id),
+              eq(schema.appointments.doctorId, newDoctorId),
+              sql`${schema.appointments.id} != ${patientApt.id}`,
+              sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+              sql`${schema.appointments.startTime} < ${patientApt.endTime.toISOString()}`,
+              sql`${schema.appointments.endTime} > ${patientApt.startTime.toISOString()}`
+            )
+          )
+          .limit(1);
+
+        if (overlapping.length > 0) {
+          return {
+            success: false,
+            conflict: true,
+            message: `${formatDoctorName(doc.name, doc.doctorTitle)} already has an appointment scheduled during this patient's visit time. Overbook to proceed anyway?`,
+          };
+        }
+      }
+    }
+  }
 
   const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dhaka",
@@ -625,39 +684,125 @@ export async function reassignPatientDoctorAction(
     day: "2-digit",
   }).format(new Date());
 
-  if (newDoctorId) {
-    // 2. Cascade update to today's active queue entry if any
-    await db
-      .update(schema.queueEntries)
+  await db.transaction(async (tx) => {
+    // 1. Update primary assigned doctor on patient record
+    await tx
+      .update(schema.patients)
       .set({
-        doctorId: newDoctorId,
-        updatedBy: user.id,
+        assignedDoctorId: newDoctorId,
         updatedAt: new Date(),
       })
       .where(
         and(
-          eq(schema.queueEntries.tenantId, tenant.id),
-          eq(schema.queueEntries.patientId, patientId),
-          eq(schema.queueEntries.date, todayDhakaStr),
-          sql`${schema.queueEntries.status} NOT IN ('done', 'cancelled', 'no_show')`
+          eq(schema.patients.tenantId, tenant.id),
+          eq(schema.patients.id, patientId)
         )
       );
 
-    // 3. Cascade update to active / upcoming appointments if any
-    await db
-      .update(schema.appointments)
-      .set({
+    if (newDoctorId) {
+      // 2. Cascade update to today's active queue entry if any, re-generating serial & prefix
+      const [qEntry] = await tx
+        .select({
+          id: schema.queueEntries.id,
+          serialNo: schema.queueEntries.serialNo,
+          date: schema.queueEntries.date,
+        })
+        .from(schema.queueEntries)
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.patientId, patientId),
+            eq(schema.queueEntries.date, todayDhakaStr),
+            sql`${schema.queueEntries.status} NOT IN ('done', 'cancelled', 'no_show')`
+          )
+        )
+        .limit(1);
+
+      if (qEntry) {
+        let queuePatch: Record<string, unknown> = {
+          doctorId: newDoctorId,
+          updatedBy: user.id,
+          updatedAt: new Date(),
+        };
+
+        if (qEntry.serialNo) {
+          const clinicDoctors = await tx
+            .select({ id: schema.users.id })
+            .from(schema.users)
+            .where(
+              and(
+                eq(schema.users.tenantId, tenant.id),
+                eq(schema.users.isDoctor, true)
+              )
+            )
+            .orderBy(schema.users.createdAt);
+
+          const docIndex = clinicDoctors.findIndex((d) => d.id === newDoctorId);
+          const prefixLetter = getDoctorPrefixLetter(docIndex >= 0 ? docIndex : 0);
+
+          const [maxSerialRow] = await tx
+            .select({
+              maxSerial: sql<number>`COALESCE(MAX(${schema.queueEntries.serialNo}), 0)`,
+            })
+            .from(schema.queueEntries)
+            .where(
+              and(
+                eq(schema.queueEntries.tenantId, tenant.id),
+                eq(schema.queueEntries.date, todayDhakaStr),
+                eq(schema.queueEntries.doctorId, newDoctorId)
+              )
+            );
+
+          const newSerial = Number(maxSerialRow?.maxSerial || 0) + 1;
+          const newSerialCode = formatDoctorSerialCode(prefixLetter, newSerial);
+
+          const counterKey = `SERIAL:${todayDhakaStr}:${newDoctorId}`;
+          await tx
+            .insert(schema.tenantCounters)
+            .values({
+              tenantId: tenant.id,
+              key: counterKey,
+              nextValue: newSerial + 1,
+            })
+            .onConflictDoUpdate({
+              target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
+              set: {
+                nextValue: sql`GREATEST(${schema.tenantCounters.nextValue}, ${newSerial + 1})`,
+              },
+            });
+
+          queuePatch.serialNo = newSerial;
+          queuePatch.serialCode = newSerialCode;
+          queuePatch.queuePosition = newSerial;
+        }
+
+        await tx
+          .update(schema.queueEntries)
+          .set(queuePatch)
+          .where(eq(schema.queueEntries.id, qEntry.id));
+      }
+
+      // 3. Cascade update to active / upcoming appointments if any
+      const appointmentPatch: Record<string, unknown> = {
         doctorId: newDoctorId,
         updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(schema.appointments.tenantId, tenant.id),
-          eq(schema.appointments.patientId, patientId),
-          sql`${schema.appointments.status} NOT IN ('completed', 'cancelled', 'no_show')`
-        )
-      );
-  }
+      };
+      if (allowOverbook) {
+        appointmentPatch.isOverbooked = true;
+      }
+
+      await tx
+        .update(schema.appointments)
+        .set(appointmentPatch)
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.patientId, patientId),
+            sql`${schema.appointments.status} NOT IN ('completed', 'cancelled', 'no_show')`
+          )
+        );
+    }
+  });
 
   const { deleteCache } = await import("@/lib/cache");
   await deleteCache(`queue:today:${tenant.id}`);

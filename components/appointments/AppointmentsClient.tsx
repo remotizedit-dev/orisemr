@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,7 +22,7 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import { SwitchDoctorModal } from "@/components/patients/SwitchDoctorModal";
-import { formatBdt, formatDhakaTime } from "@/lib/utils";
+import { formatBdt, formatDhakaTime, formatDoctorName } from "@/lib/utils";
 import {
   updateAppointmentStatusAction,
   advanceAppointmentQueueAction,
@@ -83,6 +83,12 @@ export default function AppointmentsClient({
   const router = useRouter();
   const [apts, setApts] = useState<AppointmentItem[]>(appointments);
   const [selectedDate, setSelectedDate] = useState(initialDate);
+
+  useEffect(() => {
+    setApts(appointments);
+    setSelectedDate(initialDate);
+  }, [appointments, initialDate]);
+
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
     isPureDoctor && currentUserId ? currentUserId : "all"
   );
@@ -271,7 +277,7 @@ export default function AppointmentsClient({
                     : "bg-white/60 text-[#4B5563] hover:bg-white border border-transparent hover:border-[#E4E4E7]"
                 }`}
               >
-                {doc.name} ({count})
+                {formatDoctorName(doc.name)} ({count})
               </button>
             );
           })}
@@ -438,7 +444,7 @@ export default function AppointmentsClient({
                     {/* Services & Doctor & Chair */}
                     <div className="flex flex-wrap items-center gap-3 text-sm text-[#4B5563]">
                       <div className="flex items-center gap-1.5 font-semibold text-[#1C1C1E]">
-                        <span>Dr: {apt.doctorName}</span>
+                        <span>{formatDoctorName(apt.doctorName)}</span>
                         {!isPureDoctor && doctors.length > 1 && (
                           <button
                             type="button"

@@ -5,6 +5,8 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { parseRecordCode } from "./codes";
 import { normalizeBdPhone } from "@/lib/utils";
+import { getSession } from "@/lib/session";
+import { canDoctorAccessPatient } from "@/lib/patient-privacy";
 
 export interface CodeResolutionResult {
   found: boolean;
@@ -30,6 +32,7 @@ export async function resolveCode(
   }
 
   const clean = code.trim().toUpperCase();
+  const session = await getSession();
 
   // 1. Check for standard record prefixes: APT-, RX-, INV-, RPT-
   const parsed = parseRecordCode(clean);
@@ -55,6 +58,15 @@ export async function resolveCode(
         .limit(1);
 
       if (apt) {
+        if (session?.user && session?.tenant && apt.patientId) {
+          const allowed = await canDoctorAccessPatient(session.tenant, session.user, apt.patientId);
+          if (!allowed) {
+            return {
+              found: false,
+              message: "Chamber Privacy Active: Appointment belongs to another dentist.",
+            };
+          }
+        }
         return {
           found: true,
           type: "appointment",
@@ -75,6 +87,15 @@ export async function resolveCode(
         .limit(1);
 
       if (rx) {
+        if (session?.user && session?.tenant && rx.patientId) {
+          const allowed = await canDoctorAccessPatient(session.tenant, session.user, rx.patientId);
+          if (!allowed) {
+            return {
+              found: false,
+              message: "Chamber Privacy Active: Prescription belongs to another dentist.",
+            };
+          }
+        }
         return {
           found: true,
           type: "prescription",
@@ -95,6 +116,15 @@ export async function resolveCode(
         .limit(1);
 
       if (inv) {
+        if (session?.user && session?.tenant && inv.patientId) {
+          const allowed = await canDoctorAccessPatient(session.tenant, session.user, inv.patientId);
+          if (!allowed) {
+            return {
+              found: false,
+              message: "Chamber Privacy Active: Invoice belongs to another dentist.",
+            };
+          }
+        }
         return {
           found: true,
           type: "invoice",
@@ -115,6 +145,15 @@ export async function resolveCode(
         .limit(1);
 
       if (rpt) {
+        if (session?.user && session?.tenant && rpt.patientId) {
+          const allowed = await canDoctorAccessPatient(session.tenant, session.user, rpt.patientId);
+          if (!allowed) {
+            return {
+              found: false,
+              message: "Chamber Privacy Active: Report belongs to another dentist.",
+            };
+          }
+        }
         return {
           found: true,
           type: "report",
@@ -174,6 +213,20 @@ export async function resolveCode(
   }
 
   if (patient) {
+    if (session?.user && session?.tenant) {
+      const allowed = await canDoctorAccessPatient(
+        session.tenant,
+        session.user,
+        patient.id,
+        patient.assignedDoctorId
+      );
+      if (!allowed) {
+        return {
+          found: false,
+          message: "Chamber Privacy Active: Patient is assigned to another dentist.",
+        };
+      }
+    }
     // Check if patient has an appointment today not yet checked in
     const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Dhaka",

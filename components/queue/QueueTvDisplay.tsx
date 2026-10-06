@@ -23,7 +23,7 @@ import {
   getPublicQueueDataAction,
   type QueueItem,
 } from "@/app/(tenant)/app/queue/actions";
-import { formatDhakaTime } from "@/lib/utils";
+import { formatDhakaTime, maskPatientName, formatDoctorName } from "@/lib/utils";
 import { calculateQueueEstimates } from "@/lib/queue-estimates";
 
 interface QueueTvDisplayProps {
@@ -413,11 +413,11 @@ export function QueueTvDisplay({
                             {item.chairName || "Dental Chair"}
                           </div>
                           <h3 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight">
-                            {item.patientName}
+                            {maskPatientName(item.patientName)}
                           </h3>
                           <p className="text-sm font-semibold text-[#475569] mt-1 flex items-center gap-1.5">
                             <Stethoscope className="w-4 h-4 text-emerald-600" />
-                            Attending: <span className="text-[#0F172A] font-bold">{item.doctorName}</span>
+                            Attending: <span className="text-[#0F172A] font-bold">{formatDoctorName(item.doctorName)}</span>
                           </p>
                           {item.serviceNames && item.serviceNames.length > 0 && (
                             <p className="text-xs text-[#64748B] font-medium mt-1 truncate">
@@ -504,12 +504,12 @@ export function QueueTvDisplay({
                     Next To Be Called
                   </div>
                   <div className="text-base font-black truncate text-white">
-                    {nextUpPatient.patientName}
+                    {maskPatientName(nextUpPatient.patientName)}
                   </div>
                   {nextUpPatient.doctorName && (
                     <div className="text-xs text-amber-100 font-medium truncate flex items-center gap-1 mt-0.5">
                       <Stethoscope className="w-3.5 h-3.5 text-amber-200 shrink-0" />
-                      <span>Attending: {nextUpPatient.doctorName}</span>
+                      <span>Attending: {formatDoctorName(nextUpPatient.doctorName)}</span>
                     </div>
                   )}
                 </div>
@@ -527,9 +527,19 @@ export function QueueTvDisplay({
 
           <div className="flex-1 flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-280px)] pr-1">
             <AnimatePresence mode="popLayout">
-              {waitingItems.length > 0 ? (
-                waitingItems.map((item, index) => {
+              {(() => {
+                const displayList = nextUpPatient && nextUpEstimate ? waitingItems.slice(1) : waitingItems;
+                if (displayList.length === 0) {
+                  return (
+                    <div className="p-6 text-center text-xs font-semibold text-[#64748B] bg-white/70 rounded-2xl border border-dashed border-[#CBD5E1]">
+                      {waitingItems.length > 0 ? "No further patients in waiting lounge" : "No patients currently waiting in lounge"}
+                    </div>
+                  );
+                }
+
+                return displayList.map((item, index) => {
                   const est = waitingEstimates.get(item.id);
+                  const isFirstInList = !nextUpEstimate && index === 0;
                   return (
                     <motion.div
                       key={item.id}
@@ -539,7 +549,7 @@ export function QueueTvDisplay({
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ type: "spring", stiffness: 350, damping: 25 }}
                       className={`p-4 sm:p-5 rounded-2xl border transition flex items-center justify-between gap-4 ${
-                        index === 0
+                        isFirstInList
                           ? "bg-gradient-to-r from-amber-50/90 via-amber-50/50 to-white border-2 border-amber-400 shadow-md shadow-amber-400/10"
                           : "bg-white border-[#E2E8F0] hover:border-[#CBD5E1] shadow-2xs"
                       }`}
@@ -547,13 +557,13 @@ export function QueueTvDisplay({
                       <div className="flex items-center gap-4 min-w-0">
                         <div
                           className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex flex-col items-center justify-center shrink-0 font-mono font-black ${
-                            index === 0
+                            isFirstInList
                               ? "bg-amber-500 text-white shadow-md shadow-amber-500/25"
                               : "bg-[#F1F5F9] text-[#0F172A] border border-[#CBD5E1]"
                           }`}
                         >
                           <span className="text-[9px] font-extrabold tracking-wider uppercase">
-                            {index === 0 ? "NEXT" : "TOKEN"}
+                            {isFirstInList ? "NEXT" : "TOKEN"}
                           </span>
                           <span className="text-lg sm:text-xl font-black leading-none truncate px-1">
                             {item.serialCode || (item.serialNo ? `#${String(item.serialNo).padStart(2, "0")}` : "--")}
@@ -563,16 +573,16 @@ export function QueueTvDisplay({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <h4 className="text-base sm:text-lg font-black text-[#0F172A] truncate">
-                              {item.patientName}
+                              {maskPatientName(item.patientName)}
                             </h4>
-                            {index === 0 && (
+                            {isFirstInList && (
                               <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 font-black text-[10px] uppercase tracking-wider shrink-0">
                                 Up Next
                               </span>
                             )}
                           </div>
                           <p className="text-xs text-[#64748B] truncate mt-0.5">
-                            Doctor: <span className="text-[#334155] font-bold">{item.doctorName}</span>
+                            Doctor: <span className="text-[#334155] font-bold">{formatDoctorName(item.doctorName)}</span>
                           </p>
                           {item.serviceNames && item.serviceNames.length > 0 && (
                             <p className="text-[11px] text-slate-500 truncate mt-0.5">
@@ -582,43 +592,20 @@ export function QueueTvDisplay({
                         </div>
                       </div>
 
-                      {/* Right: Dynamic Approx Wait Time Badge */}
-                      <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                        {est ? (
-                          <>
-                            <span
-                              className={`px-2.5 py-1 rounded-lg text-xs font-black font-mono tracking-tight border inline-flex items-center gap-1 ${
-                                est.badgeVariant === "urgent"
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                                  : est.badgeVariant === "soon"
-                                  ? "bg-amber-50 text-amber-900 border-amber-300"
-                                  : "bg-blue-50 text-blue-900 border-blue-200"
-                              }`}
-                            >
-                              <Clock className="w-3 h-3 text-slate-500" />
-                              {est.badgeText}
-                            </span>
-                            <span className="text-[11px] font-mono text-[#64748B]">
-                              Est. {est.approxCallTimeFormatted}
-                            </span>
-                          </>
-                        ) : (
-                          <div className="text-xs font-mono text-[#64748B]">
-                            <Clock className="w-3.5 h-3.5 inline mr-1 text-[#94A3B8]" />
-                            {item.startTimeRaw ? formatDhakaTime(item.startTimeRaw) : item.startTime}
-                          </div>
+                      <div className="text-right shrink-0">
+                        <span className="px-2.5 py-1 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[11px] font-bold text-[#475569] block">
+                          Waiting
+                        </span>
+                        {est && (
+                          <span className="text-[11px] font-mono text-amber-700 font-semibold block mt-1">
+                            {est.badgeText}
+                          </span>
                         )}
                       </div>
                     </motion.div>
                   );
-                })
-              ) : (
-                <div className="flex-1 min-h-[200px] rounded-2xl border-2 border-dashed border-[#CBD5E1] bg-white/70 flex flex-col items-center justify-center text-center p-6 shadow-xs">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2" />
-                  <p className="text-sm font-bold text-[#334155]">Lounge is clear</p>
-                  <p className="text-xs text-[#64748B]">No patients waiting in queue</p>
-                </div>
-              )}
+                });
+              })()}
             </AnimatePresence>
           </div>
         </section>

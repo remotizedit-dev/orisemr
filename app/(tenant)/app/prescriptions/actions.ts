@@ -6,6 +6,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { generateRecordCode } from "@/lib/barcode/codes";
+import { canDoctorAccessPatient } from "@/lib/patient-privacy";
 
 export interface PrescriptionItemInput {
   medicineId: string;
@@ -44,10 +45,11 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
 
   // Allow registered dentists, DOCTOR role, and TENANT_ADMIN / SUPER_ADMIN managing the clinic
   const canPrescribe =
-    user.isDoctor ||
+    (user.isDoctor ||
     user.role === "DOCTOR" ||
     user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN";
+    user.role === "SUPER_ADMIN") &&
+    user.role !== "RECEPTIONIST";
 
   if (!canPrescribe) {
     throw new Error(
@@ -87,6 +89,14 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
 
   if (!existingPatient) {
     throw new Error("Patient not found in this clinic");
+  }
+
+  // Strict privacy check: Pure doctors in ISOLATED mode cannot issue Rx for unassigned patients
+  const hasAccess = await canDoctorAccessPatient(tenant, user, input.patientId);
+  if (!hasAccess) {
+    throw new Error(
+      "Access Denied: This patient is not assigned to you under your chamber's strict privacy settings."
+    );
   }
 
   try {
@@ -321,10 +331,11 @@ export async function updatePrescriptionDetailsAction(
   const { tenant, user } = await requireClinicStaff();
 
   const canPrescribe =
-    user.isDoctor ||
+    (user.isDoctor ||
     user.role === "DOCTOR" ||
     user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN";
+    user.role === "SUPER_ADMIN") &&
+    user.role !== "RECEPTIONIST";
 
   if (!canPrescribe) {
     throw new Error(

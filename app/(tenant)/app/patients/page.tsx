@@ -4,6 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { UserPlus } from "lucide-react";
+import { formatDoctorName } from "@/lib/utils";
 import PatientsListClient, { type PatientRow } from "@/components/patients/PatientsListClient";
 
 export const metadata = {
@@ -156,8 +157,8 @@ export default async function PatientsListPage() {
           <p className="text-sm text-[#6B7280]">
             {isPureDoctor
               ? visibilityMode === "ISOLATED"
-                ? `Chamber Privacy Active: Displaying patients assigned to Dr. ${user.name}.`
-                : `Displaying patients assigned to you (Dr. ${user.name}). Toggle tabs to view all clinic records.`
+                ? `Chamber Privacy Active: Displaying patients assigned to ${formatDoctorName(user.name)}.`
+                : `Displaying patients assigned to you (${formatDoctorName(user.name)}). Toggle tabs to view all clinic records.`
               : "Search registered chamber records, card numbers, and assigned dentists."}
           </p>
         </div>

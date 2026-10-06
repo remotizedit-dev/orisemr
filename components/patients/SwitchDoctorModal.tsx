@@ -13,6 +13,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDoctorName } from "@/lib/utils";
 import { reassignPatientDoctorAction } from "@/app/(tenant)/app/patients/actions";
 import { reassignQueueDoctorAction } from "@/app/(tenant)/app/queue/actions";
 import { reassignAppointmentDoctorAction } from "@/app/(tenant)/app/appointments/actions";
@@ -50,6 +51,7 @@ export function SwitchDoctorModal({
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [reason, setReason] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
 
   const availableDoctors = doctors.filter((d) => d.id !== currentDoctorId);
 
@@ -60,7 +62,7 @@ export function SwitchDoctorModal({
     "Complex case transfer to specialist",
   ];
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (allowOverbook = false) => {
     if (!selectedDoctorId) {
       toast.error("Please select a doctor to switch to");
       return;
@@ -70,16 +72,23 @@ export function SwitchDoctorModal({
     const targetName = selectedDoc?.name || "Doctor";
 
     setIsSubmitting(true);
+    setConflictWarning(null);
     try {
       let result: any = null;
       if (queueEntryId) {
         result = await reassignQueueDoctorAction(queueEntryId, selectedDoctorId);
       } else if (appointmentId) {
-        result = await reassignAppointmentDoctorAction(appointmentId, selectedDoctorId);
+        result = await reassignAppointmentDoctorAction(appointmentId, selectedDoctorId, allowOverbook);
       } else if (patientId) {
-        result = await reassignPatientDoctorAction(patientId, selectedDoctorId, reason);
+        result = await reassignPatientDoctorAction(patientId, selectedDoctorId, reason, allowOverbook);
       } else {
         throw new Error("No target patient, queue, or appointment specified");
+      }
+
+      if (result && result.conflict) {
+        setConflictWarning(result.message);
+        toast.warning(result.message);
+        return;
       }
 
       toast.success(
@@ -160,7 +169,7 @@ export function SwitchDoctorModal({
                     Current Doctor
                   </span>
                   <span className="text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg inline-block font-mono">
-                    {currentDoctorName || "Unassigned"}
+                    {currentDoctorName ? formatDoctorName(currentDoctorName) : "Unassigned"}
                   </span>
                 </div>
               </div>
@@ -185,7 +194,10 @@ export function SwitchDoctorModal({
                         <button
                           key={doc.id}
                           type="button"
-                          onClick={() => setSelectedDoctorId(doc.id)}
+                          onClick={() => {
+                            setSelectedDoctorId(doc.id);
+                            setConflictWarning(null);
+                          }}
                           className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition cursor-pointer ${
                             isSelected
                               ? "bg-blue-50/70 border-[#2A5CAA] shadow-xs ring-1 ring-[#2A5CAA]"
@@ -204,7 +216,7 @@ export function SwitchDoctorModal({
                             </div>
                             <div>
                               <span className="font-extrabold text-sm text-[#0F172A] block">
-                                {doc.name}
+                                {formatDoctorName(doc.name)}
                               </span>
                               <span className="text-[11px] font-medium text-emerald-700">
                                 Available in Chamber
@@ -250,6 +262,19 @@ export function SwitchDoctorModal({
                   ))}
                 </div>
               </div>
+
+              {/* Doctor Schedule Conflict Warning Banner */}
+              {conflictWarning && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-3 shadow-xs">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5">
+                    <p className="font-bold text-amber-950">{conflictWarning}</p>
+                    <p className="text-[11px] text-amber-800">
+                      You can select another doctor above, or overbook the target doctor to complete the patient transfer immediately.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer Actions */}
@@ -262,24 +287,46 @@ export function SwitchDoctorModal({
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={!selectedDoctorId || isSubmitting}
-                className="px-5 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-black text-xs flex items-center gap-2 shadow-md transition disabled:opacity-50 cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Reassigning...</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowRightLeft className="w-4 h-4" />
-                    <span>Confirm Doctor Switch</span>
-                  </>
-                )}
-              </button>
+
+              {conflictWarning ? (
+                <button
+                  type="button"
+                  onClick={() => handleConfirm(true)}
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs flex items-center gap-2 shadow-md transition disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Overbooking...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRightLeft className="w-4 h-4" />
+                      <span>Overbook &amp; Proceed Anyway</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleConfirm(false)}
+                  disabled={!selectedDoctorId || isSubmitting}
+                  className="px-5 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-black text-xs flex items-center gap-2 shadow-md transition disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Reassigning...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRightLeft className="w-4 h-4" />
+                      <span>Confirm Doctor Switch</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </motion.div>
         </div>

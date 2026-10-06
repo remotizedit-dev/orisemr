@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
@@ -7,6 +8,8 @@ import { PrescriptionBuilder } from "@/components/prescription/PrescriptionBuild
 import { SelectPatientForPrescription } from "@/components/prescription/SelectPatientForPrescription";
 import { getPatientAttachmentsAction } from "@/app/(tenant)/app/patients/actions";
 import { getOrSetCache } from "@/lib/cache";
+import { ShieldAlert } from "lucide-react";
+import { canDoctorAccessPatient } from "@/lib/patient-privacy";
 
 /**
  * Cache chamber clinical catalogs (medicines, dosage patterns, timings, durations, advice, quick texts)
@@ -134,10 +137,11 @@ export default async function NewPrescriptionPage({
   const { tenant, user } = await requireClinicStaff();
 
   const canPrescribe =
-    user.isDoctor ||
+    (user.isDoctor ||
     user.role === "DOCTOR" ||
     user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN";
+    user.role === "SUPER_ADMIN") &&
+    user.role !== "RECEPTIONIST";
 
   if (!canPrescribe) {
     redirect("/app/prescriptions");
@@ -219,6 +223,32 @@ export default async function NewPrescriptionPage({
       .limit(6);
 
     return <SelectPatientForPrescription recentPatients={recentPatients} />;
+  }
+
+  // Enforce strict privacy check: Doctor cannot write prescription for unassigned patient in ISOLATED mode
+  const hasAccess = await canDoctorAccessPatient(tenant, user, patient.id, patient.assignedDoctorId);
+  if (!hasAccess) {
+    return (
+      <div className="max-w-xl mx-auto py-16 text-center space-y-4">
+        <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-[#1C1C1E]">
+          Patient Not Assigned to You
+        </h2>
+        <p className="text-sm text-[#64748B] max-w-md mx-auto">
+          Under your chamber&apos;s strict privacy settings, you can only write prescriptions for patients assigned to your care or who have an active consultation with you today.
+        </p>
+        <div className="pt-2">
+          <Link
+            href="/app/prescriptions"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2A5CAA] text-white font-bold text-xs hover:bg-[#1E4282] transition"
+          >
+            Return to Prescriptions
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   // Fetch patient clinical attachments (radiographs, scans, reports) for this patient only

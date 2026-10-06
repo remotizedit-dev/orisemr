@@ -81,7 +81,7 @@ export function can(user: UserPermissionContext | null | undefined, capability: 
 
     case "write_prescription":
     case "edit_prescription":
-      return isDoctor || role === "DOCTOR" || role === "TENANT_ADMIN";
+      return (isDoctor || role === "DOCTOR" || role === "TENANT_ADMIN") && role !== "RECEPTIONIST";
 
     case "view_clinical_notes":
       return isDoctor || role === "DOCTOR" || role === "TENANT_ADMIN";

@@ -7,7 +7,7 @@ import { requireClinicStaff } from "@/lib/session";
 import { PatientHeaderActions } from "@/components/patients/PatientHeaderActions";
 import { PatientDocumentsTray } from "@/components/patients/PatientDocumentsTray";
 import { PatientPrescriptionsList } from "@/components/patients/PatientPrescriptionsList";
-import { formatBdPhone, formatBdt, formatDhakaDate } from "@/lib/utils";
+import { formatBdPhone, formatBdt, formatDhakaDate, formatDoctorName } from "@/lib/utils";
 import { getFileUrl } from "@/lib/s3";
 import {
   AlertCircle,
@@ -38,10 +38,11 @@ export default async function PatientProfilePage({
   const { id } = await params;
 
   const canPrescribe = Boolean(
-    user.isDoctor ||
+    (user.isDoctor ||
     user.role === "DOCTOR" ||
     user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN"
+    user.role === "SUPER_ADMIN") &&
+    user.role !== "RECEPTIONIST"
   );
 
   const isPureDoctor = Boolean(
@@ -154,7 +155,7 @@ export default async function PatientProfilePage({
   }
 
   // Doctor collaboration & cross-chamber coverage checks:
-  const isDoctorUser = Boolean(user.isDoctor || user.role === "DOCTOR");
+  const isDoctorUser = Boolean((user.isDoctor || user.role === "DOCTOR") && user.role !== "RECEPTIONIST");
   const isAssignedToOther =
     isDoctorUser &&
     Boolean(patient.assignedDoctorId && patient.assignedDoctorId !== user.id);
@@ -272,7 +273,7 @@ export default async function PatientProfilePage({
   return (
     <div className="space-y-6">
       {/* Collaborative Cross-Chamber Banner if patient is assigned to another dentist or unassigned */}
-      {(isAssignedToOther || isDoctorUnassigned) && (
+      {visibilityMode === "COLLABORATIVE" && (isAssignedToOther || isDoctorUnassigned) && (
         <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/90 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
           <div className="flex items-start sm:items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 shrink-0">
@@ -284,7 +285,7 @@ export default async function PatientProfilePage({
                   {isAssignedToOther ? "Cross-Chamber Coverage" : "Chamber Assignment"}
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-200/80 font-bold text-amber-900">
-                  {assignedDoctorName ? `Assigned to Dr. ${assignedDoctorName}` : "Currently Unassigned"}
+                  {assignedDoctorName ? `Assigned to ${formatDoctorName(assignedDoctorName)}` : "Currently Unassigned"}
                 </span>
               </div>
               <p className="text-xs text-amber-900/90 mt-0.5">
@@ -320,7 +321,7 @@ export default async function PatientProfilePage({
               <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA]" />
               <span className="text-[#64748B]">Attending:</span>
               <span className="font-bold text-[#1C1C1E]">
-                {assignedDoctorName ? `Dr. ${assignedDoctorName}` : "Unassigned"}
+                {assignedDoctorName ? formatDoctorName(assignedDoctorName) : "Unassigned"}
               </span>
             </div>
           </div>
@@ -507,14 +508,17 @@ export default async function PatientProfilePage({
                     className="p-3.5 hover:bg-white/80 transition flex items-center justify-between text-xs"
                   >
                     <div>
-                      <span className="font-mono font-bold text-[#1C1C1E]">
-                        {apt.code}
-                      </span>
-                      <span className="text-[#6B7280] ml-2">
-                        {formatDhakaDate(apt.startTime, "dd MMM yyyy, hh:mm a")}
-                      </span>
-                      <span className="block text-[11px] text-[#6B7280]">
-                        Dentist: {apt.doctorName}
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-[#E8EEF7] text-[#2A5CAA] border border-[#2A5CAA]/20">
+                          {apt.code}
+                        </span>
+                        <span className="text-[#8E8E93] text-xs">•</span>
+                        <span className="text-[#6B7280] font-medium">
+                          {formatDhakaDate(apt.startTime, "dd MMM yyyy, hh:mm a")}
+                        </span>
+                      </div>
+                      <span className="block text-[11px] text-[#6B7280] mt-0.5">
+                        Dentist: {formatDoctorName(apt.doctorName)}
                       </span>
                     </div>
                     <span

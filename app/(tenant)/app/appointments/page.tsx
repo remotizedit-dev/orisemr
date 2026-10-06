@@ -24,10 +24,11 @@ export default async function AppointmentsPage({ searchParams }: Props) {
   );
 
   const canPrescribe = Boolean(
-    user.isDoctor ||
+    (user.isDoctor ||
     user.role === "DOCTOR" ||
     user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN"
+    user.role === "SUPER_ADMIN") &&
+    user.role !== "RECEPTIONIST"
   );
 
   const todayDhakaStr = new Intl.DateTimeFormat("en-CA", {

@@ -34,7 +34,7 @@ export default function NewPatientPage() {
   const [email, setEmail] = useState("");
   const [approxAge, setApproxAge] = useState<string>("");
   const [gender, setGender] = useState<"male" | "female" | "other">("male");
-  const [bloodGroup, setBloodGroup] = useState<string>("B+");
+  const [bloodGroup, setBloodGroup] = useState<string>("");
   const [address, setAddress] = useState("");
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
@@ -109,7 +109,7 @@ export default function NewPatientPage() {
         email: email.trim() || undefined,
         approxAge: approxAge ? parseInt(approxAge, 10) : undefined,
         gender,
-        bloodGroup,
+        bloodGroup: bloodGroup || undefined,
         address: address.trim() || undefined,
         emergencyContactName: emergencyContactName.trim() || undefined,
         emergencyContactPhone: emergencyContactPhone.trim() || undefined,
@@ -296,6 +296,7 @@ export default function NewPatientPage() {
                 onChange={(e) => setBloodGroup(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#E4E4E7] bg-white text-sm focus:outline-none"
               >
+                <option value="">Unknown / Not Tested</option>
                 {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
                   <option key={bg} value={bg}>
                     {bg}

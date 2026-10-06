@@ -19,7 +19,7 @@ import {
   sendEmailInBackground,
   renderAppointmentConfirmationHtml,
 } from "@/lib/email/mailer";
-import { formatDhakaDate } from "@/lib/utils";
+import { formatDhakaDate, formatDoctorName } from "@/lib/utils";
 import { checkInPatientAction } from "@/app/(tenant)/app/queue/actions";
 import { getOrSetCache, deleteCache } from "@/lib/cache";
 
@@ -198,8 +198,9 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
   let end = new Date(input.endTime);
 
   // Issue N3: If patient is checking in immediately today (walk-in), book at current time
+  // Issue N3: If patient is checking in immediately today (walk-in), book at current time
   const isImmediateWalkIn = Boolean(input.checkInImmediately && input.dateStr === todayDhakaStr);
-  const effectiveIsOverbooked = Boolean(input.isOverbooked || isImmediateWalkIn);
+  const isOverbookedRequested = Boolean(input.isOverbooked);
 
   if (isImmediateWalkIn) {
     const now = new Date();
@@ -219,10 +220,19 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
   const targetDate = new Date(Date.UTC(year, month - 1, day));
   const weekday = targetDate.getUTCDay();
 
-  // Pre-fetch overlap check, working hours, selected services, patient, and doctor concurrently in parallel
-  const [overlapping, clinicHours, doctorSchedules, selectedServices, patient, assignedDoctor] = await Promise.all([
-    // Check overlap if not explicitly overbooked
-    !effectiveIsOverbooked
+  // Pre-fetch overlap check, chair check, working hours, selected services, patient, and doctor concurrently in parallel
+  const [
+    overlapping,
+    chairConflict,
+    chairCapacityCheck,
+    clinicHours,
+    doctorSchedules,
+    selectedServices,
+    patient,
+    assignedDoctor,
+  ] = await Promise.all([
+    // Check doctor overlap if not explicitly overbooked
+    !isOverbookedRequested
       ? db
           .select({ id: schema.appointments.id })
           .from(schema.appointments)
@@ -238,8 +248,51 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
           .limit(1)
       : Promise.resolve([]),
 
+    // Check specific chair conflict if selected and not overbooking
+    !isOverbookedRequested && input.chairId
+      ? db
+          .select({ id: schema.appointments.id })
+          .from(schema.appointments)
+          .where(
+            and(
+              eq(schema.appointments.tenantId, tenant.id),
+              eq(schema.appointments.chairId, input.chairId),
+              sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+              sql`${schema.appointments.startTime} < ${end.toISOString()}`,
+              sql`${schema.appointments.endTime} > ${start.toISOString()}`
+            )
+          )
+          .limit(1)
+      : Promise.resolve([]),
+
+    // Check general clinic chair capacity if not overbooking
+    !isOverbookedRequested
+      ? Promise.all([
+          db
+            .select({ count: sql<number>`count(*)` })
+            .from(schema.chairs)
+            .where(
+              and(
+                eq(schema.chairs.tenantId, tenant.id),
+                eq(schema.chairs.isActive, true)
+              )
+            ),
+          db
+            .select({ count: sql<number>`count(*)` })
+            .from(schema.appointments)
+            .where(
+              and(
+                eq(schema.appointments.tenantId, tenant.id),
+                sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+                sql`${schema.appointments.startTime} < ${end.toISOString()}`,
+                sql`${schema.appointments.endTime} > ${start.toISOString()}`
+              )
+            ),
+        ])
+      : Promise.resolve(null),
+
     // Check clinic working hours for weekday if not explicitly overbooked
-    !effectiveIsOverbooked
+    !isOverbookedRequested
       ? db
           .select({
             startTime: schema.tenantWorkingHours.startTime,
@@ -255,7 +308,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
       : Promise.resolve([]),
 
     // Check doctor shift for weekday if not explicitly overbooked
-    !effectiveIsOverbooked
+    !isOverbookedRequested
       ? db
           .select({
             startTime: schema.doctorSchedules.startTime,
@@ -319,8 +372,29 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     };
   }
 
+  if (chairConflict && chairConflict.length > 0) {
+    return {
+      success: false,
+      error: "CHAIR_OVERLAP",
+      message: "The selected dental chair is already booked for another appointment during this time. Choose another chair or overbook.",
+    };
+  }
+
+  if (chairCapacityCheck) {
+    const [totalChairsRes, activeAptsRes] = chairCapacityCheck;
+    const totalActiveChairs = Number(totalChairsRes[0]?.count || 0);
+    const concurrentApts = Number(activeAptsRes[0]?.count || 0);
+    if (totalActiveChairs > 0 && concurrentApts >= totalActiveChairs) {
+      return {
+        success: false,
+        error: "CHAIR_CAPACITY_EXCEEDED",
+        message: `All ${totalActiveChairs} dental chair(s) are occupied during this time window. Overbook to proceed anyway.`,
+      };
+    }
+  }
+
   // Validate working hours intersection (chamber hours ∩ doctor shift)
-  if (!effectiveIsOverbooked) {
+  if (!isOverbookedRequested) {
     const allowedWindows = computeWorkingHoursIntersection(clinicHours, doctorSchedules);
     const startParts = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Asia/Dhaka",
@@ -383,7 +457,7 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
         endTime: end,
         status: "confirmed",
         source: "staff",
-        isOverbooked: effectiveIsOverbooked,
+        isOverbooked: isOverbookedRequested,
         notes: input.notes || null,
         createdBy: user.id,
       })
@@ -713,7 +787,7 @@ export async function advanceAppointmentQueueAction(
 }
 
 export async function searchPatientsForBookingAction(query: string) {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
 
   if (!query || query.trim().length < 1) {
     return [];
@@ -721,6 +795,33 @@ export async function searchPatientsForBookingAction(query: string) {
 
   const clean = query.trim();
   const searchPattern = `%${clean}%`;
+
+  const visibilityMode =
+    (tenant.doctorPatientVisibilityMode as "ISOLATED" | "COLLABORATIVE") || "ISOLATED";
+  const isPureDoctor = Boolean(
+    (user.isDoctor || user.role === "DOCTOR") &&
+    user.role !== "TENANT_ADMIN" &&
+    user.role !== "SUPER_ADMIN" &&
+    user.role !== "RECEPTIONIST"
+  );
+
+  const whereConditions = [
+    eq(schema.patients.tenantId, tenant.id),
+    isNull(schema.patients.deletedAt),
+    sql`(${schema.patients.name} ILIKE ${searchPattern} OR ${schema.patients.phone} ILIKE ${searchPattern} OR ${schema.patients.cardNumber} ILIKE ${searchPattern})`,
+  ];
+
+  if (isPureDoctor && visibilityMode === "ISOLATED") {
+    whereConditions.push(
+      sql`(${schema.patients.assignedDoctorId} = ${user.id} OR ${schema.patients.id} IN (
+        SELECT patient_id FROM ${schema.appointments} WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id} AND patient_id IS NOT NULL
+        UNION
+        SELECT patient_id FROM ${schema.queueEntries} WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id}
+        UNION
+        SELECT patient_id FROM ${schema.prescriptions} WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id}
+      ))`
+    );
+  }
 
   const results = await db
     .select({
@@ -733,17 +834,12 @@ export async function searchPatientsForBookingAction(query: string) {
       bloodGroup: schema.patients.bloodGroup,
     })
     .from(schema.patients)
-    .where(
-      and(
-        eq(schema.patients.tenantId, tenant.id),
-        isNull(schema.patients.deletedAt),
-        sql`(${schema.patients.name} ILIKE ${searchPattern} OR ${schema.patients.phone} ILIKE ${searchPattern} OR ${schema.patients.cardNumber} ILIKE ${searchPattern})`
-      )
-    )
+    .where(and(...whereConditions))
     .limit(10);
 
   return results;
 }
+
 
 export async function getBookingFormDataAction() {
   const { tenant } = await requireClinicStaff();
@@ -810,7 +906,8 @@ export async function getBookingFormDataAction() {
 
 export async function reassignAppointmentDoctorAction(
   appointmentId: string,
-  newDoctorId: string
+  newDoctorId: string,
+  allowOverbook?: boolean
 ) {
   const { tenant, user } = await requireClinicStaff();
 
@@ -820,6 +917,9 @@ export async function reassignAppointmentDoctorAction(
       id: schema.appointments.id,
       patientId: schema.appointments.patientId,
       status: schema.appointments.status,
+      startTime: schema.appointments.startTime,
+      endTime: schema.appointments.endTime,
+      isOverbooked: schema.appointments.isOverbooked,
     })
     .from(schema.appointments)
     .where(
@@ -836,7 +936,11 @@ export async function reassignAppointmentDoctorAction(
 
   // 2. Verify target doctor
   const [doc] = await db
-    .select({ id: schema.users.id, name: schema.users.name })
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+      doctorTitle: schema.users.doctorTitle,
+    })
     .from(schema.users)
     .where(
       and(
@@ -852,12 +956,39 @@ export async function reassignAppointmentDoctorAction(
     throw new Error("Target doctor was not found or is inactive");
   }
 
-  // 3. Atomically update appointment, linked queue entry, and patient record
+  // 3. Check target doctor schedule overlap if not explicitly overbooking
+  if (!allowOverbook) {
+    const overlapping = await db
+      .select({ id: schema.appointments.id })
+      .from(schema.appointments)
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.doctorId, newDoctorId),
+          sql`${schema.appointments.id} != ${appointmentId}`,
+          sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+          sql`${schema.appointments.startTime} < ${apt.endTime.toISOString()}`,
+          sql`${schema.appointments.endTime} > ${apt.startTime.toISOString()}`
+        )
+      )
+      .limit(1);
+
+    if (overlapping.length > 0) {
+      return {
+        success: false,
+        conflict: true,
+        message: `${formatDoctorName(doc.name, doc.doctorTitle)} already has an appointment scheduled during this time window. Overbook to proceed anyway?`,
+      };
+    }
+  }
+
+  // 4. Atomically update appointment, linked queue entry, and patient record
   await db.transaction(async (tx) => {
     await tx
       .update(schema.appointments)
       .set({
         doctorId: newDoctorId,
+        isOverbooked: apt.isOverbooked || Boolean(allowOverbook),
         updatedAt: new Date(),
       })
       .where(eq(schema.appointments.id, appointmentId));

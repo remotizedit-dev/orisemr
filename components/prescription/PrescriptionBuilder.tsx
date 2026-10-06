@@ -9,6 +9,7 @@ import { ClinicalAutocompleteInput } from "./ClinicalAutocompleteInput";
 import { PatientProfileModal } from "./PatientProfileModal";
 import { UploadReportModal } from "./UploadReportModal";
 import { checkMedicineAllergy, type AllergyCheckResult } from "@/lib/clinical-flags";
+import { getDhakaTodayStr, addDhakaDays, addDhakaMonths } from "@/lib/utils";
 import { savePrescriptionAction } from "@/app/(tenant)/app/prescriptions/actions";
 import { deletePatientAttachmentAction } from "@/app/(tenant)/app/patients/actions";
 import {
@@ -1285,12 +1286,11 @@ export function PrescriptionBuilder({
                     key={dur}
                     type="button"
                     onClick={() => {
-                      const d = new Date();
-                      if (dur === "+3 days") d.setDate(d.getDate() + 3);
-                      if (dur === "+7 days") d.setDate(d.getDate() + 7);
-                      if (dur === "+14 days") d.setDate(d.getDate() + 14);
-                      if (dur === "+1 month") d.setMonth(d.getMonth() + 1);
-                      setNextVisitDate(d.toISOString().split("T")[0]);
+                      const todayDhaka = getDhakaTodayStr();
+                      if (dur === "+3 days") setNextVisitDate(addDhakaDays(todayDhaka, 3));
+                      if (dur === "+7 days") setNextVisitDate(addDhakaDays(todayDhaka, 7));
+                      if (dur === "+14 days") setNextVisitDate(addDhakaDays(todayDhaka, 14));
+                      if (dur === "+1 month") setNextVisitDate(addDhakaMonths(todayDhaka, 1));
                     }}
                     className="px-3 py-1 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-bold text-[#1C1C1E] hover:text-[#2A5CAA] cursor-pointer transition border border-[#E4E4E7]/60"
                   >
@@ -1301,6 +1301,7 @@ export function PrescriptionBuilder({
               <input
                 type="date"
                 value={nextVisitDate}
+                min={getDhakaTodayStr()}
                 onChange={(e) => setNextVisitDate(e.target.value)}
                 className="w-full p-2.5 rounded-xl border border-[#E4E4E7] bg-white text-xs font-mono font-bold focus:outline-none focus:border-[#2A5CAA]"
               />

@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import NewInvoiceClient from "@/components/billing/NewInvoiceClient";
+import { ShieldAlert } from "lucide-react";
+import { canDoctorAccessPatient } from "@/lib/patient-privacy";
 
 interface Props {
   searchParams: Promise<{
@@ -265,6 +268,34 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       if (p.assignedDoctorId && !resolvedDoctorId) {
         resolvedDoctorId = p.assignedDoctorId;
       }
+    }
+  }
+
+  // Strict privacy check: Pure doctors in ISOLATED mode cannot bill unassigned patients
+  if (resolvedPatientId) {
+    const hasAccess = await canDoctorAccessPatient(tenant, user, resolvedPatientId, patientAssignedDocId);
+    if (!hasAccess) {
+      return (
+        <div className="max-w-xl mx-auto py-16 text-center space-y-4">
+          <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-black text-[#1C1C1E]">
+            Patient Not Assigned to You
+          </h2>
+          <p className="text-sm text-[#64748B] max-w-md mx-auto">
+            Under your chamber&apos;s strict privacy settings, you can only create invoices for patients assigned to your chamber or who have an active consultation with you today.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/app/billing"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2A5CAA] text-white font-bold text-xs hover:bg-[#1E4282] transition"
+            >
+              Return to Billing
+            </Link>
+          </div>
+        </div>
+      );
     }
   }
 

@@ -57,10 +57,11 @@ export default async function LiveQueuePage() {
   );
 
   const canPrescribe = Boolean(
-    user.isDoctor ||
+    (user.isDoctor ||
     user.role === "DOCTOR" ||
     user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN"
+    user.role === "SUPER_ADMIN") &&
+    user.role !== "RECEPTIONIST"
   );
 
   const isChairEnabled = tenantRow?.enableChairManagement ?? true;

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireClinicStaff } from "@/lib/session";
 import SettingsSidebarNav from "@/components/settings/SettingsSidebarNav";
 import { Sliders } from "lucide-react";
@@ -7,7 +8,12 @@ export default async function SettingsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { tenant } = await requireClinicStaff();
+  const { tenant, user } = await requireClinicStaff();
+
+  // Non-admins (doctors, receptionists) are strictly redirected away from settings
+  if (user.role !== "TENANT_ADMIN" && user.role !== "SUPER_ADMIN") {
+    redirect("/app");
+  }
 
   return (
     <div className="w-full space-y-5">

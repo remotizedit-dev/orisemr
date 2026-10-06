@@ -10,10 +10,11 @@ export default async function PrescriptionsPage() {
   const { tenant, user } = await requireClinicStaff();
 
   const canPrescribe = Boolean(
-    user.isDoctor ||
+    (user.isDoctor ||
     user.role === "DOCTOR" ||
     user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN"
+    user.role === "SUPER_ADMIN") &&
+    user.role !== "RECEPTIONIST"
   );
 
   // Fetch all prescriptions for this tenant, joined with patient and doctor

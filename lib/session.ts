@@ -47,6 +47,18 @@ export function invalidateSession(token?: string) {
 }
 
 /**
+ * Invalidates cached in-memory sessions for all users belonging to a specific tenant clinic.
+ * Ensures clinic settings updates take effect immediately without 45s lag.
+ */
+export function invalidateTenantSessions(tenantId: string) {
+  for (const [token, entry] of sessionMemoryCache.entries()) {
+    if (entry.context.tenant?.id === tenantId) {
+      sessionMemoryCache.delete(token);
+    }
+  }
+}
+
+/**
  * Retrieves the current session and user from headers. Returns null if unauthenticated.
  * Uses an in-memory session cache (45s TTL) to eliminate redundant round-trips to the remote database
  * on every page navigation, wrapped in React cache() for request-level deduplication.

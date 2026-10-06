@@ -12,9 +12,11 @@ import {
   revertToBookedAction,
   getLiveQueueItemsAction,
   resetTvSecretAction,
+  getOrEnsureTvSecretAction,
   reorderWaitingQueueAction,
   type QueueItem,
 } from "@/app/(tenant)/app/queue/actions";
+import { formatDoctorName } from "@/lib/utils";
 import { InactivePatientsModal } from "./InactivePatientsModal";
 import { SwitchDoctorModal } from "@/components/patients/SwitchDoctorModal";
 import {
@@ -84,7 +86,7 @@ export function QueueBoard({
   const router = useRouter();
   const [items, setItems] = useState<QueueItem[]>(initialItems);
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>(
-    isAdmin ? "all" : (currentUserIsDoctor ? currentUserId : "all")
+    currentUserIsDoctor ? currentUserId : "all"
   );
   const [selectedChairId, setSelectedChairId] = useState<string>(chairs[0]?.id || "");
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -403,7 +405,10 @@ export function QueueBoard({
   const handleCallNext = async () => {
     setIsCallingNext(true);
     try {
-      const targetDoc = selectedDoctorFilter === "all" ? undefined : selectedDoctorFilter;
+      const targetDoc =
+        selectedDoctorFilter === "all"
+          ? (currentUserIsDoctor ? currentUserId : undefined)
+          : selectedDoctorFilter;
       const res = await callNextPatientAction(
         targetDoc,
         enableChairManagement ? (selectedChairId || undefined) : undefined
@@ -473,7 +478,7 @@ export function QueueBoard({
                 .filter((d) => !currentUserIsDoctor || d.id !== currentUserId)
                 .map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name.startsWith("Dr.") ? d.name : `Dr. ${d.name}`} ({items.filter((i) => i.doctorId === d.id).length})
+                    {formatDoctorName(d.name)} ({items.filter((i) => i.doctorId === d.id).length})
                   </option>
                 ))}
             </select>
@@ -587,8 +592,20 @@ export function QueueBoard({
                   <>
                     <button
                       type="button"
-                      onClick={() => {
-                        const url = `${window.location.origin}/display/${tenantSlug}${tvSecret ? `?key=${tvSecret}` : ""}`;
+                      onClick={async () => {
+                        let activeSecret = tvSecret;
+                        if (!activeSecret) {
+                          try {
+                            const ensured = await getOrEnsureTvSecretAction();
+                            if (ensured?.success && ensured?.secret) {
+                              activeSecret = ensured.secret;
+                              setTvSecret(ensured.secret);
+                            }
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }
+                        const url = `${window.location.origin}/display/${tenantSlug}${activeSecret ? `?key=${activeSecret}` : ""}`;
                         navigator.clipboard.writeText(url);
                         setCopiedTvUrl(true);
                         toast.success("Protected Smart TV link copied to clipboard!");
@@ -768,7 +785,7 @@ export function QueueBoard({
                     <div className="text-xs font-semibold text-[#4B5563] flex items-center justify-between gap-1.5 pt-1 border-t border-[#E4E4E7]/60">
                       <div className="flex items-center gap-1.5 truncate">
                         <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
-                        <span className="truncate">Dentist: {item.doctorName}</span>
+                        <span className="truncate">Dentist: {formatDoctorName(item.doctorName)}</span>
                       </div>
                       {doctors.length > 1 && (
                         <button
@@ -794,7 +811,7 @@ export function QueueBoard({
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <>
-                            <span>Check In (Assign SL)</span>
+                            <span>{item.appointmentStatus === "pending" ? "Confirm Booking" : "Check In (Assign SL)"}</span>
                             <ArrowRight className="w-4 h-4" />
                           </>
                         )}
@@ -977,7 +994,7 @@ export function QueueBoard({
                       <div className="text-xs font-semibold text-[#4B5563] flex items-center justify-between gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
                         <div className="flex items-center gap-1.5 truncate">
                           <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
-                          <span className="truncate">Dentist: {item.doctorName}</span>
+                          <span className="truncate">Dentist: {formatDoctorName(item.doctorName)}</span>
                         </div>
                         {doctors.length > 1 && (
                           <button
@@ -1108,7 +1125,7 @@ export function QueueBoard({
                       <div className="text-xs font-semibold text-[#4B5563] flex items-center justify-between gap-1.5 pt-1.5 border-t border-[#E4E4E7]">
                         <div className="flex items-center gap-1.5 truncate">
                           <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA] shrink-0" />
-                          <span className="truncate">Dentist: {item.doctorName}</span>
+                          <span className="truncate">Dentist: {formatDoctorName(item.doctorName)}</span>
                         </div>
                         {doctors.length > 1 && (
                           <button
@@ -1300,7 +1317,7 @@ export function QueueBoard({
                       <CheckCircle2 className="w-5 h-5 text-[#30D158] shrink-0" />
                     </div>
                     <div className="text-xs font-medium text-[#6B7280] truncate pl-10">
-                      Treated by {item.doctorName}
+                      Treated by {formatDoctorName(item.doctorName)}
                     </div>
                   </div>
                 ))
