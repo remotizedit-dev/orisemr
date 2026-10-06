@@ -15,7 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatBdt } from "@/lib/utils";
+import { formatBdt, formatDoctorName } from "@/lib/utils";
 import PaginationControls from "@/components/ui/PaginationControls";
 import { recordPaymentAction } from "@/app/(tenant)/app/billing/actions";
 
@@ -38,6 +38,7 @@ interface InvoicesListClientProps {
   doctors?: { id: string; name: string }[];
   currentUserId?: string;
   isDoctor?: boolean;
+  isAdmin?: boolean;
 }
 
 export default function InvoicesListClient({
@@ -45,6 +46,7 @@ export default function InvoicesListClient({
   doctors = [],
   currentUserId,
   isDoctor = false,
+  isAdmin = false,
 }: InvoicesListClientProps) {
   const router = useRouter();
 
@@ -184,37 +186,39 @@ export default function InvoicesListClient({
             />
           </div>
 
-          {/* Doctor Filter */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <select
-                value={doctorFilter}
-                onChange={(e) => handleDoctorChange(e.target.value)}
-                className="py-2 pl-3 pr-8 rounded-2xl bg-white border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] focus:outline-hidden focus:border-[#2A5CAA] shadow-2xs cursor-pointer"
-              >
-                <option value="all">👨‍⚕️ All Doctors</option>
-                {isDoctor && currentUserId && (
-                  <option value="mine">⭐ My Invoices Only</option>
-                )}
-                {doctors.map((doc) => (
-                  <option key={doc.id} value={doc.id}>
-                    {doc.name.startsWith("Dr.") ? doc.name : `Dr. ${doc.name}`}
-                  </option>
-                ))}
-                <option value="unassigned">General Clinic (Unassigned)</option>
-              </select>
-            </div>
+          {/* Doctor Filter (Admins only) */}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <select
+                  value={doctorFilter}
+                  onChange={(e) => handleDoctorChange(e.target.value)}
+                  className="py-2 pl-3 pr-8 rounded-2xl bg-white border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] focus:outline-hidden focus:border-[#2A5CAA] shadow-2xs cursor-pointer"
+                >
+                  <option value="all">👨‍⚕️ All Doctors</option>
+                  {isDoctor && currentUserId && (
+                    <option value="mine">⭐ My Invoices Only</option>
+                  )}
+                  {doctors.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {formatDoctorName(doc.name)}
+                    </option>
+                  ))}
+                  <option value="unassigned">General Clinic (Unassigned)</option>
+                </select>
+              </div>
 
-            {doctorFilter !== "all" && (
-              <button
-                type="button"
-                onClick={() => handleDoctorChange("all")}
-                className="text-xs text-[#6B7280] hover:text-[#1C1C1E] underline cursor-pointer"
-              >
-                Reset
-              </button>
-            )}
-          </div>
+              {doctorFilter !== "all" && (
+                <button
+                  type="button"
+                  onClick={() => handleDoctorChange("all")}
+                  className="text-xs text-[#6B7280] hover:text-[#1C1C1E] underline cursor-pointer"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Status Pills */}

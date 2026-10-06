@@ -215,6 +215,22 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     throw new Error("Invalid appointment start or end time.");
   }
 
+  const formatShortDhakaRange = (s: Date, e: Date): string => {
+    const s12 = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Dhaka",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(s).replace(/\s*[AP]M/i, "");
+    const e12 = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Dhaka",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(e).replace(/\s*[AP]M/i, "");
+    return `${s12}–${e12}`;
+  };
+
   // Parse target date and weekday in UTC
   const [year, month, day] = input.dateStr.split("-").map(Number);
   const targetDate = new Date(Date.UTC(year, month - 1, day));
@@ -251,8 +267,14 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     // Check specific chair conflict if selected and not overbooking
     !isOverbookedRequested && input.chairId
       ? db
-          .select({ id: schema.appointments.id })
+          .select({
+            id: schema.appointments.id,
+            startTime: schema.appointments.startTime,
+            endTime: schema.appointments.endTime,
+            chairName: schema.chairs.name,
+          })
           .from(schema.appointments)
+          .leftJoin(schema.chairs, eq(schema.appointments.chairId, schema.chairs.id))
           .where(
             and(
               eq(schema.appointments.tenantId, tenant.id),
@@ -269,7 +291,10 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     !isOverbookedRequested
       ? Promise.all([
           db
-            .select({ count: sql<number>`count(*)` })
+            .select({
+              id: schema.chairs.id,
+              name: schema.chairs.name,
+            })
             .from(schema.chairs)
             .where(
               and(
@@ -278,8 +303,14 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
               )
             ),
           db
-            .select({ count: sql<number>`count(*)` })
+            .select({
+              id: schema.appointments.id,
+              startTime: schema.appointments.startTime,
+              endTime: schema.appointments.endTime,
+              chairName: schema.chairs.name,
+            })
             .from(schema.appointments)
+            .leftJoin(schema.chairs, eq(schema.appointments.chairId, schema.chairs.id))
             .where(
               and(
                 eq(schema.appointments.tenantId, tenant.id),
@@ -373,22 +404,30 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
   }
 
   if (chairConflict && chairConflict.length > 0) {
+    const c = chairConflict[0];
+    const chairLabel = c.chairName || "Chair 1";
+    const range = c.startTime && c.endTime ? ` ${formatShortDhakaRange(c.startTime, c.endTime)}` : "";
     return {
       success: false,
       error: "CHAIR_OVERLAP",
-      message: "The selected dental chair is already booked for another appointment during this time. Choose another chair or overbook.",
+      message: `${chairLabel} is in use${range}. Overbook to proceed anyway.`,
     };
   }
 
   if (chairCapacityCheck) {
-    const [totalChairsRes, activeAptsRes] = chairCapacityCheck;
-    const totalActiveChairs = Number(totalChairsRes[0]?.count || 0);
-    const concurrentApts = Number(activeAptsRes[0]?.count || 0);
+    const [chairsList, activeApts] = chairCapacityCheck;
+    const totalActiveChairs = chairsList.length;
+    const concurrentApts = activeApts.length;
     if (totalActiveChairs > 0 && concurrentApts >= totalActiveChairs) {
+      const firstConflict = activeApts[0];
+      const chairLabel = firstConflict?.chairName || (totalActiveChairs === 1 ? (chairsList[0]?.name || "Chair 1") : "All dental chairs");
+      const range = firstConflict?.startTime && firstConflict?.endTime
+        ? ` ${formatShortDhakaRange(firstConflict.startTime, firstConflict.endTime)}`
+        : "";
       return {
         success: false,
         error: "CHAIR_CAPACITY_EXCEEDED",
-        message: `All ${totalActiveChairs} dental chair(s) are occupied during this time window. Overbook to proceed anyway.`,
+        message: `${chairLabel} is in use${range}. Overbook to proceed anyway.`,
       };
     }
   }

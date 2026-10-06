@@ -174,7 +174,7 @@ export function QuickRegisterPatientModal({
         }
         onClose();
       } else {
-        toast.error("Failed to register patient");
+        toast.error((res as any)?.error || "Failed to register patient");
       }
     } catch (err: any) {
       toast.error(err.message || "An error occurred during registration");

@@ -19,7 +19,7 @@ import {
   Share2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDhakaDate } from "@/lib/utils";
+import { formatDhakaDate, formatDoctorName } from "@/lib/utils";
 import {
   getPrescriptionDetailsAction,
   updatePrescriptionDetailsAction,
@@ -196,7 +196,7 @@ export function PrescriptionViewModal({
                     <p className="text-xs text-[#4B5563] font-medium mt-0.5">
                       Issued by{" "}
                       <strong>
-                        {data.prescription.doctorTitle || "Dr."} {data.prescription.doctorName}
+                        {formatDoctorName(data.prescription.doctorName, data.prescription.doctorTitle)}
                       </strong>
                     </p>
                   </div>

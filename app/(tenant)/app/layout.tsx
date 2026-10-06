@@ -47,7 +47,7 @@ export default async function TenantAppLayout({
 
       {/* Global Barcode Hardware Scanner Listener */}
       <ScanListener tenantId={tenant.id} tenantShortCode={tenant.shortCode} />
-      <CommandPalette tenantId={tenant.id} tenantShortCode={tenant.shortCode} />
+      <CommandPalette tenantId={tenant.id} tenantShortCode={tenant.shortCode} userRole={user.role} />
 
       {/* Interactive Auto-Hide & Hover Desktop Sidebar */}
       <TenantDesktopSidebar user={user} tenant={tenant} tenantLogoUrl={tenantLogoUrl} />

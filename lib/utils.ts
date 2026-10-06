@@ -187,15 +187,55 @@ export function addDhakaMonths(baseDateStrOrDate: string | Date, months: number)
 }
 
 /**
- * Formats a doctor's name cleanly, ensuring no duplicate titles like "Dr. Dr. Shihab".
+ * Formats a doctor's name cleanly, ensuring no duplicate titles like "Dr. Dr. Shihab" or "Dr. Shihab Shihab".
  */
 export function formatDoctorName(name: string | null | undefined, title?: string | null): string {
   if (!name) return "Doctor";
-  const trimmed = name.trim();
-  // Strip any existing leading "Dr." or "Dr" or "Doctor"
-  const cleanName = trimmed.replace(/^(Dr\.|Dr|Doctor)\s+/i, "");
-  const effectiveTitle = title?.trim() || "Dr.";
-  return `${effectiveTitle} ${cleanName}`;
+  let cleanName = name.trim();
+  // Strip any leading "Dr.", "Dr", "Doctor" repeated instances
+  cleanName = cleanName.replace(/^(?:(?:Dr\.|Dr|Doctor)\s+)+/gi, "").trim();
+
+  let effectiveTitle = (title || "").trim();
+  if (effectiveTitle) {
+    // Strip leading "Dr." from title if present
+    effectiveTitle = effectiveTitle.replace(/^(?:(?:Dr\.|Dr|Doctor)\s+)+/gi, "").trim();
+    if (!effectiveTitle) {
+      effectiveTitle = "Dr.";
+    } else {
+      // If the title contains or matches the doctor's name (e.g. title was stored as "Dr. Shihab" or "Shihab"),
+      // revert to default "Dr." to prevent "Dr. Shihab Shihab"
+      const nameParts = cleanName.toLowerCase().split(/\s+/).filter(Boolean);
+      const titleParts = effectiveTitle.toLowerCase().split(/\s+/).filter(Boolean);
+      const isNameContained = titleParts.length > 0 && titleParts.every((tp) => nameParts.includes(tp));
+      if (isNameContained) {
+        effectiveTitle = "Dr.";
+      } else if (!effectiveTitle.toLowerCase().startsWith("dr") && !effectiveTitle.toLowerCase().startsWith("prof")) {
+        effectiveTitle = `Dr. ${effectiveTitle}`;
+      }
+    }
+  } else {
+    effectiveTitle = "Dr.";
+  }
+
+  if (/^dr$/i.test(effectiveTitle)) {
+    effectiveTitle = "Dr.";
+  }
+
+  // Deduplicate consecutive repeated words in cleanName (e.g. "Shihab Shihab" -> "Shihab")
+  const words = cleanName.split(/\s+/).filter(Boolean);
+  const dedupedWords: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    if (i === 0 || words[i].toLowerCase() !== words[i - 1].toLowerCase()) {
+      dedupedWords.push(words[i]);
+    }
+  }
+  cleanName = dedupedWords.join(" ");
+
+  if (cleanName.toLowerCase().startsWith(effectiveTitle.toLowerCase())) {
+    return cleanName;
+  }
+
+  return `${effectiveTitle} ${cleanName}`.trim();
 }
 
 /**

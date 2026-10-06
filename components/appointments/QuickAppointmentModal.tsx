@@ -299,9 +299,19 @@ export function QuickAppointmentModal({
         checkInImmediately: selectedDate === todayDhakaStr && checkInImmediately,
       });
 
-      if (res?.error === "OVERLAP" || res?.error === "OUTSIDE_HOURS") {
-        toast.warning(res.message);
-        setIsOverbooking(true);
+      if (!res?.success) {
+        if (
+          res?.error === "OVERLAP" ||
+          res?.error === "CHAIR_OVERLAP" ||
+          res?.error === "CHAIR_CAPACITY_EXCEEDED" ||
+          res?.error === "OUTSIDE_HOURS"
+        ) {
+          toast.warning(res.message);
+          setIsOverbooking(true);
+          setIsSubmitting(false);
+          return;
+        }
+        toast.error(res?.message || res?.error || "Failed to book appointment");
         setIsSubmitting(false);
         return;
       }

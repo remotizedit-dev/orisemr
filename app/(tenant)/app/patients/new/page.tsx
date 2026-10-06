@@ -24,7 +24,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
-import { normalizeBdPhone } from "@/lib/utils";
+import { normalizeBdPhone, formatDoctorName } from "@/lib/utils";
 
 export default function NewPatientPage() {
   const router = useRouter();
@@ -100,6 +100,14 @@ export default function NewPatientPage() {
       return;
     }
 
+    if (cardNumber.trim()) {
+      const cleanDigits = cardNumber.replace(/\D/g, "");
+      if (cleanDigits.length < 10) {
+        toast.error("Patient Card ID must be at least 10 digits.");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const res = await registerPatientAction({
@@ -119,6 +127,13 @@ export default function NewPatientPage() {
         medicalNotes: medicalNotes.trim() || undefined,
         assignedDoctorId: assignedDoctorId || undefined,
       });
+
+      if (!res.success) {
+        toast.error(res.error || "Failed to register patient");
+        setIsSubmitting(false);
+        return;
+      }
+
       toast.success("Patient registered successfully!");
       if (res?.emailDispatched) {
         toast.info("Welcome details and card registration email are being sent in the background.");
@@ -252,7 +267,7 @@ export default function NewPatientPage() {
                 <option value="">Auto-assign or General Chamber</option>
                 {doctors.map((d) => (
                   <option key={d.id} value={d.id}>
-                    Dr. {d.name}
+                    {formatDoctorName(d.name)}
                   </option>
                 ))}
               </select>

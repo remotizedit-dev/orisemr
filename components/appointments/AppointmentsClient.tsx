@@ -40,6 +40,7 @@ interface AppointmentItem {
   queueStatus?: "booked" | "waiting" | "in_chair" | "billing" | "done" | null;
   serialNo?: number | null;
   serialCode?: string | null;
+  source?: string;
   isOverbooked: boolean;
   notes: string | null;
   patientId: string;
@@ -389,13 +390,17 @@ export default function AppointmentsClient({
                         {apt.patientPhone}
                       </span>
 
-                      {/* Overbooked Badge */}
-                      {apt.isOverbooked && (
+                      {/* Walk-in or Overbooked Badge */}
+                      {apt.source === "walk_in" ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          <span>Walk-in</span>
+                        </span>
+                      ) : apt.isOverbooked ? (
                         <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FFEBEA] text-[#FF453A] border border-[#FF453A]/20">
                           <AlertTriangle className="w-3 h-3" />
                           <span>Overbooked</span>
                         </span>
-                      )}
+                      ) : null}
 
                       {/* Status Badge */}
                       <span

@@ -571,6 +571,7 @@ export default async function BillingPage() {
         doctors={clinicDoctors}
         currentUserId={user.id}
         isDoctor={isDoctor}
+        isAdmin={user.role === "TENANT_ADMIN" || user.role === "SUPER_ADMIN"}
       />
     </div>
   );

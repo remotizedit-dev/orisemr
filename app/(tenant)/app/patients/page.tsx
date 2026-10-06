@@ -89,21 +89,7 @@ export default async function PatientsListPage() {
       whereClause = and(
         eq(schema.patients.tenantId, tenant.id),
         isNull(schema.patients.deletedAt),
-        or(
-          eq(schema.patients.assignedDoctorId, user.id),
-          sql`${schema.patients.id} IN (
-            SELECT patient_id FROM ${schema.appointments} 
-            WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id} AND patient_id IS NOT NULL
-          )`,
-          sql`${schema.patients.id} IN (
-            SELECT patient_id FROM ${schema.queueEntries} 
-            WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id}
-          )`,
-          sql`${schema.patients.id} IN (
-            SELECT patient_id FROM ${schema.prescriptions} 
-            WHERE tenant_id = ${tenant.id} AND doctor_id = ${user.id}
-          )`
-        )
+        eq(schema.patients.assignedDoctorId, user.id)
       );
     }
   }
@@ -176,6 +162,7 @@ export default async function PatientsListPage() {
       <PatientsListClient
         initialPatients={formattedPatients}
         isPureDoctor={isPureDoctor}
+        currentDoctorId={user.id}
         currentDoctorName={user.name}
         doctors={doctors}
         visibilityMode={visibilityMode}

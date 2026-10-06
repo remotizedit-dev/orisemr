@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatDhakaDate } from "@/lib/utils";
+import { formatDhakaDate, formatDoctorName } from "@/lib/utils";
 import {
   FileText,
   Search,
@@ -178,7 +178,7 @@ export function PrescriptionsListClient({
                     {/* Doctor */}
                     <td className="py-4 px-5 align-top">
                       <div className="font-bold text-sm text-[#1C1C1E]">
-                        {rx.doctorTitle || "Dr."} {rx.doctorName}
+                        {formatDoctorName(rx.doctorName, rx.doctorTitle)}
                       </div>
                       <div className="text-xs text-[#6B7280] uppercase font-bold mt-0.5">
                         Dental Surgeon

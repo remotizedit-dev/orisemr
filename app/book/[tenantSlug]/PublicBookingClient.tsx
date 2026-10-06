@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   getPublicAvailableSlots,
   submitPublicBooking,
@@ -11,6 +11,7 @@ import {
   getDhakaTodayStr,
   addDhakaDays,
   formatDoctorName,
+  normalizeBdPhone,
 } from "@/lib/utils";
 import {
   Calendar,
@@ -77,8 +78,9 @@ export function PublicBookingClient({
   );
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("any");
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return addDhakaDays(getDhakaTodayStr(), 1); // default tomorrow
+    return getDhakaTodayStr();
   });
+  const hasAutoAdvancedRef = useRef(false);
   const [availableSlots, setAvailableSlots] = useState<
     { time: string; displayTime: string; doctorId: string }[]
   >([]);
@@ -165,6 +167,13 @@ export function PublicBookingClient({
     )
       .then((slots) => {
         if (!isCancelled) {
+          // If on initial mount for today there are 0 slots left, automatically advance to tomorrow
+          if (!hasAutoAdvancedRef.current && selectedDate === todayStr && slots.length === 0) {
+            hasAutoAdvancedRef.current = true;
+            setSelectedDate(addDhakaDays(todayStr, 1));
+            return;
+          }
+          hasAutoAdvancedRef.current = true;
           setAvailableSlots(slots);
           setIsLoadingSlots(false);
         }
@@ -194,8 +203,9 @@ export function PublicBookingClient({
       toast.error("Please pick a convenient appointment time");
       return;
     }
-    if (!phone) {
-      toast.error("Please provide your mobile phone number");
+    const norm = normalizeBdPhone(phone);
+    if (!norm) {
+      toast.error("Please enter a valid 11-digit Bangladeshi mobile number (e.g. 017XXXXXXXX)");
       return;
     }
 
@@ -215,6 +225,11 @@ export function PublicBookingClient({
         email,
         notes,
       });
+
+      if (!result.success) {
+        toast.error(result.error || "Booking submission failed");
+        return;
+      }
 
       setConfirmedBooking(result);
       setStep(5);
@@ -252,10 +267,21 @@ export function PublicBookingClient({
 
         {confirmedBooking.patientCardNumber && (
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium max-w-sm mx-auto">
-            Chamber Card Verified • Card ID:{" "}
-            <span className="font-mono font-black text-emerald-800">
-              {confirmedBooking.patientCardNumber}
-            </span>
+            {isExistingPatient ? (
+              <>
+                Chamber Card Verified • Card ID:{" "}
+                <span className="font-mono font-black text-emerald-800">
+                  {confirmedBooking.patientCardNumber}
+                </span>
+              </>
+            ) : (
+              <>
+                Your new card number is{" "}
+                <span className="font-mono font-black text-emerald-800">
+                  {confirmedBooking.patientCardNumber}
+                </span>
+              </>
+            )}
           </div>
         )}
 

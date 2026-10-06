@@ -226,7 +226,21 @@ export interface SubmitPublicBookingInput {
   notes?: string;
 }
 
-export async function submitPublicBooking(input: SubmitPublicBookingInput) {
+export type SubmitPublicBookingResult =
+  | {
+      success: true;
+      appointmentCode: string;
+      isAutoConfirmed: boolean;
+      patientCardNumber: string | null;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+export async function submitPublicBooking(
+  input: SubmitPublicBookingInput
+): Promise<SubmitPublicBookingResult> {
   const normPhone = normalizeBdPhone(input.phone);
 
   let patientId: string | null = null;
@@ -244,9 +258,10 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
     "client";
 
   if (!checkPublicBookingRateLimit(`${clientIp}:${input.tenantId}`)) {
-    throw new Error(
-      "Too many booking attempts. Please wait a few minutes before trying again."
-    );
+    return {
+      success: false,
+      error: "Too many booking attempts. Please wait a few minutes before trying again.",
+    };
   }
 
   const [tenant] = await db
@@ -255,7 +270,9 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
     .where(eq(schema.tenants.id, input.tenantId))
     .limit(1);
 
-  if (!tenant) throw new Error("Chamber not found");
+  if (!tenant) {
+    return { success: false, error: "Chamber not found" };
+  }
 
   // Enforce public booking window on server
   const dhakaTodayStr = getDhakaTodayStr();
@@ -263,9 +280,10 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
   const maxAllowedDateStr = addDhakaDays(dhakaTodayStr, maxDaysAhead);
 
   if (input.date < dhakaTodayStr || input.date > maxAllowedDateStr) {
-    throw new Error(
-      `Appointments can only be booked between ${dhakaTodayStr} and ${maxAllowedDateStr} (within ${maxDaysAhead} days).`
-    );
+    return {
+      success: false,
+      error: `Appointments can only be booked between ${dhakaTodayStr} and ${maxAllowedDateStr} (within ${maxDaysAhead} days).`,
+    };
   }
 
   if (input.isExistingPatient && input.cardNumber) {
@@ -283,12 +301,18 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
       .limit(1);
 
     if (!patient) {
-      throw new Error("We couldn't find a registered patient with that chamber card number.");
+      return {
+        success: false,
+        error: "We couldn't find a registered patient with that chamber card number.",
+      };
     }
 
     // Strict validation: Card is only accepted when entered phone matches patient's phone on file
     if (!normPhone || normPhone !== normalizeBdPhone(patient.phone)) {
-      throw new Error("Chamber card number and mobile phone number do not match our records.");
+      return {
+        success: false,
+        error: "Chamber card number and mobile phone number do not match our records.",
+      };
     }
 
     patientId = patient.id;
@@ -300,7 +324,10 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
   } else {
     // 2. New Patient Booking
     if (!normPhone) {
-      throw new Error("Please enter a valid 11-digit Bangladeshi mobile number");
+      return {
+        success: false,
+        error: "Please enter a valid 11-digit Bangladeshi mobile number",
+      };
     }
     // Check if phone number already belongs to an existing registered patient
     const [existingPatient] = await db
@@ -324,7 +351,10 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
   }
 
   if (!patientPhone) {
-    throw new Error("Please enter a valid 11-digit Bangladeshi mobile number");
+    return {
+      success: false,
+      error: "Please enter a valid 11-digit Bangladeshi mobile number",
+    };
   }
 
   // Calculate start & end times in Asia/Dhaka (+06:00)
@@ -478,6 +508,7 @@ export async function submitPublicBooking(input: SubmitPublicBookingInput) {
     }
 
     return {
+      success: true as const,
       appointmentCode,
       isAutoConfirmed,
       patientCardNumber: finalAssignedCardNumber,

@@ -92,7 +92,7 @@ export function SwitchDoctorModal({
       }
 
       toast.success(
-        `Doctor switched to Dr. ${targetName}! ${patientName} has been reassigned.`
+        `Doctor switched to ${formatDoctorName(targetName)}! ${patientName} has been reassigned.`
       );
       if (onSuccess) {
         onSuccess(selectedDoctorId, targetName, result);

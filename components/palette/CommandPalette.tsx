@@ -25,6 +25,7 @@ import { toast } from "sonner";
 interface CommandPaletteProps {
   tenantId: string;
   tenantShortCode: string;
+  userRole?: string;
 }
 
 interface PatientSearchResult {
@@ -37,7 +38,7 @@ interface PatientSearchResult {
   bloodGroup?: string | null;
 }
 
-export function CommandPalette({ tenantId, tenantShortCode }: CommandPaletteProps) {
+export function CommandPalette({ tenantId, tenantShortCode, userRole }: CommandPaletteProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -287,16 +288,18 @@ export function CommandPalette({ tenantId, tenantShortCode }: CommandPaletteProp
                   <span>Billing &amp; Invoices</span>
                 </Command.Item>
 
-                <Command.Item
-                  onSelect={() => {
-                    setOpen(false);
-                    router.push("/app/settings");
-                  }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#1C1C1E] hover:bg-[#E8EEF7] hover:text-[#2A5CAA] cursor-pointer transition"
-                >
-                  <Settings className="w-4 h-4 text-[#6B7280]" />
-                  <span>Chamber Settings</span>
-                </Command.Item>
+                {(userRole === "TENANT_ADMIN" || userRole === "SUPER_ADMIN") && (
+                  <Command.Item
+                    onSelect={() => {
+                      setOpen(false);
+                      router.push("/app/settings");
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#1C1C1E] hover:bg-[#E8EEF7] hover:text-[#2A5CAA] cursor-pointer transition"
+                  >
+                    <Settings className="w-4 h-4 text-[#6B7280]" />
+                    <span>Chamber Settings</span>
+                  </Command.Item>
+                )}
               </Command.Group>
             )}
           </Command.List>

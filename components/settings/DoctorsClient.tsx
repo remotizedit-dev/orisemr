@@ -19,6 +19,7 @@ import {
   Award,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDoctorName } from "@/lib/utils";
 import {
   addDoctorAction,
   updateDoctorAction,
@@ -351,7 +352,7 @@ export default function DoctorsClient({
   async function handleDeleteDoctor(doc: Doctor) {
     if (
       !confirm(
-        `Are you sure you want to remove ${doc.doctorTitle || "Dr."} ${doc.name}? They will be marked inactive.`
+        `Are you sure you want to remove ${formatDoctorName(doc.name, doc.doctorTitle)}? They will be marked inactive.`
       )
     ) {
       return;
@@ -454,7 +455,7 @@ export default function DoctorsClient({
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-extrabold text-[#1C1C1E] tracking-tight">
-                        {doc.doctorTitle || "Dr."} {doc.name}
+                        {formatDoctorName(doc.name, doc.doctorTitle)}
                       </span>
                       {doc.doctorDegrees && (
                         <span className="text-[11px] font-semibold text-[#2A5CAA] bg-[#E8EEF7] px-2 py-0.5 rounded-full">
@@ -897,7 +898,7 @@ export default function DoctorsClient({
               <div>
                 <h3 className="text-base font-bold text-[#1C1C1E] flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#2A5CAA]" />
-                  Slot Schedule: {schedulingDoctor.doctorTitle || "Dr."} {schedulingDoctor.name}
+                  Slot Schedule: {formatDoctorName(schedulingDoctor.name, schedulingDoctor.doctorTitle)}
                 </h3>
                 <p className="text-xs text-[#6B7280]">
                   Configure shift time windows for online booking and queue scheduling.

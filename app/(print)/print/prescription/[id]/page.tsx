@@ -4,7 +4,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { BarcodeSvg } from "@/components/barcode/BarcodeSvg";
 import { AutoPrintTrigger } from "@/components/print/AutoPrintTrigger";
-import { formatDhakaDate } from "@/lib/utils";
+import { formatDhakaDate, formatDoctorName } from "@/lib/utils";
 import { getFileUrl } from "@/lib/s3";
 import { getSession } from "@/lib/session";
 import { verifySignedPrintUrl } from "@/lib/signed-urls";
@@ -102,7 +102,7 @@ export default async function PrintPrescriptionPage({ params, searchParams }: Pr
           </div>
           <div className="text-right">
             <h2 className="text-base font-bold">
-              {doctor?.doctorTitle} {doctor?.name}
+              {formatDoctorName(doctor?.name, doctor?.doctorTitle)}
             </h2>
             <p className="text-xs">{doctor?.doctorDegrees}</p>
             <p className="text-xs">{doctor?.doctorSpecialty}</p>
@@ -264,7 +264,7 @@ export default async function PrintPrescriptionPage({ params, searchParams }: Pr
         <div className="text-right">
           <div className="w-40 border-b border-black mb-1" />
           <span className="font-bold block">
-            {doctor?.doctorTitle} {doctor?.name}
+            {formatDoctorName(doctor?.name, doctor?.doctorTitle)}
           </span>
           <span className="text-[11px] block text-gray-600">
             {doctor?.doctorRegNo || "BMDC Registration"}

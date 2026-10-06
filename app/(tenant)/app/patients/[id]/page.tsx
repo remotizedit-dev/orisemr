@@ -137,7 +137,7 @@ export default async function PatientProfilePage({
           <p className="text-sm text-[#64748B] max-w-md mx-auto">
             This patient is currently assigned to{" "}
             <span className="font-bold text-[#1C1C1E]">
-              {assignedDoctorName ? `Dr. ${assignedDoctorName}` : "another clinic doctor"}
+              {assignedDoctorName ? formatDoctorName(assignedDoctorName) : "another clinic doctor"}
             </span>
             . Under your clinic&apos;s privacy settings, you can only access records for patients assigned to your chamber or queued for your visit today. Please ask the clinic admin or receptionist to queue or reassign this patient to you.
           </p>
