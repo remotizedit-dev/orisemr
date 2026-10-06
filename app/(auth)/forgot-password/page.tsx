@@ -1,43 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
-import { Stethoscope, Mail, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  Stethoscope,
+  Mail,
+  ArrowLeft,
+  Loader2,
+  CheckCircle2,
+  RefreshCw,
+  Clock,
+  ShieldCheck,
+} from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // 30-second cooldown timer for resending
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const triggerReset = async (targetEmail: string) => {
+    try {
+      await authClient.requestPasswordReset({
+        email: targetEmail.trim().toLowerCase(),
+        redirectTo: "/reset-password",
+      });
+    } catch (err: any) {
+      console.error("[PASSWORD RESET DISPATCH]:", err);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      toast.error("Please enter your work email");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      toast.error("Please enter a valid work email address");
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const { error } = await authClient.requestPasswordReset({
-        email: email.trim().toLowerCase(),
-        redirectTo: "/reset-password",
-      });
+    // 1. Instant UI Level Confirmation
+    setIsSubmitted(true);
+    setResendCooldown(30);
+    toast.success("Password reset link dispatched!");
 
-      if (error) {
-        toast.error(error.message || "Failed to send reset email");
-        setIsLoading(false);
-        return;
-      }
+    // 2. Background backend email dispatch
+    triggerReset(cleanEmail);
+  };
 
-      setIsSubmitted(true);
-      toast.success("Password reset link sent to your email!");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to send reset link");
-    } finally {
-      setIsLoading(false);
-    }
+  const handleResend = () => {
+    if (resendCooldown > 0) return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    setResendCooldown(30);
+    toast.success("A fresh reset link has been dispatched to your email!");
+    triggerReset(cleanEmail);
   };
 
   return (
@@ -51,27 +78,73 @@ export default function ForgotPasswordPage() {
             Reset Password
           </h1>
           <p className="mt-1 text-sm text-[#6B7280]">
-            We will send a secure 1-hour reset link to your email.
+            Secure 1-hour password reset link for Oris EMR users.
           </p>
         </div>
 
         <div className="glass-panel rounded-2xl p-8 shadow-xl border border-[#E4E4E7]">
           {isSubmitted ? (
-            <div className="text-center py-4">
-              <CheckCircle2 className="w-12 h-12 text-[#30D158] mx-auto mb-3" />
-              <h3 className="text-base font-bold text-[#1C1C1E]">
-                Check Your Email
-              </h3>
-              <p className="text-sm text-[#6B7280] mt-1 mb-6">
-                If an account exists for <span className="font-semibold text-[#1C1C1E]">{email}</span>, you will receive password reset instructions.
-              </p>
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 text-sm font-semibold text-[#2A5CAA] hover:underline"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Return to Sign In</span>
-              </Link>
+            <div className="text-center py-2 space-y-4">
+              <div className="w-14 h-14 rounded-full bg-emerald-100 text-[#30D158] flex items-center justify-center mx-auto shadow-xs animate-in zoom-in-95 duration-200">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+
+              <div>
+                <h3 className="text-lg font-extrabold text-[#1C1C1E]">
+                  Check Your Email
+                </h3>
+                <p className="text-xs text-[#6B7280] mt-1.5 leading-relaxed">
+                  If an account exists for{" "}
+                  <strong className="text-[#1C1C1E] font-bold">{email}</strong>,
+                  we have sent password reset instructions to your inbox.
+                </p>
+              </div>
+
+              {/* Security Details Card */}
+              <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-left text-xs text-[#475569] space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-[#1E293B]">
+                  <Clock className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                  <span>Link valid for 1 hour</span>
+                </div>
+                <p className="text-[11px] leading-normal text-[#64748B]">
+                  Please click the link inside the email to choose a new password. If you don't see it within a minute, remember to check your Spam or Junk folder.
+                </p>
+              </div>
+
+              {/* Actions: Resend or Edit Email */}
+              <div className="pt-2 space-y-2.5">
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resendCooldown > 0}
+                  className="w-full py-2.5 px-4 rounded-xl border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-bold text-[#1C1C1E] flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-2xs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${resendCooldown > 0 ? "animate-spin" : ""}`} />
+                  <span>
+                    {resendCooldown > 0
+                      ? `Resend link in ${resendCooldown}s`
+                      : "Resend Reset Link"}
+                  </span>
+                </button>
+
+                <div className="flex items-center justify-between text-xs pt-1 px-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsSubmitted(false)}
+                    className="text-[#6B7280] hover:text-[#1C1C1E] underline cursor-pointer"
+                  >
+                    Use a different email
+                  </button>
+
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-1 font-bold text-[#2A5CAA] hover:underline"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Return to Login</span>
+                  </Link>
+                </div>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -100,17 +173,9 @@ export default function ForgotPasswordPage() {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-md shadow-[#2A5CAA]/20 transition disabled:opacity-50 cursor-pointer"
+                className="w-full py-3 px-4 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-md shadow-[#2A5CAA]/20 transition cursor-pointer"
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Sending Link...</span>
-                  </>
-                ) : (
-                  <span>Send Reset Link</span>
-                )}
+                <span>Send Reset Link</span>
               </button>
 
               <div className="text-center pt-2">

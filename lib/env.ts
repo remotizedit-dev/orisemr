@@ -46,6 +46,7 @@ const envSchema = z.object({
   SMTP_PASSWORD: z.string().optional().default(""),
   SMTP_FROM_EMAIL: z.string().email().default("noreply@orisemr.com"),
   SMTP_FROM_NAME: z.string().default("Oris EMR"),
+  SUPPORT_EMAIL: z.string().email().default("support@orisemr.com"),
 
   // Cron Secret
   CRON_SECRET: z.string().default("cron_secret_dev_fallback"),

@@ -3,6 +3,7 @@
 import { requireClinicStaff } from "@/lib/session";
 import { sendEmail } from "@/lib/email/mailer";
 import { formatDhakaDate } from "@/lib/utils";
+import { env } from "@/lib/env";
 
 export interface SupportRequestInput {
   category: "bug" | "question" | "feature" | "billing" | "urgent";
@@ -178,9 +179,11 @@ export async function sendSupportRequestAction(
     </html>
   `;
 
+  const targetSupportEmail = env.SUPPORT_EMAIL || "support@orisemr.com";
+
   try {
     await sendEmail({
-      to: "support@orisemr.com",
+      to: targetSupportEmail,
       replyTo: user.email,
       subject: emailSubject,
       html: emailHtml,
@@ -190,7 +193,7 @@ export async function sendSupportRequestAction(
 
     return {
       success: true,
-      message: "Your support request and screenshot have been sent to support@orisemr.com. Our support team will assist you shortly.",
+      message: `Your support request and screenshot have been sent to ${targetSupportEmail}. Our support team will assist you shortly.`,
     };
   } catch (err: any) {
     console.error("[SUPPORT EMAIL DISPATCH ERROR]:", err);
