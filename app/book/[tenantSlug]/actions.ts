@@ -1,3 +1,5 @@
+"use server";
+
 import { headers } from "next/headers";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
