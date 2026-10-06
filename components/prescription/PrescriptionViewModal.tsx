@@ -19,7 +19,7 @@ import {
   Share2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDhakaDate, formatDoctorName } from "@/lib/utils";
+import { formatDhakaDate } from "@/lib/utils";
 import {
   getPrescriptionDetailsAction,
   updatePrescriptionDetailsAction,
@@ -196,7 +196,7 @@ export function PrescriptionViewModal({
                     <p className="text-xs text-[#4B5563] font-medium mt-0.5">
                       Issued by{" "}
                       <strong>
-                        {formatDoctorName(data.prescription.doctorName, data.prescription.doctorTitle)}
+                        {data.prescription.doctorTitle || "Dr."} {data.prescription.doctorName}
                       </strong>
                     </p>
                   </div>
@@ -214,11 +214,10 @@ export function PrescriptionViewModal({
                         }
                       }}
                       disabled={saving}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
-                        isEditing
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${isEditing
                           ? "bg-[#30D158] hover:bg-[#28b84d] text-white"
                           : "bg-white border border-[#E4E4E7] hover:bg-[#F4F4F5] text-[#1C1C1E]"
-                      }`}
+                        }`}
                     >
                       {saving ? (
                         <>

@@ -15,7 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatBdt, formatDoctorName } from "@/lib/utils";
+import { formatBdt } from "@/lib/utils";
 import PaginationControls from "@/components/ui/PaginationControls";
 import { recordPaymentAction } from "@/app/(tenant)/app/billing/actions";
 
@@ -38,7 +38,6 @@ interface InvoicesListClientProps {
   doctors?: { id: string; name: string }[];
   currentUserId?: string;
   isDoctor?: boolean;
-  isAdmin?: boolean;
 }
 
 export default function InvoicesListClient({
@@ -46,7 +45,6 @@ export default function InvoicesListClient({
   doctors = [],
   currentUserId,
   isDoctor = false,
-  isAdmin = false,
 }: InvoicesListClientProps) {
   const router = useRouter();
 
@@ -186,39 +184,37 @@ export default function InvoicesListClient({
             />
           </div>
 
-          {/* Doctor Filter (Admins only) */}
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={doctorFilter}
-                  onChange={(e) => handleDoctorChange(e.target.value)}
-                  className="py-2 pl-3 pr-8 rounded-2xl bg-white border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] focus:outline-hidden focus:border-[#2A5CAA] shadow-2xs cursor-pointer"
-                >
-                  <option value="all">👨‍⚕️ All Doctors</option>
-                  {isDoctor && currentUserId && (
-                    <option value="mine">⭐ My Invoices Only</option>
-                  )}
-                  {doctors.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {formatDoctorName(doc.name)}
-                    </option>
-                  ))}
-                  <option value="unassigned">General Clinic (Unassigned)</option>
-                </select>
-              </div>
-
-              {doctorFilter !== "all" && (
-                <button
-                  type="button"
-                  onClick={() => handleDoctorChange("all")}
-                  className="text-xs text-[#6B7280] hover:text-[#1C1C1E] underline cursor-pointer"
-                >
-                  Reset
-                </button>
-              )}
+          {/* Doctor Filter */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <select
+                value={doctorFilter}
+                onChange={(e) => handleDoctorChange(e.target.value)}
+                className="py-2 pl-3 pr-8 rounded-2xl bg-white border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] focus:outline-hidden focus:border-[#2A5CAA] shadow-2xs cursor-pointer"
+              >
+                <option value="all">👨‍⚕️ All Doctors</option>
+                {isDoctor && currentUserId && (
+                  <option value="mine">⭐ My Invoices Only</option>
+                )}
+                {doctors.map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.name.startsWith("Dr.") ? doc.name : `Dr. ${doc.name}`}
+                  </option>
+                ))}
+                <option value="unassigned">General Clinic (Unassigned)</option>
+              </select>
             </div>
-          )}
+
+            {doctorFilter !== "all" && (
+              <button
+                type="button"
+                onClick={() => handleDoctorChange("all")}
+                className="text-xs text-[#6B7280] hover:text-[#1C1C1E] underline cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Status Pills */}
@@ -236,19 +232,17 @@ export default function InvoicesListClient({
                 key={st}
                 type="button"
                 onClick={() => handleStatusChange(st)}
-                className={`px-3 py-1.5 rounded-xl font-bold capitalize transition cursor-pointer flex items-center gap-1.5 ${
-                  statusFilter === st
+                className={`px-3 py-1.5 rounded-xl font-bold capitalize transition cursor-pointer flex items-center gap-1.5 ${statusFilter === st
                     ? "bg-white text-[#1C1C1E] shadow-2xs"
                     : "text-[#6B7280] hover:text-[#1C1C1E]"
-                }`}
+                  }`}
               >
                 <span>{st}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                    statusFilter === st
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${statusFilter === st
                       ? "bg-[#2A5CAA] text-white"
                       : "bg-black/5 text-[#6B7280]"
-                  }`}
+                    }`}
                 >
                   {count}
                 </span>
@@ -340,15 +334,14 @@ export default function InvoicesListClient({
                       </td>
                       <td className="py-4 px-4">
                         <span
-                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full uppercase ${
-                            inv.status === "paid"
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full uppercase ${inv.status === "paid"
                               ? "bg-[#E8F8EE] text-[#30D158]"
                               : inv.status === "partial"
-                              ? "bg-[#FFF7EB] text-[#FF9F0A]"
-                              : inv.status === "due"
-                              ? "bg-[#FFEBEA] text-[#FF453A]"
-                              : "bg-[#F4F4F5] text-[#6B7280]"
-                          }`}
+                                ? "bg-[#FFF7EB] text-[#FF9F0A]"
+                                : inv.status === "due"
+                                  ? "bg-[#FFEBEA] text-[#FF453A]"
+                                  : "bg-[#F4F4F5] text-[#6B7280]"
+                            }`}
                         >
                           {inv.status}
                         </span>
@@ -502,11 +495,10 @@ export default function InvoicesListClient({
                       key={m}
                       type="button"
                       onClick={() => setPaymentMethod(m)}
-                      className={`py-2 px-1 rounded-xl text-xs font-bold uppercase transition cursor-pointer border ${
-                        paymentMethod === m
+                      className={`py-2 px-1 rounded-xl text-xs font-bold uppercase transition cursor-pointer border ${paymentMethod === m
                           ? "bg-[#2A5CAA] text-white border-[#2A5CAA] shadow-xs"
                           : "bg-white text-[#4B5563] border-[#E4E4E7] hover:bg-[#F4F4F5]"
-                      }`}
+                        }`}
                     >
                       {m}
                     </button>

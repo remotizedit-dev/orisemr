@@ -910,6 +910,7 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
 
       const docIndexMap = new Map(clinicDoctors.map((d, idx) => [d.id, idx]));
 
+      const queueUpdatesToRun: Promise<any>[] = [];
       for (const item of entries) {
         if (
           item.status !== "booked" &&
@@ -929,27 +930,34 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
             item.serialNo = assigned;
             item.serialCode = code;
 
-            await db
-              .update(schema.queueEntries)
-              .set({
-                serialNo: assigned,
-                serialCode: code,
-                queuePosition: assigned,
-                updatedAt: new Date(),
-              })
-              .where(eq(schema.queueEntries.id, item.id));
+            queueUpdatesToRun.push(
+              db
+                .update(schema.queueEntries)
+                .set({
+                  serialNo: assigned,
+                  serialCode: code,
+                  queuePosition: assigned,
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.queueEntries.id, item.id))
+            );
           } else if (!item.serialCode) {
             const code = formatDoctorSerialCode(prefix, item.serialNo);
             item.serialCode = code;
-            await db
-              .update(schema.queueEntries)
-              .set({
-                serialCode: code,
-                updatedAt: new Date(),
-              })
-              .where(eq(schema.queueEntries.id, item.id));
+            queueUpdatesToRun.push(
+              db
+                .update(schema.queueEntries)
+                .set({
+                  serialCode: code,
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.queueEntries.id, item.id))
+            );
           }
         }
+      }
+      if (queueUpdatesToRun.length > 0) {
+        await Promise.all(queueUpdatesToRun);
       }
 
       // Fetch booked services for all today's queue appointments to get planned duration
@@ -1220,30 +1228,31 @@ export async function reorderWaitingQueueAction(orderedItemIds: string[]) {
         validSerials.push(nextSerial);
       }
 
-      // Reassign serials in the exact orderedItemIds sequence
-      for (let i = 0; i < orderedItemIds.length; i++) {
-        const entryId = orderedItemIds[i];
-        const newSerial = validSerials[i];
-        const entry = entryMap.get(entryId);
-        const docIdx = entry?.doctorId ? (docIndexMap.get(entry.doctorId) ?? 0) : 0;
-        const prefix = getDoctorPrefixLetter(docIdx);
-        const newSerialCode = formatDoctorSerialCode(prefix, newSerial);
+      // Reassign serials in parallel
+      await Promise.all(
+        orderedItemIds.map((entryId, i) => {
+          const newSerial = validSerials[i];
+          const entry = entryMap.get(entryId);
+          const docIdx = entry?.doctorId ? (docIndexMap.get(entry.doctorId) ?? 0) : 0;
+          const prefix = getDoctorPrefixLetter(docIdx);
+          const newSerialCode = formatDoctorSerialCode(prefix, newSerial);
 
-        await tx
-          .update(schema.queueEntries)
-          .set({
-            serialNo: newSerial,
-            serialCode: newSerialCode,
-            queuePosition: newSerial,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(schema.queueEntries.tenantId, tenant.id),
-              eq(schema.queueEntries.id, entryId)
-            )
-          );
-      }
+          return tx
+            .update(schema.queueEntries)
+            .set({
+              serialNo: newSerial,
+              serialCode: newSerialCode,
+              queuePosition: newSerial,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(schema.queueEntries.tenantId, tenant.id),
+                eq(schema.queueEntries.id, entryId)
+              )
+            );
+        })
+      );
     });
 
     await deleteCache(`queue:today:${tenant.id}`);

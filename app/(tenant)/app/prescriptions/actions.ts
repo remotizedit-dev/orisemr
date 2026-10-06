@@ -140,66 +140,72 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
         })
         .returning();
 
-      // 3. Insert Prescription Items
-      for (const item of input.items || []) {
-        if (!item.medicineId) continue;
-
-        await tx.insert(schema.prescriptionItems).values({
-          tenantId: tenant.id,
-          prescriptionId: prescription.id,
-          medicineId: item.medicineId,
-          medicineLineSnapshot: item.medicineLineSnapshot,
-          dosagePatternId: item.dosagePatternId || null,
-          dosageTextBn: item.dosageTextBn || null,
-          mealTimingId: item.mealTimingId || null,
-          mealTimingTextBn: item.mealTimingTextBn || null,
-          durationOptionId: item.durationOptionId || null,
-          durationTextBn: item.durationTextBn || null,
-          customInstruction: item.customInstruction || null,
-          sortOrder: item.sortOrder || 1,
-        });
-
-        // Update doctor medicine preferences (last used instructions and counter)
-        await tx
-          .insert(schema.doctorMedicinePreferences)
-          .values({
+      // 3. Insert Prescription Items (Batch Insert)
+      const validItems = (input.items || []).filter((item) => Boolean(item.medicineId));
+      if (validItems.length > 0) {
+        await tx.insert(schema.prescriptionItems).values(
+          validItems.map((item) => ({
             tenantId: tenant.id,
-            doctorId: user.id,
+            prescriptionId: prescription.id,
             medicineId: item.medicineId,
+            medicineLineSnapshot: item.medicineLineSnapshot,
             dosagePatternId: item.dosagePatternId || null,
+            dosageTextBn: item.dosageTextBn || null,
             mealTimingId: item.mealTimingId || null,
+            mealTimingTextBn: item.mealTimingTextBn || null,
             durationOptionId: item.durationOptionId || null,
+            durationTextBn: item.durationTextBn || null,
             customInstruction: item.customInstruction || null,
-            useCount: 1,
-            lastUsedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: [
-              schema.doctorMedicinePreferences.doctorId,
-              schema.doctorMedicinePreferences.medicineId,
-            ],
-            set: {
-              dosagePatternId: item.dosagePatternId || null,
-              mealTimingId: item.mealTimingId || null,
-              durationOptionId: item.durationOptionId || null,
-              customInstruction: item.customInstruction || null,
-              useCount: sql`${schema.doctorMedicinePreferences.useCount} + 1`,
-              lastUsedAt: new Date(),
-            },
-          });
+            sortOrder: item.sortOrder || 1,
+          }))
+        );
+
+        // Update doctor medicine preferences concurrently
+        await Promise.all(
+          validItems.map((item) =>
+            tx
+              .insert(schema.doctorMedicinePreferences)
+              .values({
+                tenantId: tenant.id,
+                doctorId: user.id,
+                medicineId: item.medicineId,
+                dosagePatternId: item.dosagePatternId || null,
+                mealTimingId: item.mealTimingId || null,
+                durationOptionId: item.durationOptionId || null,
+                customInstruction: item.customInstruction || null,
+                useCount: 1,
+                lastUsedAt: new Date(),
+              })
+              .onConflictDoUpdate({
+                target: [
+                  schema.doctorMedicinePreferences.doctorId,
+                  schema.doctorMedicinePreferences.medicineId,
+                ],
+                set: {
+                  dosagePatternId: item.dosagePatternId || null,
+                  mealTimingId: item.mealTimingId || null,
+                  durationOptionId: item.durationOptionId || null,
+                  customInstruction: item.customInstruction || null,
+                  useCount: sql`${schema.doctorMedicinePreferences.useCount} + 1`,
+                  lastUsedAt: new Date(),
+                },
+              })
+          )
+        );
       }
 
-      // 4. Insert Advice Lines
-      for (const adv of input.adviceLines || []) {
-        if (!adv.textBn?.trim()) continue;
-
-        await tx.insert(schema.prescriptionAdvice).values({
-          tenantId: tenant.id,
-          prescriptionId: prescription.id,
-          adviceTemplateId: adv.adviceTemplateId || null,
-          textBn: adv.textBn.trim(),
-          sortOrder: adv.sortOrder || 1,
-        });
+      // 4. Insert Advice Lines (Batch Insert)
+      const validAdvice = (input.adviceLines || []).filter((adv) => Boolean(adv.textBn?.trim()));
+      if (validAdvice.length > 0) {
+        await tx.insert(schema.prescriptionAdvice).values(
+          validAdvice.map((adv) => ({
+            tenantId: tenant.id,
+            prescriptionId: prescription.id,
+            adviceTemplateId: adv.adviceTemplateId || null,
+            textBn: adv.textBn.trim(),
+            sortOrder: adv.sortOrder || 1,
+          }))
+        );
       }
 
       // 5. If patient was in chair in queue, advance them to billing

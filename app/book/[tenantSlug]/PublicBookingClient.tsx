@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   getPublicAvailableSlots,
   submitPublicBooking,
@@ -11,7 +11,6 @@ import {
   getDhakaTodayStr,
   addDhakaDays,
   formatDoctorName,
-  normalizeBdPhone,
 } from "@/lib/utils";
 import {
   Calendar,
@@ -78,9 +77,8 @@ export function PublicBookingClient({
   );
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("any");
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return getDhakaTodayStr();
+    return addDhakaDays(getDhakaTodayStr(), 1); // default tomorrow
   });
-  const hasAutoAdvancedRef = useRef(false);
   const [availableSlots, setAvailableSlots] = useState<
     { time: string; displayTime: string; doctorId: string }[]
   >([]);
@@ -167,13 +165,6 @@ export function PublicBookingClient({
     )
       .then((slots) => {
         if (!isCancelled) {
-          // If on initial mount for today there are 0 slots left, automatically advance to tomorrow
-          if (!hasAutoAdvancedRef.current && selectedDate === todayStr && slots.length === 0) {
-            hasAutoAdvancedRef.current = true;
-            setSelectedDate(addDhakaDays(todayStr, 1));
-            return;
-          }
-          hasAutoAdvancedRef.current = true;
           setAvailableSlots(slots);
           setIsLoadingSlots(false);
         }
@@ -203,9 +194,8 @@ export function PublicBookingClient({
       toast.error("Please pick a convenient appointment time");
       return;
     }
-    const norm = normalizeBdPhone(phone);
-    if (!norm) {
-      toast.error("Please enter a valid 11-digit Bangladeshi mobile number (e.g. 017XXXXXXXX)");
+    if (!phone) {
+      toast.error("Please provide your mobile phone number");
       return;
     }
 
@@ -225,11 +215,6 @@ export function PublicBookingClient({
         email,
         notes,
       });
-
-      if (!result.success) {
-        toast.error(result.error || "Booking submission failed");
-        return;
-      }
 
       setConfirmedBooking(result);
       setStep(5);
@@ -267,21 +252,10 @@ export function PublicBookingClient({
 
         {confirmedBooking.patientCardNumber && (
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium max-w-sm mx-auto">
-            {isExistingPatient ? (
-              <>
-                Chamber Card Verified • Card ID:{" "}
-                <span className="font-mono font-black text-emerald-800">
-                  {confirmedBooking.patientCardNumber}
-                </span>
-              </>
-            ) : (
-              <>
-                Your new card number is{" "}
-                <span className="font-mono font-black text-emerald-800">
-                  {confirmedBooking.patientCardNumber}
-                </span>
-              </>
-            )}
+            Chamber Card Verified • Card ID:{" "}
+            <span className="font-mono font-black text-emerald-800">
+              {confirmedBooking.patientCardNumber}
+            </span>
           </div>
         )}
 
@@ -335,11 +309,10 @@ export function PublicBookingClient({
                   type="button"
                   onClick={() => toggleService(s.id)}
                   style={active ? { borderColor: brandColor, backgroundColor: `${brandColor}10` } : undefined}
-                  className={`p-3.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
-                    active
+                  className={`p-3.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${active
                       ? "shadow-xs"
                       : "border-[#E4E4E7] bg-white hover:bg-[#F4F4F5]"
-                  }`}
+                    }`}
                 >
                   <div>
                     <span className="font-bold text-xs text-[#1C1C1E] block">
@@ -394,11 +367,10 @@ export function PublicBookingClient({
                     ? { borderColor: brandColor, backgroundColor: `${brandColor}12`, color: brandColor }
                     : undefined
                 }
-                className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer ${
-                  selectedDoctorId === "any"
+                className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer ${selectedDoctorId === "any"
                     ? "font-bold"
                     : "border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#1C1C1E]"
-                }`}
+                  }`}
               >
                 <span className="block font-bold">Any Available Dentist</span>
                 <span className="text-[11px] font-normal text-[#6B7280]">
@@ -416,11 +388,10 @@ export function PublicBookingClient({
                       ? { borderColor: brandColor, backgroundColor: `${brandColor}12`, color: brandColor }
                       : undefined
                   }
-                  className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer ${
-                    selectedDoctorId === d.id
+                  className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer ${selectedDoctorId === d.id
                       ? "font-bold"
                       : "border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#1C1C1E]"
-                  }`}
+                    }`}
                 >
                   <span className="block font-bold">
                     {formatDoctorName(d.name, d.doctorTitle)}
@@ -570,11 +541,10 @@ export function PublicBookingClient({
                           ? { backgroundColor: brandColor, borderColor: brandColor }
                           : undefined
                       }
-                      className={`py-2.5 px-3 rounded-xl border text-center transition font-mono text-xs cursor-pointer shadow-2xs ${
-                        active
+                      className={`py-2.5 px-3 rounded-xl border text-center transition font-mono text-xs cursor-pointer shadow-2xs ${active
                           ? "text-white font-bold shadow-xs scale-102"
                           : "bg-white border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#E8EEF7]"
-                      }`}
+                        }`}
                     >
                       {s.displayTime}
                     </button>

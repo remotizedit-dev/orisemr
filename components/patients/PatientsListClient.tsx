@@ -43,7 +43,6 @@ interface DoctorOption {
 interface PatientsListClientProps {
   initialPatients: PatientRow[];
   isPureDoctor?: boolean;
-  currentDoctorId?: string;
   currentDoctorName?: string;
   doctors?: DoctorOption[];
   visibilityMode?: "ISOLATED" | "COLLABORATIVE";
@@ -52,7 +51,6 @@ interface PatientsListClientProps {
 export default function PatientsListClient({
   initialPatients,
   isPureDoctor = false,
-  currentDoctorId,
   currentDoctorName,
   doctors = [],
   visibilityMode = "ISOLATED",
@@ -75,12 +73,8 @@ export default function PatientsListClient({
   } | null>(null);
 
   const filteredPatients = patients.filter((p) => {
-    // 0. Doctor view scope filter
-    if (isPureDoctor && visibilityMode === "ISOLATED") {
-      if (currentDoctorId && p.assignedDoctorId && p.assignedDoctorId !== currentDoctorId) {
-        return false;
-      }
-    } else if (isPureDoctor && visibilityMode === "COLLABORATIVE" && viewScope === "my" && !p.isMyPatient) {
+    // 0. Doctor view scope filter (only applies in collaborative mode when "my" is selected)
+    if (isPureDoctor && visibilityMode === "COLLABORATIVE" && viewScope === "my" && !p.isMyPatient) {
       return false;
     }
 
@@ -132,7 +126,7 @@ export default function PatientsListClient({
           <div className="flex items-center gap-2">
             <Stethoscope className="w-4 h-4 text-[#2A5CAA]" />
             <span>
-              Chamber Privacy Active: Only displaying patients assigned to <strong>{formatDoctorName(currentDoctorName)}</strong>.
+              Chamber Privacy Active: Only displaying patients assigned to <strong>Dr. {currentDoctorName}</strong>.
             </span>
           </div>
           <span className="px-2.5 py-0.5 rounded-full bg-white text-[#2A5CAA] border border-blue-200 font-mono text-[11px] font-black">
@@ -151,11 +145,10 @@ export default function PatientsListClient({
                 setViewScope("my");
                 setCurrentPage(1);
               }}
-              className={`px-3.5 py-2 rounded-lg text-xs font-black flex items-center gap-2 transition cursor-pointer ${
-                viewScope === "my"
+              className={`px-3.5 py-2 rounded-lg text-xs font-black flex items-center gap-2 transition cursor-pointer ${viewScope === "my"
                   ? "bg-white text-[#2A5CAA] shadow-xs"
                   : "text-[#64748B] hover:text-[#1C1C1E]"
-              }`}
+                }`}
             >
               <Stethoscope className="w-3.5 h-3.5" />
               <span>My Chamber Patients</span>
@@ -170,11 +163,10 @@ export default function PatientsListClient({
                 setViewScope("all");
                 setCurrentPage(1);
               }}
-              className={`px-3.5 py-2 rounded-lg text-xs font-black flex items-center gap-2 transition cursor-pointer ${
-                viewScope === "all"
+              className={`px-3.5 py-2 rounded-lg text-xs font-black flex items-center gap-2 transition cursor-pointer ${viewScope === "all"
                   ? "bg-white text-[#2A5CAA] shadow-xs"
                   : "text-[#64748B] hover:text-[#1C1C1E]"
-              }`}
+                }`}
             >
               <Users className="w-3.5 h-3.5" />
               <span>All Clinic Patients</span>
@@ -303,11 +295,10 @@ export default function PatientsListClient({
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-1.5">
                         <span
-                          className={`px-2.5 py-1 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border shadow-2xs ${
-                            p.assignedDoctorName
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border shadow-2xs ${p.assignedDoctorName
                               ? "bg-blue-50 text-[#2A5CAA] border-blue-200"
                               : "bg-slate-50 text-slate-500 border-slate-200"
-                          }`}
+                            }`}
                         >
                           <Stethoscope className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate max-w-[130px]">
@@ -414,15 +405,15 @@ export default function PatientsListClient({
               prev.map((item) =>
                 item.id === updated.id
                   ? {
-                      ...item,
-                      name: updated.name,
-                      phone: updated.phone,
-                      cardNumber: updated.cardNumber,
-                      gender: updated.gender,
-                      approxAge: updated.approxAge,
-                      allergyFlags: updated.allergyFlags || [],
-                      medicalConditions: updated.medicalConditions || [],
-                    }
+                    ...item,
+                    name: updated.name,
+                    phone: updated.phone,
+                    cardNumber: updated.cardNumber,
+                    gender: updated.gender,
+                    approxAge: updated.approxAge,
+                    allergyFlags: updated.allergyFlags || [],
+                    medicalConditions: updated.medicalConditions || [],
+                  }
                   : item
               )
             );
@@ -463,10 +454,10 @@ export default function PatientsListClient({
               prev.map((it) =>
                 it.id === switchingPatient.id
                   ? {
-                      ...it,
-                      assignedDoctorId: newDoctorId,
-                      assignedDoctorName: newDoctorName,
-                    }
+                    ...it,
+                    assignedDoctorId: newDoctorId,
+                    assignedDoctorName: newDoctorName,
+                  }
                   : it
               )
             );

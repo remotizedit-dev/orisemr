@@ -226,21 +226,7 @@ export interface SubmitPublicBookingInput {
   notes?: string;
 }
 
-export type SubmitPublicBookingResult =
-  | {
-      success: true;
-      appointmentCode: string;
-      isAutoConfirmed: boolean;
-      patientCardNumber: string | null;
-    }
-  | {
-      success: false;
-      error: string;
-    };
-
-export async function submitPublicBooking(
-  input: SubmitPublicBookingInput
-): Promise<SubmitPublicBookingResult> {
+export async function submitPublicBooking(input: SubmitPublicBookingInput) {
   const normPhone = normalizeBdPhone(input.phone);
 
   let patientId: string | null = null;
@@ -258,10 +244,9 @@ export async function submitPublicBooking(
     "client";
 
   if (!checkPublicBookingRateLimit(`${clientIp}:${input.tenantId}`)) {
-    return {
-      success: false,
-      error: "Too many booking attempts. Please wait a few minutes before trying again.",
-    };
+    throw new Error(
+      "Too many booking attempts. Please wait a few minutes before trying again."
+    );
   }
 
   const [tenant] = await db
@@ -270,9 +255,7 @@ export async function submitPublicBooking(
     .where(eq(schema.tenants.id, input.tenantId))
     .limit(1);
 
-  if (!tenant) {
-    return { success: false, error: "Chamber not found" };
-  }
+  if (!tenant) throw new Error("Chamber not found");
 
   // Enforce public booking window on server
   const dhakaTodayStr = getDhakaTodayStr();
@@ -280,10 +263,9 @@ export async function submitPublicBooking(
   const maxAllowedDateStr = addDhakaDays(dhakaTodayStr, maxDaysAhead);
 
   if (input.date < dhakaTodayStr || input.date > maxAllowedDateStr) {
-    return {
-      success: false,
-      error: `Appointments can only be booked between ${dhakaTodayStr} and ${maxAllowedDateStr} (within ${maxDaysAhead} days).`,
-    };
+    throw new Error(
+      `Appointments can only be booked between ${dhakaTodayStr} and ${maxAllowedDateStr} (within ${maxDaysAhead} days).`
+    );
   }
 
   if (input.isExistingPatient && input.cardNumber) {
@@ -301,18 +283,12 @@ export async function submitPublicBooking(
       .limit(1);
 
     if (!patient) {
-      return {
-        success: false,
-        error: "We couldn't find a registered patient with that chamber card number.",
-      };
+      throw new Error("We couldn't find a registered patient with that chamber card number.");
     }
 
     // Strict validation: Card is only accepted when entered phone matches patient's phone on file
     if (!normPhone || normPhone !== normalizeBdPhone(patient.phone)) {
-      return {
-        success: false,
-        error: "Chamber card number and mobile phone number do not match our records.",
-      };
+      throw new Error("Chamber card number and mobile phone number do not match our records.");
     }
 
     patientId = patient.id;
@@ -324,10 +300,7 @@ export async function submitPublicBooking(
   } else {
     // 2. New Patient Booking
     if (!normPhone) {
-      return {
-        success: false,
-        error: "Please enter a valid 11-digit Bangladeshi mobile number",
-      };
+      throw new Error("Please enter a valid 11-digit Bangladeshi mobile number");
     }
     // Check if phone number already belongs to an existing registered patient
     const [existingPatient] = await db
@@ -351,10 +324,7 @@ export async function submitPublicBooking(
   }
 
   if (!patientPhone) {
-    return {
-      success: false,
-      error: "Please enter a valid 11-digit Bangladeshi mobile number",
-    };
+    throw new Error("Please enter a valid 11-digit Bangladeshi mobile number");
   }
 
   // Calculate start & end times in Asia/Dhaka (+06:00)
@@ -480,19 +450,20 @@ export async function submitPublicBooking(
       })
       .returning();
 
-    // Insert booked services into appointment_services
-    for (let i = 0; i < services.length; i++) {
-      const srv = services[i];
-      await tx.insert(schema.appointmentServices).values({
-        tenantId: input.tenantId,
-        appointmentId: apt.id,
-        serviceId: srv.id,
-        serviceNameSnapshot: srv.name,
-        durationMinutesSnapshot: srv.durationMinutes,
-        priceBdtSnapshot: srv.priceBdt,
-        toothCodes: [],
-        sortOrder: i + 1,
-      });
+    // Insert booked services into appointment_services (Batch Insert)
+    if (services.length > 0) {
+      await tx.insert(schema.appointmentServices).values(
+        services.map((srv, i) => ({
+          tenantId: input.tenantId,
+          appointmentId: apt.id,
+          serviceId: srv.id,
+          serviceNameSnapshot: srv.name,
+          durationMinutesSnapshot: srv.durationMinutes,
+          priceBdtSnapshot: srv.priceBdt,
+          toothCodes: [],
+          sortOrder: i + 1,
+        }))
+      );
     }
 
     // If auto-confirmed, create queue entry
@@ -508,7 +479,6 @@ export async function submitPublicBooking(
     }
 
     return {
-      success: true as const,
       appointmentCode,
       isAutoConfirmed,
       patientCardNumber: finalAssignedCardNumber,

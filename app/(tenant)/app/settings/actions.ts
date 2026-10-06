@@ -172,15 +172,18 @@ export async function updateWorkingHoursAction(shifts: WorkingShiftInput[]) {
       .delete(schema.tenantWorkingHours)
       .where(eq(schema.tenantWorkingHours.tenantId, tenant.id));
 
-    // Insert new shifts
-    for (const s of shifts) {
-      if (!s.startTime || !s.endTime) continue;
-      await tx.insert(schema.tenantWorkingHours).values({
+    // Insert new shifts (Batch Insert)
+    const shiftsToInsert = shifts
+      .filter((s) => Boolean(s.startTime && s.endTime))
+      .map((s) => ({
         tenantId: tenant.id,
         weekday: s.weekday,
         startTime: s.startTime,
         endTime: s.endTime,
-      });
+      }));
+
+    if (shiftsToInsert.length > 0) {
+      await tx.insert(schema.tenantWorkingHours).values(shiftsToInsert);
     }
   });
 
@@ -498,15 +501,19 @@ export async function updateDoctorSchedulesAction(
         )
       );
 
-    for (const shift of shifts) {
-      if (!shift.startTime || !shift.endTime) continue;
-      await tx.insert(schema.doctorSchedules).values({
+    // Insert new doctor shifts (Batch Insert)
+    const shiftsToInsert = shifts
+      .filter((shift) => Boolean(shift.startTime && shift.endTime))
+      .map((shift) => ({
         tenantId: tenant.id,
         doctorId: doctorId,
         weekday: shift.weekday,
         startTime: shift.startTime,
         endTime: shift.endTime,
-      });
+      }));
+
+    if (shiftsToInsert.length > 0) {
+      await tx.insert(schema.doctorSchedules).values(shiftsToInsert);
     }
   });
 

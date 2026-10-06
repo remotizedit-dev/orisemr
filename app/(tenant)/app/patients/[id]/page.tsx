@@ -39,9 +39,9 @@ export default async function PatientProfilePage({
 
   const canPrescribe = Boolean(
     (user.isDoctor ||
-    user.role === "DOCTOR" ||
-    user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN") &&
+      user.role === "DOCTOR" ||
+      user.role === "TENANT_ADMIN" ||
+      user.role === "SUPER_ADMIN") &&
     user.role !== "RECEPTIONIST"
   );
 
@@ -99,30 +99,30 @@ export default async function PatientProfilePage({
 
     const [hasPrescription] = !hasAppointment
       ? await db
-          .select({ id: schema.prescriptions.id })
-          .from(schema.prescriptions)
-          .where(
-            and(
-              eq(schema.prescriptions.tenantId, tenant.id),
-              eq(schema.prescriptions.patientId, id),
-              eq(schema.prescriptions.doctorId, user.id)
-            )
+        .select({ id: schema.prescriptions.id })
+        .from(schema.prescriptions)
+        .where(
+          and(
+            eq(schema.prescriptions.tenantId, tenant.id),
+            eq(schema.prescriptions.patientId, id),
+            eq(schema.prescriptions.doctorId, user.id)
           )
-          .limit(1)
+        )
+        .limit(1)
       : [null];
 
     const [hasQueueEntry] = (!hasAppointment && !hasPrescription)
       ? await db
-          .select({ id: schema.queueEntries.id })
-          .from(schema.queueEntries)
-          .where(
-            and(
-              eq(schema.queueEntries.tenantId, tenant.id),
-              eq(schema.queueEntries.patientId, id),
-              eq(schema.queueEntries.doctorId, user.id)
-            )
+        .select({ id: schema.queueEntries.id })
+        .from(schema.queueEntries)
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.patientId, id),
+            eq(schema.queueEntries.doctorId, user.id)
           )
-          .limit(1)
+        )
+        .limit(1)
       : [null];
 
     if (!hasAppointment && !hasPrescription && !hasQueueEntry) {
@@ -137,7 +137,7 @@ export default async function PatientProfilePage({
           <p className="text-sm text-[#64748B] max-w-md mx-auto">
             This patient is currently assigned to{" "}
             <span className="font-bold text-[#1C1C1E]">
-              {assignedDoctorName ? formatDoctorName(assignedDoctorName) : "another clinic doctor"}
+              {assignedDoctorName ? `Dr. ${assignedDoctorName}` : "another clinic doctor"}
             </span>
             . Under your clinic&apos;s privacy settings, you can only access records for patients assigned to your chamber or queued for your visit today. Please ask the clinic admin or receptionist to queue or reassign this patient to you.
           </p>
@@ -522,13 +522,12 @@ export default async function PatientProfilePage({
                       </span>
                     </div>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                        apt.status === "completed"
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${apt.status === "completed"
                           ? "bg-[#E8F8EE] text-[#30D158]"
                           : apt.status === "confirmed"
-                          ? "bg-[#E8EEF7] text-[#2A5CAA]"
-                          : "bg-[#F4F4F5] text-[#6B7280]"
-                      }`}
+                            ? "bg-[#E8EEF7] text-[#2A5CAA]"
+                            : "bg-[#F4F4F5] text-[#6B7280]"
+                        }`}
                     >
                       {apt.status}
                     </span>
@@ -599,13 +598,12 @@ export default async function PatientProfilePage({
                             {inv.invoiceCode || "DRAFT"}
                           </span>
                           <span
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                              inv.status === "paid"
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${inv.status === "paid"
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                 : inv.status === "partial"
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                : "bg-rose-50 text-rose-700 border border-rose-200"
-                            }`}
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200"
+                              }`}
                           >
                             {inv.status.toUpperCase()}
                           </span>

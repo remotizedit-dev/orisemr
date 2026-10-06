@@ -299,19 +299,9 @@ export function QuickAppointmentModal({
         checkInImmediately: selectedDate === todayDhakaStr && checkInImmediately,
       });
 
-      if (!res?.success) {
-        if (
-          res?.error === "OVERLAP" ||
-          res?.error === "CHAIR_OVERLAP" ||
-          res?.error === "CHAIR_CAPACITY_EXCEEDED" ||
-          res?.error === "OUTSIDE_HOURS"
-        ) {
-          toast.warning(res.message);
-          setIsOverbooking(true);
-          setIsSubmitting(false);
-          return;
-        }
-        toast.error(res?.message || res?.error || "Failed to book appointment");
+      if (res?.error === "OVERLAP" || res?.error === "OUTSIDE_HOURS") {
+        toast.warning(res.message);
+        setIsOverbooking(true);
         setIsSubmitting(false);
         return;
       }
@@ -354,420 +344,417 @@ export function QuickAppointmentModal({
             role="dialog"
             aria-modal="true"
           >
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-[#E4E4E7] flex items-center justify-between bg-gradient-to-r from-emerald-50/70 to-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-extrabold text-[#1C1C1E]">
-                Book New Appointment
-              </h3>
-              <p className="text-xs text-[#6B7280]">
-                Live chairside scheduling with instant slot checking
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-[#6B7280] hover:text-[#1C1C1E] hover:bg-[#F4F4F5] transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
-          {isLoadingRefData ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-sm text-[#6B7280]">
-              <Loader2 className="w-6 h-6 animate-spin text-[#2A5CAA]" />
-              <span>Loading clinic services &amp; doctors...</span>
-            </div>
-          ) : (
-            <>
-              {/* Step 1: Patient Selection */}
-              <div className="p-4 rounded-2xl bg-[#F9FAFB] border border-[#E4E4E7] space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-[#2A5CAA]" />
-                    <span>Patient</span>
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsQuickRegisterOpen(true)}
-                    className="text-xs font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Quick Register New</span>
-                  </button>
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[#E4E4E7] flex items-center justify-between bg-gradient-to-r from-emerald-50/70 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+                  <Calendar className="w-5 h-5" />
                 </div>
-
-                {selectedPatient ? (
-                  <div className="p-3.5 rounded-xl bg-white border border-[#2A5CAA]/30 flex items-center justify-between shadow-2xs">
-                    <div>
-                      <span className="font-extrabold text-sm text-[#1C1C1E] block">
-                        {selectedPatient.name}
-                      </span>
-                      <div className="flex items-center gap-2 text-xs text-[#6B7280]">
-                        <span className="font-mono font-semibold text-[#2A5CAA]">
-                          {selectedPatient.cardNumber}
-                        </span>
-                        {selectedPatient.phone && (
-                          <span>• {formatBdPhone(selectedPatient.phone)}</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedPatient(null);
-                        setPatientQuery("");
-                      }}
-                      className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                    >
-                      Change
-                    </button>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={patientQuery}
-                      onChange={(e) => setPatientQuery(e.target.value)}
-                      placeholder="Type patient name, phone (01X...), or card number..."
-                      className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2A5CAA] focus:ring-2 focus:ring-[#2A5CAA]/20 transition"
-                    />
-
-                    {isSearchingPatient && (
-                      <Loader2 className="w-4 h-4 text-[#2A5CAA] animate-spin absolute right-3.5 top-1/2 -translate-y-1/2" />
-                    )}
-
-                    {/* Results Dropdown */}
-                    {patientResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E4E4E7] rounded-2xl shadow-xl z-20 overflow-hidden divide-y divide-[#E4E4E7]/60 max-h-52 overflow-y-auto">
-                        {patientResults.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedPatient(p);
-                              setPatientResults([]);
-                              setPatientQuery("");
-                            }}
-                            className="w-full p-3 text-left hover:bg-[#F4F4F5] transition flex items-center justify-between cursor-pointer"
-                          >
-                            <div>
-                              <span className="font-bold text-sm text-[#1C1C1E] block">
-                                {p.name}
-                              </span>
-                              <span className="text-xs text-[#6B7280]">
-                                {formatBdPhone(p.phone)}
-                              </span>
-                            </div>
-                            <span className="font-mono text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] px-2 py-0.5 rounded-md">
-                              {p.cardNumber}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Step 2: Dental Service Selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-[#2A5CAA]" />
-                    <span>Select Dental Service(s)</span>
-                  </label>
-                  <span className="text-xs font-extrabold text-[#2A5CAA]">
-                    {totalDuration} mins • ৳{totalEstimatedPrice.toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Procedure Search Bar */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={serviceSearchQuery}
-                    onChange={(e) => setServiceSearchQuery(e.target.value)}
-                    placeholder="Search procedures by name or category..."
-                    className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2A5CAA] focus:ring-1 focus:ring-[#2A5CAA]/20 transition"
-                  />
-                  {serviceSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setServiceSearchQuery("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#1C1C1E] p-0.5 rounded-full cursor-pointer"
-                      title="Clear search"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-
-                {filteredServices.length === 0 ? (
-                  <p className="text-xs text-[#6B7280] py-3 text-center">
-                    No procedures match &quot;{serviceSearchQuery}&quot;
+                <div>
+                  <h3 className="text-base font-extrabold text-[#1C1C1E]">
+                    Book New Appointment
+                  </h3>
+                  <p className="text-xs text-[#6B7280]">
+                    Live chairside scheduling with instant slot checking
                   </p>
-                ) : (
-                  <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1">
-                    {filteredServices.map((s) => {
-                      const isSelected = selectedServices.includes(s.id);
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => toggleService(s.id)}
-                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-2 ${
-                            isSelected
-                              ? "bg-[#2A5CAA] text-white border-[#2A5CAA] shadow-2xs"
-                              : "bg-white text-[#4B5563] border-[#E4E4E7] hover:border-[#2A5CAA]/40"
-                          }`}
-                        >
-                          <span>{s.name}</span>
-                          <span
-                            className={`text-[11px] px-1.5 py-0.5 rounded-md ${
-                              isSelected
-                                ? "bg-white/20 text-white"
-                                : "bg-[#F4F4F5] text-[#6B7280]"
-                            }`}
-                          >
-                            {s.durationMinutes}m
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Step 3: Doctor & Date & Chair */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Doctor */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#1C1C1E] flex items-center gap-1">
-                    <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA]" />
-                    <span>Dentist</span>
-                  </label>
-                  <select
-                    value={selectedDoctorId}
-                    onChange={(e) => setSelectedDoctorId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-bold bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] focus:outline-none focus:border-[#2A5CAA]"
-                  >
-                    <option value="any">Any Available Dentist</option>
-                    {doctors.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Date */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#1C1C1E] flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-[#2A5CAA]" />
-                    <span>Date</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-bold bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] focus:outline-none focus:border-[#2A5CAA]"
-                  />
-                </div>
-
-                {/* Chair */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#1C1C1E] flex items-center gap-1">
-                    <Armchair className="w-3.5 h-3.5 text-[#2A5CAA]" />
-                    <span>Chair</span>
-                  </label>
-                  <select
-                    value={selectedChairId}
-                    onChange={(e) => setSelectedChairId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-bold bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] focus:outline-none focus:border-[#2A5CAA]"
-                  >
-                    <option value="">Any Dental Chair</option>
-                    {chairs.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
-              {/* Step 4: Time Slot Selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-[#2A5CAA]" />
-                    <span>Available Time Slot</span>
-                  </label>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 rounded-xl text-[#6B7280] hover:text-[#1C1C1E] hover:bg-[#F4F4F5] transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsOverbooking(!isOverbooking)}
-                    className="text-[11px] font-bold text-amber-700 hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <AlertTriangle className="w-3 h-3 text-amber-600" />
-                    <span>{isOverbooking ? "Use Auto Slots" : "Urgent Walk-in / Custom Time"}</span>
-                  </button>
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1">
+              {isLoadingRefData ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-sm text-[#6B7280]">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#2A5CAA]" />
+                  <span>Loading clinic services &amp; doctors...</span>
                 </div>
-
-                {isOverbooking ? (
-                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs space-y-2 animate-in fade-in">
-                    <span className="font-bold text-amber-900 block">
-                      Custom Appointment Time (Overbooking Override)
-                    </span>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <span className="text-[11px] text-[#6B7280] block mb-1">Start Time</span>
-                        <input
-                          type="time"
-                          value={customStartTime}
-                          onChange={(e) => setCustomStartTime(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-[#1C1C1E]"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-[#6B7280] block mb-1">End Time</span>
-                        <input
-                          type="time"
-                          value={customEndTime}
-                          onChange={(e) => setCustomEndTime(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-[#1C1C1E]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : isLoadingSlots ? (
-                  <div className="p-4 rounded-xl border border-dashed border-[#E4E4E7] text-center text-xs text-[#6B7280] flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#2A5CAA]" />
-                    <span>Calculating available doctor slots...</span>
-                  </div>
-                ) : availableSlots.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-[#FAFAFA] border border-dashed border-[#E4E4E7] text-center text-xs text-[#6B7280]">
-                    No open regular slots on this date. Click &quot;Urgent Walk-in&quot; above to book anyway.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1">
-                    {availableSlots.map((slot) => {
-                      const isSelected = selectedSlot?.startTime === slot.startTime;
-                      return (
-                        <button
-                          key={slot.startTime}
-                          type="button"
-                          onClick={() => setSelectedSlot(slot)}
-                          className={`py-2 px-2.5 rounded-xl text-xs font-mono font-bold border transition cursor-pointer text-center ${
-                            isSelected
-                              ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                              : "bg-white text-[#1C1C1E] border-[#E4E4E7] hover:border-emerald-500"
-                          }`}
-                        >
-                          {slot.displayTime}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Step 5: Notes */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[#1C1C1E]">
-                  Chief Complaint / Notes <span className="text-[#9CA3AF] font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Severe toothache on lower left molar"
-                  className="w-full px-3.5 py-2 text-xs bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2A5CAA]"
-                />
-              </div>
-
-              {/* Direct Waiting Lounge Check-in Toggle for Today's Appointments */}
-              {selectedDate === todayDhakaStr && (
-                <label className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/70 border border-amber-200 cursor-pointer hover:bg-amber-100/70 transition">
-                  <input
-                    type="checkbox"
-                    checked={checkInImmediately}
-                    onChange={(e) => setCheckInImmediately(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded text-[#2A5CAA] focus:ring-0 cursor-pointer accent-[#2A5CAA]"
-                  />
-                  <div className="flex-1">
-                    <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Check-in to Waiting Lounge immediately</span>
-                    </span>
-                    <p className="text-[11px] text-amber-800/80 mt-0.5 leading-snug">
-                      Patient is present in clinic now. Automatically allocates next Daily Serial # (SL) and syncs to live TV queue.
-                    </p>
-                  </div>
-                </label>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-[#E4E4E7] flex items-center justify-between bg-[#FAFAFA]">
-          <div className="text-xs text-[#6B7280]">
-            {selectedSlot ? (
-              <span className="font-extrabold text-emerald-800 flex items-center gap-1.5 font-mono">
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Slot: {formatDhakaTime(selectedSlot.startTime)} - {formatDhakaTime(selectedSlot.endTime)} ({selectedDate})</span>
-              </span>
-            ) : isOverbooking ? (
-              <span className="font-extrabold text-amber-800 flex items-center gap-1.5 font-mono">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                <span>Overbooking: {customStartTime} - {customEndTime} ({selectedDate})</span>
-              </span>
-            ) : (
-              <span className="text-[#64748B]">Please select an available time slot</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#E4E4E7] rounded-xl transition cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleBook}
-              disabled={isSubmitting || !selectedPatient}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-md"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Booking...</span>
-                </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Confirm Booking</span>
+                  {/* Step 1: Patient Selection */}
+                  <div className="p-4 rounded-2xl bg-[#F9FAFB] border border-[#E4E4E7] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                        <span>Patient</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickRegisterOpen(true)}
+                        className="text-xs font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Quick Register New</span>
+                      </button>
+                    </div>
+
+                    {selectedPatient ? (
+                      <div className="p-3.5 rounded-xl bg-white border border-[#2A5CAA]/30 flex items-center justify-between shadow-2xs">
+                        <div>
+                          <span className="font-extrabold text-sm text-[#1C1C1E] block">
+                            {selectedPatient.name}
+                          </span>
+                          <div className="flex items-center gap-2 text-xs text-[#6B7280]">
+                            <span className="font-mono font-semibold text-[#2A5CAA]">
+                              {selectedPatient.cardNumber}
+                            </span>
+                            {selectedPatient.phone && (
+                              <span>• {formatBdPhone(selectedPatient.phone)}</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPatient(null);
+                            setPatientQuery("");
+                          }}
+                          className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={patientQuery}
+                          onChange={(e) => setPatientQuery(e.target.value)}
+                          placeholder="Type patient name, phone (01X...), or card number..."
+                          className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2A5CAA] focus:ring-2 focus:ring-[#2A5CAA]/20 transition"
+                        />
+
+                        {isSearchingPatient && (
+                          <Loader2 className="w-4 h-4 text-[#2A5CAA] animate-spin absolute right-3.5 top-1/2 -translate-y-1/2" />
+                        )}
+
+                        {/* Results Dropdown */}
+                        {patientResults.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E4E4E7] rounded-2xl shadow-xl z-20 overflow-hidden divide-y divide-[#E4E4E7]/60 max-h-52 overflow-y-auto">
+                            {patientResults.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPatient(p);
+                                  setPatientResults([]);
+                                  setPatientQuery("");
+                                }}
+                                className="w-full p-3 text-left hover:bg-[#F4F4F5] transition flex items-center justify-between cursor-pointer"
+                              >
+                                <div>
+                                  <span className="font-bold text-sm text-[#1C1C1E] block">
+                                    {p.name}
+                                  </span>
+                                  <span className="text-xs text-[#6B7280]">
+                                    {formatBdPhone(p.phone)}
+                                  </span>
+                                </div>
+                                <span className="font-mono text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] px-2 py-0.5 rounded-md">
+                                  {p.cardNumber}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Step 2: Dental Service Selection */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                        <span>Select Dental Service(s)</span>
+                      </label>
+                      <span className="text-xs font-extrabold text-[#2A5CAA]">
+                        {totalDuration} mins • ৳{totalEstimatedPrice.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Procedure Search Bar */}
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={serviceSearchQuery}
+                        onChange={(e) => setServiceSearchQuery(e.target.value)}
+                        placeholder="Search procedures by name or category..."
+                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2A5CAA] focus:ring-1 focus:ring-[#2A5CAA]/20 transition"
+                      />
+                      {serviceSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setServiceSearchQuery("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#1C1C1E] p-0.5 rounded-full cursor-pointer"
+                          title="Clear search"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {filteredServices.length === 0 ? (
+                      <p className="text-xs text-[#6B7280] py-3 text-center">
+                        No procedures match &quot;{serviceSearchQuery}&quot;
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1">
+                        {filteredServices.map((s) => {
+                          const isSelected = selectedServices.includes(s.id);
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => toggleService(s.id)}
+                              className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-2 ${isSelected
+                                  ? "bg-[#2A5CAA] text-white border-[#2A5CAA] shadow-2xs"
+                                  : "bg-white text-[#4B5563] border-[#E4E4E7] hover:border-[#2A5CAA]/40"
+                                }`}
+                            >
+                              <span>{s.name}</span>
+                              <span
+                                className={`text-[11px] px-1.5 py-0.5 rounded-md ${isSelected
+                                    ? "bg-white/20 text-white"
+                                    : "bg-[#F4F4F5] text-[#6B7280]"
+                                  }`}
+                              >
+                                {s.durationMinutes}m
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Step 3: Doctor & Date & Chair */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Doctor */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[#1C1C1E] flex items-center gap-1">
+                        <Stethoscope className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                        <span>Dentist</span>
+                      </label>
+                      <select
+                        value={selectedDoctorId}
+                        onChange={(e) => setSelectedDoctorId(e.target.value)}
+                        className="w-full px-3 py-2 text-xs font-bold bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] focus:outline-none focus:border-[#2A5CAA]"
+                      >
+                        <option value="any">Any Available Dentist</option>
+                        {doctors.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Date */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[#1C1C1E] flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                        <span>Date</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="w-full px-3 py-2 text-xs font-bold bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] focus:outline-none focus:border-[#2A5CAA]"
+                      />
+                    </div>
+
+                    {/* Chair */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[#1C1C1E] flex items-center gap-1">
+                        <Armchair className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                        <span>Chair</span>
+                      </label>
+                      <select
+                        value={selectedChairId}
+                        onChange={(e) => setSelectedChairId(e.target.value)}
+                        className="w-full px-3 py-2 text-xs font-bold bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] focus:outline-none focus:border-[#2A5CAA]"
+                      >
+                        <option value="">Any Dental Chair</option>
+                        {chairs.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Step 4: Time Slot Selection */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                        <span>Available Time Slot</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsOverbooking(!isOverbooking)}
+                        className="text-[11px] font-bold text-amber-700 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        <span>{isOverbooking ? "Use Auto Slots" : "Urgent Walk-in / Custom Time"}</span>
+                      </button>
+                    </div>
+
+                    {isOverbooking ? (
+                      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs space-y-2 animate-in fade-in">
+                        <span className="font-bold text-amber-900 block">
+                          Custom Appointment Time (Overbooking Override)
+                        </span>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <span className="text-[11px] text-[#6B7280] block mb-1">Start Time</span>
+                            <input
+                              type="time"
+                              value={customStartTime}
+                              onChange={(e) => setCustomStartTime(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-[#1C1C1E]"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-[#6B7280] block mb-1">End Time</span>
+                            <input
+                              type="time"
+                              value={customEndTime}
+                              onChange={(e) => setCustomEndTime(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-[#1C1C1E]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : isLoadingSlots ? (
+                      <div className="p-4 rounded-xl border border-dashed border-[#E4E4E7] text-center text-xs text-[#6B7280] flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#2A5CAA]" />
+                        <span>Calculating available doctor slots...</span>
+                      </div>
+                    ) : availableSlots.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-[#FAFAFA] border border-dashed border-[#E4E4E7] text-center text-xs text-[#6B7280]">
+                        No open regular slots on this date. Click &quot;Urgent Walk-in&quot; above to book anyway.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1">
+                        {availableSlots.map((slot) => {
+                          const isSelected = selectedSlot?.startTime === slot.startTime;
+                          return (
+                            <button
+                              key={slot.startTime}
+                              type="button"
+                              onClick={() => setSelectedSlot(slot)}
+                              className={`py-2 px-2.5 rounded-xl text-xs font-mono font-bold border transition cursor-pointer text-center ${isSelected
+                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                                  : "bg-white text-[#1C1C1E] border-[#E4E4E7] hover:border-emerald-500"
+                                }`}
+                            >
+                              {slot.displayTime}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Step 5: Notes */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[#1C1C1E]">
+                      Chief Complaint / Notes <span className="text-[#9CA3AF] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="e.g. Severe toothache on lower left molar"
+                      className="w-full px-3.5 py-2 text-xs bg-white border border-[#E4E4E7] rounded-xl text-[#1C1C1E] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2A5CAA]"
+                    />
+                  </div>
+
+                  {/* Direct Waiting Lounge Check-in Toggle for Today's Appointments */}
+                  {selectedDate === todayDhakaStr && (
+                    <label className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/70 border border-amber-200 cursor-pointer hover:bg-amber-100/70 transition">
+                      <input
+                        type="checkbox"
+                        checked={checkInImmediately}
+                        onChange={(e) => setCheckInImmediately(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded text-[#2A5CAA] focus:ring-0 cursor-pointer accent-[#2A5CAA]"
+                      />
+                      <div className="flex-1">
+                        <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Check-in to Waiting Lounge immediately</span>
+                        </span>
+                        <p className="text-[11px] text-amber-800/80 mt-0.5 leading-snug">
+                          Patient is present in clinic now. Automatically allocates next Daily Serial # (SL) and syncs to live TV queue.
+                        </p>
+                      </div>
+                    </label>
+                  )}
                 </>
               )}
-            </button>
-          </div>
-        </div>
-      </motion.div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-[#E4E4E7] flex items-center justify-between bg-[#FAFAFA]">
+              <div className="text-xs text-[#6B7280]">
+                {selectedSlot ? (
+                  <span className="font-extrabold text-emerald-800 flex items-center gap-1.5 font-mono">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Slot: {formatDhakaTime(selectedSlot.startTime)} - {formatDhakaTime(selectedSlot.endTime)} ({selectedDate})</span>
+                  </span>
+                ) : isOverbooking ? (
+                  <span className="font-extrabold text-amber-800 flex items-center gap-1.5 font-mono">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Overbooking: {customStartTime} - {customEndTime} ({selectedDate})</span>
+                  </span>
+                ) : (
+                  <span className="text-[#64748B]">Please select an available time slot</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-bold text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#E4E4E7] rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBook}
+                  disabled={isSubmitting || !selectedPatient}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-md"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Booking...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Confirm Booking</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
 
           {/* Child Quick Register Patient Modal */}
           <QuickRegisterPatientModal

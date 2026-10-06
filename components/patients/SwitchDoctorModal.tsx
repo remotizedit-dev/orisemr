@@ -92,7 +92,7 @@ export function SwitchDoctorModal({
       }
 
       toast.success(
-        `Doctor switched to ${formatDoctorName(targetName)}! ${patientName} has been reassigned.`
+        `Doctor switched to Dr. ${targetName}! ${patientName} has been reassigned.`
       );
       if (onSuccess) {
         onSuccess(selectedDoctorId, targetName, result);
@@ -198,19 +198,17 @@ export function SwitchDoctorModal({
                             setSelectedDoctorId(doc.id);
                             setConflictWarning(null);
                           }}
-                          className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition cursor-pointer ${
-                            isSelected
+                          className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition cursor-pointer ${isSelected
                               ? "bg-blue-50/70 border-[#2A5CAA] shadow-xs ring-1 ring-[#2A5CAA]"
                               : "bg-white border-[#E2E8F0] hover:border-[#CBD5E1] hover:bg-[#F8FAFC]"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-3">
                             <div
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
-                                isSelected
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${isSelected
                                   ? "bg-[#2A5CAA] text-white"
                                   : "bg-[#F1F5F9] text-[#475569]"
-                              }`}
+                                }`}
                             >
                               <UserCheck className="w-4 h-4" />
                             </div>
@@ -225,11 +223,10 @@ export function SwitchDoctorModal({
                           </div>
 
                           <div
-                            className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                              isSelected
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center ${isSelected
                                 ? "bg-[#2A5CAA] border-[#2A5CAA] text-white"
                                 : "border-[#CBD5E1] bg-white"
-                            }`}
+                              }`}
                           >
                             {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                           </div>
@@ -251,11 +248,10 @@ export function SwitchDoctorModal({
                       key={qr}
                       type="button"
                       onClick={() => setReason(qr)}
-                      className={`text-xs px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                        reason === qr
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition cursor-pointer ${reason === qr
                           ? "bg-amber-100 text-amber-900 border-amber-300 font-bold"
                           : "bg-[#F1F5F9] text-[#475569] border-[#E2E8F0] hover:bg-[#E2E8F0]"
-                      }`}
+                        }`}
                     >
                       {qr}
                     </button>

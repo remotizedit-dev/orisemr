@@ -337,24 +337,28 @@ export async function createInvoiceAction(input: CreateInvoiceInput) {
         }
       }
 
-      let sort = 0;
-      for (const item of input.items) {
-        const effectiveTeeth =
-          item.toothCodes && item.toothCodes.length > 0
-            ? item.toothCodes
-            : fallbackTeeth;
+      // 3. Insert Items (Batch Insert - copy prescription teeth if item teeth are empty - Issue 13)
+      if (input.items.length > 0) {
+        await tx.insert(schema.invoiceItems).values(
+          input.items.map((item, idx) => {
+            const effectiveTeeth =
+              item.toothCodes && item.toothCodes.length > 0
+                ? item.toothCodes
+                : fallbackTeeth;
 
-        await tx.insert(schema.invoiceItems).values({
-          tenantId: tenant.id,
-          invoiceId: created.id,
-          serviceId: item.serviceId || null,
-          description: item.description,
-          toothCodes: effectiveTeeth,
-          quantity: item.quantity,
-          unitPriceBdt: item.unitPriceBdt,
-          totalBdt: item.quantity * item.unitPriceBdt,
-          sortOrder: sort++,
-        });
+            return {
+              tenantId: tenant.id,
+              invoiceId: created.id,
+              serviceId: item.serviceId || null,
+              description: item.description,
+              toothCodes: effectiveTeeth,
+              quantity: item.quantity,
+              unitPriceBdt: item.unitPriceBdt,
+              totalBdt: item.quantity * item.unitPriceBdt,
+              sortOrder: idx,
+            };
+          })
+        );
       }
 
       // 4. Record advance payment if provided

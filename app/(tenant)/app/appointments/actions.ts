@@ -215,22 +215,6 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     throw new Error("Invalid appointment start or end time.");
   }
 
-  const formatShortDhakaRange = (s: Date, e: Date): string => {
-    const s12 = new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Dhaka",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(s).replace(/\s*[AP]M/i, "");
-    const e12 = new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Dhaka",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(e).replace(/\s*[AP]M/i, "");
-    return `${s12}–${e12}`;
-  };
-
   // Parse target date and weekday in UTC
   const [year, month, day] = input.dateStr.split("-").map(Number);
   const targetDate = new Date(Date.UTC(year, month - 1, day));
@@ -250,122 +234,107 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
     // Check doctor overlap if not explicitly overbooked
     !isOverbookedRequested
       ? db
-          .select({ id: schema.appointments.id })
-          .from(schema.appointments)
-          .where(
-            and(
-              eq(schema.appointments.tenantId, tenant.id),
-              eq(schema.appointments.doctorId, input.doctorId),
-              sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
-              sql`${schema.appointments.startTime} < ${end.toISOString()}`,
-              sql`${schema.appointments.endTime} > ${start.toISOString()}`
-            )
+        .select({ id: schema.appointments.id })
+        .from(schema.appointments)
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.doctorId, input.doctorId),
+            sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+            sql`${schema.appointments.startTime} < ${end.toISOString()}`,
+            sql`${schema.appointments.endTime} > ${start.toISOString()}`
           )
-          .limit(1)
+        )
+        .limit(1)
       : Promise.resolve([]),
 
     // Check specific chair conflict if selected and not overbooking
     !isOverbookedRequested && input.chairId
       ? db
-          .select({
-            id: schema.appointments.id,
-            startTime: schema.appointments.startTime,
-            endTime: schema.appointments.endTime,
-            chairName: schema.chairs.name,
-          })
-          .from(schema.appointments)
-          .leftJoin(schema.chairs, eq(schema.appointments.chairId, schema.chairs.id))
-          .where(
-            and(
-              eq(schema.appointments.tenantId, tenant.id),
-              eq(schema.appointments.chairId, input.chairId),
-              sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
-              sql`${schema.appointments.startTime} < ${end.toISOString()}`,
-              sql`${schema.appointments.endTime} > ${start.toISOString()}`
-            )
+        .select({ id: schema.appointments.id })
+        .from(schema.appointments)
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.chairId, input.chairId),
+            sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+            sql`${schema.appointments.startTime} < ${end.toISOString()}`,
+            sql`${schema.appointments.endTime} > ${start.toISOString()}`
           )
-          .limit(1)
+        )
+        .limit(1)
       : Promise.resolve([]),
 
     // Check general clinic chair capacity if not overbooking
     !isOverbookedRequested
       ? Promise.all([
-          db
-            .select({
-              id: schema.chairs.id,
-              name: schema.chairs.name,
-            })
-            .from(schema.chairs)
-            .where(
-              and(
-                eq(schema.chairs.tenantId, tenant.id),
-                eq(schema.chairs.isActive, true)
-              )
-            ),
-          db
-            .select({
-              id: schema.appointments.id,
-              startTime: schema.appointments.startTime,
-              endTime: schema.appointments.endTime,
-              chairName: schema.chairs.name,
-            })
-            .from(schema.appointments)
-            .leftJoin(schema.chairs, eq(schema.appointments.chairId, schema.chairs.id))
-            .where(
-              and(
-                eq(schema.appointments.tenantId, tenant.id),
-                sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
-                sql`${schema.appointments.startTime} < ${end.toISOString()}`,
-                sql`${schema.appointments.endTime} > ${start.toISOString()}`
-              )
-            ),
-        ])
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(schema.chairs)
+          .where(
+            and(
+              eq(schema.chairs.tenantId, tenant.id),
+              eq(schema.chairs.isActive, true)
+            )
+          ),
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(schema.appointments)
+          .where(
+            and(
+              eq(schema.appointments.tenantId, tenant.id),
+              sql`${schema.appointments.status} NOT IN ('cancelled', 'no_show')`,
+              sql`${schema.appointments.startTime} < ${end.toISOString()}`,
+              sql`${schema.appointments.endTime} > ${start.toISOString()}`
+            )
+          ),
+      ])
       : Promise.resolve(null),
 
     // Check clinic working hours for weekday if not explicitly overbooked
     !isOverbookedRequested
       ? db
-          .select({
-            startTime: schema.tenantWorkingHours.startTime,
-            endTime: schema.tenantWorkingHours.endTime,
-          })
-          .from(schema.tenantWorkingHours)
-          .where(
-            and(
-              eq(schema.tenantWorkingHours.tenantId, tenant.id),
-              eq(schema.tenantWorkingHours.weekday, weekday)
-            )
+        .select({
+          startTime: schema.tenantWorkingHours.startTime,
+          endTime: schema.tenantWorkingHours.endTime,
+        })
+        .from(schema.tenantWorkingHours)
+        .where(
+          and(
+            eq(schema.tenantWorkingHours.tenantId, tenant.id),
+            eq(schema.tenantWorkingHours.weekday, weekday)
           )
+        )
       : Promise.resolve([]),
 
     // Check doctor shift for weekday if not explicitly overbooked
     !isOverbookedRequested
       ? db
-          .select({
-            startTime: schema.doctorSchedules.startTime,
-            endTime: schema.doctorSchedules.endTime,
-          })
-          .from(schema.doctorSchedules)
-          .where(
-            and(
-              eq(schema.doctorSchedules.tenantId, tenant.id),
-              eq(schema.doctorSchedules.doctorId, input.doctorId),
-              eq(schema.doctorSchedules.weekday, weekday)
-            )
+        .select({
+          startTime: schema.doctorSchedules.startTime,
+          endTime: schema.doctorSchedules.endTime,
+        })
+        .from(schema.doctorSchedules)
+        .where(
+          and(
+            eq(schema.doctorSchedules.tenantId, tenant.id),
+            eq(schema.doctorSchedules.doctorId, input.doctorId),
+            eq(schema.doctorSchedules.weekday, weekday)
           )
+        )
       : Promise.resolve([]),
 
     // Fetch selected services
     input.serviceIds.length > 0
       ? db
-          .select()
-          .from(schema.services)
-          .where(
-            and(
-              eq(schema.services.tenantId, tenant.id),
-              inArray(schema.services.id, input.serviceIds)
-            )
+        .select()
+        .from(schema.services)
+        .where(
+          and(
+            eq(schema.services.tenantId, tenant.id),
+            inArray(schema.services.id, input.serviceIds)
           )
+        )
       : Promise.resolve([]),
 
     // Fetch patient info for non-blocking confirmation email
@@ -404,30 +373,22 @@ export async function createStaffAppointmentAction(input: CreateStaffAppointment
   }
 
   if (chairConflict && chairConflict.length > 0) {
-    const c = chairConflict[0];
-    const chairLabel = c.chairName || "Chair 1";
-    const range = c.startTime && c.endTime ? ` ${formatShortDhakaRange(c.startTime, c.endTime)}` : "";
     return {
       success: false,
       error: "CHAIR_OVERLAP",
-      message: `${chairLabel} is in use${range}. Overbook to proceed anyway.`,
+      message: "The selected dental chair is already booked for another appointment during this time. Choose another chair or overbook.",
     };
   }
 
   if (chairCapacityCheck) {
-    const [chairsList, activeApts] = chairCapacityCheck;
-    const totalActiveChairs = chairsList.length;
-    const concurrentApts = activeApts.length;
+    const [totalChairsRes, activeAptsRes] = chairCapacityCheck;
+    const totalActiveChairs = Number(totalChairsRes[0]?.count || 0);
+    const concurrentApts = Number(activeAptsRes[0]?.count || 0);
     if (totalActiveChairs > 0 && concurrentApts >= totalActiveChairs) {
-      const firstConflict = activeApts[0];
-      const chairLabel = firstConflict?.chairName || (totalActiveChairs === 1 ? (chairsList[0]?.name || "Chair 1") : "All dental chairs");
-      const range = firstConflict?.startTime && firstConflict?.endTime
-        ? ` ${formatShortDhakaRange(firstConflict.startTime, firstConflict.endTime)}`
-        : "";
       return {
         success: false,
         error: "CHAIR_CAPACITY_EXCEEDED",
-        message: `${chairLabel} is in use${range}. Overbook to proceed anyway.`,
+        message: `All ${totalActiveChairs} dental chair(s) are occupied during this time window. Overbook to proceed anyway.`,
       };
     }
   }

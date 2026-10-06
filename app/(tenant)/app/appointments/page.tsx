@@ -25,9 +25,9 @@ export default async function AppointmentsPage({ searchParams }: Props) {
 
   const canPrescribe = Boolean(
     (user.isDoctor ||
-    user.role === "DOCTOR" ||
-    user.role === "TENANT_ADMIN" ||
-    user.role === "SUPER_ADMIN") &&
+      user.role === "DOCTOR" ||
+      user.role === "TENANT_ADMIN" ||
+      user.role === "SUPER_ADMIN") &&
     user.role !== "RECEPTIONIST"
   );
 
@@ -69,7 +69,6 @@ export default async function AppointmentsPage({ searchParams }: Props) {
         startTime: schema.appointments.startTime,
         endTime: schema.appointments.endTime,
         status: schema.appointments.status,
-        source: schema.appointments.source,
         isOverbooked: schema.appointments.isOverbooked,
         notes: schema.appointments.notes,
         patientId: schema.appointments.patientId,
@@ -160,7 +159,6 @@ export default async function AppointmentsPage({ searchParams }: Props) {
     queueStatus: apt.queueStatus as any,
     serialNo: apt.serialNo,
     serialCode: apt.serialCode,
-    source: apt.source,
     isOverbooked: apt.isOverbooked,
     notes: apt.notes,
     patientId: apt.patientId || "",

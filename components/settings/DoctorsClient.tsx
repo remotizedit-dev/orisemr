@@ -19,7 +19,6 @@ import {
   Award,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDoctorName } from "@/lib/utils";
 import {
   addDoctorAction,
   updateDoctorAction,
@@ -352,7 +351,7 @@ export default function DoctorsClient({
   async function handleDeleteDoctor(doc: Doctor) {
     if (
       !confirm(
-        `Are you sure you want to remove ${formatDoctorName(doc.name, doc.doctorTitle)}? They will be marked inactive.`
+        `Are you sure you want to remove ${doc.doctorTitle || "Dr."} ${doc.name}? They will be marked inactive.`
       )
     ) {
       return;
@@ -455,7 +454,7 @@ export default function DoctorsClient({
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-extrabold text-[#1C1C1E] tracking-tight">
-                        {formatDoctorName(doc.name, doc.doctorTitle)}
+                        {doc.doctorTitle || "Dr."} {doc.name}
                       </span>
                       {doc.doctorDegrees && (
                         <span className="text-[11px] font-semibold text-[#2A5CAA] bg-[#E8EEF7] px-2 py-0.5 rounded-full">
@@ -463,11 +462,10 @@ export default function DoctorsClient({
                         </span>
                       )}
                       <span
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          doc.status === "active"
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${doc.status === "active"
                             ? "bg-[#30D158]/15 text-[#248A3D]"
                             : "bg-[#8E8E93]/15 text-[#636366]"
-                        }`}
+                          }`}
                       >
                         {doc.status}
                       </span>
@@ -502,11 +500,10 @@ export default function DoctorsClient({
                       return (
                         <span
                           key={index}
-                          className={`w-6 h-6 rounded-md text-[10px] font-bold flex items-center justify-center transition ${
-                            isWorking
+                          className={`w-6 h-6 rounded-md text-[10px] font-bold flex items-center justify-center transition ${isWorking
                               ? "bg-[#2A5CAA] text-white shadow-2xs"
                               : "bg-[#F4F4F5] text-[#A1A1AA] border border-[#E4E4E7]/60"
-                          }`}
+                            }`}
                           title={
                             isWorking
                               ? `${WEEKDAYS[index].label}: Active Shift`
@@ -704,11 +701,10 @@ export default function DoctorsClient({
                       key={color}
                       type="button"
                       onClick={() => setAddColor(color)}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${
-                        addColor === color
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${addColor === color
                           ? "ring-2 ring-offset-2 ring-[#2A5CAA] scale-110"
                           : "opacity-80 hover:opacity-100"
-                      }`}
+                        }`}
                       style={{ backgroundColor: color }}
                     >
                       {addColor === color && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
@@ -855,11 +851,10 @@ export default function DoctorsClient({
                       key={color}
                       type="button"
                       onClick={() => setEditColor(color)}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${
-                        editColor === color
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${editColor === color
                           ? "ring-2 ring-offset-2 ring-[#2A5CAA] scale-110"
                           : "opacity-80 hover:opacity-100"
-                      }`}
+                        }`}
                       style={{ backgroundColor: color }}
                     >
                       {editColor === color && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
@@ -898,7 +893,7 @@ export default function DoctorsClient({
               <div>
                 <h3 className="text-base font-bold text-[#1C1C1E] flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#2A5CAA]" />
-                  Slot Schedule: {formatDoctorName(schedulingDoctor.name, schedulingDoctor.doctorTitle)}
+                  Slot Schedule: {schedulingDoctor.doctorTitle || "Dr."} {schedulingDoctor.name}
                 </h3>
                 <p className="text-xs text-[#6B7280]">
                   Configure shift time windows for online booking and queue scheduling.
@@ -938,11 +933,10 @@ export default function DoctorsClient({
                   return (
                     <div
                       key={index}
-                      className={`p-3 rounded-xl border transition ${
-                        dayConfig.enabled
+                      className={`p-3 rounded-xl border transition ${dayConfig.enabled
                           ? "bg-white border-[#2A5CAA]/30 shadow-2xs space-y-2.5"
                           : "bg-white/50 border-[#E4E4E7]/60 opacity-60"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <label className="flex items-center gap-2.5 cursor-pointer">

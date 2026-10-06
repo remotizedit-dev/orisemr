@@ -63,10 +63,7 @@ export async function registerPatientAction(input: RegisterPatientInput) {
 
   const normalizedPhone = normalizeBdPhone(input.phone);
   if (!normalizedPhone) {
-    return {
-      success: false,
-      error: "Invalid Bangladeshi phone number (must be 01XXXXXXXXX)",
-    };
+    throw new Error("Invalid Bangladeshi phone number (must be 01XXXXXXXXX)");
   }
 
   let finalCardNumber = input.cardNumber?.trim();
@@ -76,10 +73,7 @@ export async function registerPatientAction(input: RegisterPatientInput) {
     const cleanDigits = finalCardNumber.replace(/\D/g, "");
     const minLen = tenant.patientIdMinLen || 10;
     if (cleanDigits.length < minLen) {
-      return {
-        success: false,
-        error: `Patient Card ID must be at least ${minLen} digits.`,
-      };
+      throw new Error(`Patient Card ID must be at least ${minLen} digits.`);
     }
   }
 
@@ -120,10 +114,7 @@ export async function registerPatientAction(input: RegisterPatientInput) {
     .limit(1);
 
   if (existingCard) {
-    return {
-      success: false,
-      error: `Card number ${finalCardNumber} is already assigned to ${existingCard.name}`,
-    };
+    throw new Error(`Card number ${finalCardNumber} is already assigned to ${existingCard.name}`);
   }
 
   const [patient] = await db

@@ -88,28 +88,28 @@ export async function sendBroadcastAction(input: SendBroadcastInput) {
       })
       .returning({ id: schema.platformBroadcasts.id });
 
-    // 4. Send In-App Notifications
-    if (input.sendInApp) {
-      for (const u of targetUsers) {
-        await tx.insert(schema.notifications).values({
+    // 4. Send In-App Notifications (Batch Insert)
+    if (input.sendInApp && targetUsers.length > 0) {
+      await tx.insert(schema.notifications).values(
+        targetUsers.map((u) => ({
           userId: u.id,
           tenantId: u.tenantId || null,
           type: "PLATFORM_BROADCAST",
           title: input.title.trim(),
           body: input.body.trim(),
           broadcastId: broadcast.id,
-        });
-      }
+        }))
+      );
     }
 
-    // 5. Send Emails to Target Users / Tenant Admins
+    // 5. Send Emails to Target Users / Tenant Admins (Batch Insert Queue)
     if (input.sendEmail) {
-      for (const u of targetUsers) {
-        if (!u.email) continue;
+      const emailUsers = targetUsers.filter((u) => Boolean(u.email));
 
+      for (const u of emailUsers) {
         // Dispatch email directly in background
         sendEmailInBackground({
-          to: u.email.trim(),
+          to: u.email!.trim(),
           subject: `[Oris Platform Announcement] ${input.title.trim()}`,
           html: renderBroadcastAnnouncementHtml({
             recipientName: u.name,
@@ -117,22 +117,25 @@ export async function sendBroadcastAction(input: SendBroadcastInput) {
             message: input.body.trim(),
           }),
         });
+      }
 
-        // Record in email queue audit table
-        await tx.insert(schema.emailQueue).values({
-          tenantId: u.tenantId || null,
-          toEmail: u.email.trim(),
-          subject: `[Oris Platform Announcement] ${input.title.trim()}`,
-          templateKey: "platform_broadcast",
-          payload: {
-            title: input.title.trim(),
-            message: input.body.trim(),
-            recipientName: u.name,
-          },
-          status: "sent",
-          sentAt: new Date(),
-          dedupeKey: `broadcast_${broadcast.id}_${u.id}`,
-        });
+      if (emailUsers.length > 0) {
+        await tx.insert(schema.emailQueue).values(
+          emailUsers.map((u) => ({
+            tenantId: u.tenantId || null,
+            toEmail: u.email!.trim(),
+            subject: `[Oris Platform Announcement] ${input.title.trim()}`,
+            templateKey: "platform_broadcast",
+            payload: {
+              title: input.title.trim(),
+              message: input.body.trim(),
+              recipientName: u.name,
+            },
+            status: "sent" as const,
+            sentAt: new Date(),
+            dedupeKey: `broadcast_${broadcast.id}_${u.id}`,
+          }))
+        );
       }
     }
   });

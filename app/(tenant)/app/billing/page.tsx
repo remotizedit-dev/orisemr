@@ -210,14 +210,14 @@ export default async function BillingPage() {
 
   const myStats = isDoctor
     ? doctorBreakdown.find((d) => d.doctorId === user.id) || {
-        doctorId: user.id,
-        doctorName: formatDoctorName(user.name),
-        uniquePatients: 0,
-        totalBilledBdt: 0,
-        totalCollectedBdt: 0,
-        totalDueBdt: 0,
-        invoicesCount: 0,
-      }
+      doctorId: user.id,
+      doctorName: formatDoctorName(user.name),
+      uniquePatients: 0,
+      totalBilledBdt: 0,
+      totalCollectedBdt: 0,
+      totalDueBdt: 0,
+      invoicesCount: 0,
+    }
     : null;
 
   // Pure doctors only see invoices for patients they served
@@ -419,9 +419,8 @@ export default async function BillingPage() {
                     return (
                       <tr
                         key={doc.doctorId}
-                        className={`hover:bg-[#F8FAFC] transition ${
-                          isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
-                        }`}
+                        className={`hover:bg-[#F8FAFC] transition ${isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
+                          }`}
                       >
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
@@ -523,9 +522,8 @@ export default async function BillingPage() {
                       return (
                         <tr
                           key={rec.userId}
-                          className={`hover:bg-[#F8FAFC] transition ${
-                            isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
-                          }`}
+                          className={`hover:bg-[#F8FAFC] transition ${isMe ? "bg-[#EBF2FC]/40 font-semibold" : ""
+                            }`}
                         >
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-2">
@@ -571,7 +569,6 @@ export default async function BillingPage() {
         doctors={clinicDoctors}
         currentUserId={user.id}
         isDoctor={isDoctor}
-        isAdmin={user.role === "TENANT_ADMIN" || user.role === "SUPER_ADMIN"}
       />
     </div>
   );

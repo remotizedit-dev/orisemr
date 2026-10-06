@@ -89,11 +89,11 @@ export default function NewAppointmentClient({
   const [selectedPatient, setSelectedPatient] = useState<PatientMatch | null>(
     initialPatientId
       ? {
-          id: initialPatientId,
-          name: initialPatientName || "",
-          phone: "",
-          cardNumber: initialPatientCard || "",
-        }
+        id: initialPatientId,
+        name: initialPatientName || "",
+        phone: "",
+        cardNumber: initialPatientCard || "",
+      }
       : null
   );
   const [isQuickRegisterOpen, setIsQuickRegisterOpen] = useState(false);
@@ -133,7 +133,6 @@ export default function NewAppointmentClient({
 
   // Overbooking override
   const [isOverbookingModalOpen, setIsOverbookingModalOpen] = useState(false);
-  const [conflictMessage, setConflictMessage] = useState("");
   const [customStartTime, setCustomStartTime] = useState("10:00");
   const [customEndTime, setCustomEndTime] = useState("10:30");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -252,6 +251,7 @@ export default function NewAppointmentClient({
       startTime = now.toISOString();
       endTime = new Date(now.getTime() + durationMs).toISOString();
       docId = selectedDoctorId === "any" ? (doctors[0]?.id || "") : selectedDoctorId;
+      isOverbooked = true;
     }
 
     if (isOverbooked && (!startTime || !endTime)) {
@@ -285,20 +285,9 @@ export default function NewAppointmentClient({
         checkInImmediately: selectedDate === todayDhakaStr && checkInImmediately,
       });
 
-      if (!res.success) {
-        if (
-          res.error === "OVERLAP" ||
-          res.error === "CHAIR_OVERLAP" ||
-          res.error === "CHAIR_CAPACITY_EXCEEDED" ||
-          res.error === "OUTSIDE_HOURS"
-        ) {
-          const msg = res.message || "Time conflict detected. Use Overbook Override to proceed.";
-          setConflictMessage(msg);
-          setIsOverbookingModalOpen(true);
-          toast.warning(msg);
-          return;
-        }
-        toast.error(res.message || res.error || "Failed to book appointment");
+      if (res.error === "OVERLAP" || res.error === "OUTSIDE_HOURS") {
+        setIsOverbookingModalOpen(true);
+        toast.warning(res.message || "Time is outside doctor working hours. Use Overbook Override to proceed.");
         return;
       }
 
@@ -493,11 +482,10 @@ export default function NewAppointmentClient({
                       key={s.id}
                       type="button"
                       onClick={() => toggleService(s.id)}
-                      className={`p-2.5 rounded-xl border text-left transition flex items-start justify-between cursor-pointer ${
-                        isSelected
+                      className={`p-2.5 rounded-xl border text-left transition flex items-start justify-between cursor-pointer ${isSelected
                           ? "bg-[#EBF2FC] border-[#2A5CAA] text-[#1C1C1E]"
                           : "bg-white border-[#E4E4E7] hover:border-[#2A5CAA]/40 text-[#6B7280]"
-                      }`}
+                        }`}
                     >
                       <div>
                         <span className="font-bold text-xs block text-[#1C1C1E]">
@@ -582,11 +570,10 @@ export default function NewAppointmentClient({
                       key={`${slot.startTime}-${slot.doctorId}`}
                       type="button"
                       onClick={() => setSelectedSlot(slot)}
-                      className={`p-2 rounded-xl border text-center transition ${
-                        isSelected
+                      className={`p-2 rounded-xl border text-center transition ${isSelected
                           ? "bg-[#2A5CAA] text-white border-[#2A5CAA] shadow-xs"
                           : "bg-white border-[#E4E4E7] hover:border-[#2A5CAA] text-[#1C1C1E]"
-                      }`}
+                        }`}
                     >
                       <span className="font-extrabold text-xs block">
                         {slot.displayTime}
@@ -809,11 +796,6 @@ export default function NewAppointmentClient({
               </h3>
             </div>
             <p className="text-xs text-[#6B7280]">
-              {conflictMessage ? (
-                <span className="font-semibold text-amber-900 block mb-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200">
-                  {conflictMessage}
-                </span>
-              ) : null}
               You are manually scheduling an appointment outside default calculated slot windows or over an existing slot. This appointment will be marked as{" "}
               <strong className="text-[#FF453A]">overbooked</strong>.
             </p>

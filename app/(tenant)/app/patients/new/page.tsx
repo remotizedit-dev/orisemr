@@ -24,7 +24,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { toast } from "sonner";
-import { normalizeBdPhone, formatDoctorName } from "@/lib/utils";
+import { normalizeBdPhone } from "@/lib/utils";
 
 export default function NewPatientPage() {
   const router = useRouter();
@@ -49,7 +49,7 @@ export default function NewPatientPage() {
   useEffect(() => {
     getTenantDoctorsAction()
       .then(setDoctors)
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,7 +84,7 @@ export default function NewPatientPage() {
       } else {
         setDuplicateWarning(null);
       }
-    } catch {}
+    } catch { }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,14 +98,6 @@ export default function NewPatientPage() {
     if (!normalizedPhone) {
       toast.error("Please enter a valid 11-digit Bangladeshi phone number (e.g. 017XXXXXXXX)");
       return;
-    }
-
-    if (cardNumber.trim()) {
-      const cleanDigits = cardNumber.replace(/\D/g, "");
-      if (cleanDigits.length < 10) {
-        toast.error("Patient Card ID must be at least 10 digits.");
-        return;
-      }
     }
 
     setIsSubmitting(true);
@@ -127,13 +119,6 @@ export default function NewPatientPage() {
         medicalNotes: medicalNotes.trim() || undefined,
         assignedDoctorId: assignedDoctorId || undefined,
       });
-
-      if (!res.success) {
-        toast.error(res.error || "Failed to register patient");
-        setIsSubmitting(false);
-        return;
-      }
-
       toast.success("Patient registered successfully!");
       if (res?.emailDispatched) {
         toast.info("Welcome details and card registration email are being sent in the background.");
@@ -267,7 +252,7 @@ export default function NewPatientPage() {
                 <option value="">Auto-assign or General Chamber</option>
                 {doctors.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {formatDoctorName(d.name)}
+                    Dr. {d.name}
                   </option>
                 ))}
               </select>
@@ -357,11 +342,10 @@ export default function NewPatientPage() {
                     key={flag}
                     type="button"
                     onClick={() => toggleAllergy(flag)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
-                      active
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${active
                         ? "bg-[#FF453A] text-white border-[#FF453A] shadow-xs"
                         : "bg-white text-[#1C1C1E] border-[#E4E4E7] hover:border-[#FF453A]/50"
-                    }`}
+                      }`}
                   >
                     {active && "✓ "}
                     {flag}
@@ -384,11 +368,10 @@ export default function NewPatientPage() {
                     key={cond}
                     type="button"
                     onClick={() => toggleCondition(cond)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
-                      active
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${active
                         ? "bg-[#FF9F0A] text-white border-[#FF9F0A] shadow-xs"
                         : "bg-white text-[#1C1C1E] border-[#E4E4E7] hover:border-[#FF9F0A]/50"
-                    }`}
+                      }`}
                   >
                     {active && "✓ "}
                     {cond}

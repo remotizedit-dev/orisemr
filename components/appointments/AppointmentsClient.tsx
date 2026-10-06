@@ -40,7 +40,6 @@ interface AppointmentItem {
   queueStatus?: "booked" | "waiting" | "in_chair" | "billing" | "done" | null;
   serialNo?: number | null;
   serialCode?: string | null;
-  source?: string;
   isOverbooked: boolean;
   notes: string | null;
   patientId: string;
@@ -188,8 +187,8 @@ export default function AppointmentsClient({
             ? `Patient Checked-In! Assigned Token #${serial}`
             : "Patient Checked-In"
           : target === "in_chair"
-          ? "Seated in Chair"
-          : "Treatment Completed";
+            ? "Seated in Chair"
+            : "Treatment Completed";
       toast.success(label);
       router.refresh();
     } catch (err: any) {
@@ -216,7 +215,7 @@ export default function AppointmentsClient({
           </p>
         </div>
 
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
           {/* Date Picker & Controls */}
           <div className="flex items-center bg-white border border-[#E4E4E7] rounded-2xl p-1.5 shadow-2xs">
             <button
@@ -258,11 +257,10 @@ export default function AppointmentsClient({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => handleSelectDoctor("all")}
-            className={`px-3.5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${
-              selectedDoctorId === "all"
+            className={`px-3.5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${selectedDoctorId === "all"
                 ? "bg-[#2A5CAA] text-white shadow-xs"
                 : "bg-white/60 text-[#4B5563] hover:bg-white border border-transparent hover:border-[#E4E4E7]"
-            }`}
+              }`}
           >
             All Dentists ({appointments.length})
           </button>
@@ -272,11 +270,10 @@ export default function AppointmentsClient({
               <button
                 key={doc.id}
                 onClick={() => handleSelectDoctor(doc.id)}
-                className={`px-3.5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${
-                  selectedDoctorId === doc.id
+                className={`px-3.5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${selectedDoctorId === doc.id
                     ? "bg-[#2A5CAA] text-white shadow-xs"
                     : "bg-white/60 text-[#4B5563] hover:bg-white border border-transparent hover:border-[#E4E4E7]"
-                }`}
+                  }`}
               >
                 {formatDoctorName(doc.name)} ({count})
               </button>
@@ -300,19 +297,17 @@ export default function AppointmentsClient({
                 <button
                   key={st}
                   onClick={() => handleSelectStatus(st)}
-                  className={`px-3 py-1.5 rounded-xl font-bold capitalize transition cursor-pointer flex items-center gap-1.5 ${
-                    statusFilter === st
+                  className={`px-3 py-1.5 rounded-xl font-bold capitalize transition cursor-pointer flex items-center gap-1.5 ${statusFilter === st
                       ? "bg-white text-[#1C1C1E] shadow-2xs"
                       : "text-[#6B7280] hover:text-[#1C1C1E]"
-                  }`}
+                    }`}
                 >
                   <span>{st}</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                      statusFilter === st
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${statusFilter === st
                         ? "bg-[#2A5CAA] text-white"
                         : "bg-black/5 text-[#6B7280]"
-                    }`}
+                      }`}
                   >
                     {count}
                   </span>
@@ -390,31 +385,26 @@ export default function AppointmentsClient({
                         {apt.patientPhone}
                       </span>
 
-                      {/* Walk-in or Overbooked Badge */}
-                      {apt.source === "walk_in" ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                          <span>Walk-in</span>
-                        </span>
-                      ) : apt.isOverbooked ? (
+                      {/* Overbooked Badge */}
+                      {apt.isOverbooked && (
                         <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FFEBEA] text-[#FF453A] border border-[#FF453A]/20">
                           <AlertTriangle className="w-3 h-3" />
                           <span>Overbooked</span>
                         </span>
-                      ) : null}
+                      )}
 
                       {/* Status Badge */}
                       <span
-                        className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full uppercase ${
-                          apt.status === "completed" || apt.queueStatus === "done"
+                        className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full uppercase ${apt.status === "completed" || apt.queueStatus === "done"
                             ? "bg-[#E8F8EE] text-[#30D158]"
                             : apt.status === "confirmed"
-                            ? "bg-[#EBF2FC] text-[#2A5CAA]"
-                            : apt.status === "pending"
-                            ? "bg-[#FFF7EB] text-[#FF9F0A]"
-                            : apt.status === "cancelled"
-                            ? "bg-[#FFEBEA] text-[#FF453A]"
-                            : "bg-[#F4F4F5] text-[#6B7280]"
-                        }`}
+                              ? "bg-[#EBF2FC] text-[#2A5CAA]"
+                              : apt.status === "pending"
+                                ? "bg-[#FFF7EB] text-[#FF9F0A]"
+                                : apt.status === "cancelled"
+                                  ? "bg-[#FFEBEA] text-[#FF453A]"
+                                  : "bg-[#F4F4F5] text-[#6B7280]"
+                          }`}
                       >
                         {apt.status === "completed" || apt.queueStatus === "done"
                           ? "completed"
@@ -560,15 +550,15 @@ export default function AppointmentsClient({
                   {apt.status !== "completed" &&
                     apt.queueStatus !== "done" &&
                     apt.status !== "cancelled" && (
-                    <button
-                      onClick={() => setCancellingId(apt.id)}
-                      disabled={isUpdating}
-                      className="p-2 rounded-xl hover:bg-[#FFEBEA] text-[#6B7280] hover:text-[#FF453A] transition cursor-pointer"
-                      title="Cancel Appointment"
-                    >
-                      <XCircle className="w-5 h-5" />
-                    </button>
-                  )}
+                      <button
+                        onClick={() => setCancellingId(apt.id)}
+                        disabled={isUpdating}
+                        className="p-2 rounded-xl hover:bg-[#FFEBEA] text-[#6B7280] hover:text-[#FF453A] transition cursor-pointer"
+                        title="Cancel Appointment"
+                      >
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    )}
                 </div>
               </div>
             );
