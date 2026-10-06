@@ -61,6 +61,7 @@ export function PublicBookingClient({
   services,
   doctors,
 }: PublicBookingClientProps) {
+  const brandColor = tenant.brandColor || "#2A5CAA";
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   const todayStr = useMemo(() => getDhakaTodayStr(), []);
@@ -244,7 +245,7 @@ export function PublicBookingClient({
           <span className="text-xs text-[#6B7280] block uppercase tracking-wider">
             Appointment Reference Code:
           </span>
-          <span className="text-xl font-black text-[#2A5CAA]">
+          <span className="text-xl font-black" style={{ color: brandColor }}>
             {confirmedBooking.appointmentCode}
           </span>
         </div>
@@ -270,19 +271,19 @@ export function PublicBookingClient({
     <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-[#E4E4E7] space-y-6">
       {/* Step Indicators */}
       <div className="flex items-center justify-between pb-4 border-b border-[#E4E4E7] text-xs font-semibold">
-        <span className={step >= 1 ? "text-[#2A5CAA]" : "text-[#6B7280]"}>
+        <span style={step >= 1 ? { color: brandColor } : undefined} className={step >= 1 ? "font-bold" : "text-[#6B7280]"}>
           1. Services
         </span>
-        <span>→</span>
-        <span className={step >= 2 ? "text-[#2A5CAA]" : "text-[#6B7280]"}>
+        <span className="text-[#A1A1AA]">→</span>
+        <span style={step >= 2 ? { color: brandColor } : undefined} className={step >= 2 ? "font-bold" : "text-[#6B7280]"}>
           2. Dentist &amp; Date
         </span>
-        <span>→</span>
-        <span className={step >= 3 ? "text-[#2A5CAA]" : "text-[#6B7280]"}>
+        <span className="text-[#A1A1AA]">→</span>
+        <span style={step >= 3 ? { color: brandColor } : undefined} className={step >= 3 ? "font-bold" : "text-[#6B7280]"}>
           3. Time Slot
         </span>
-        <span>→</span>
-        <span className={step >= 4 ? "text-[#2A5CAA]" : "text-[#6B7280]"}>
+        <span className="text-[#A1A1AA]">→</span>
+        <span style={step >= 4 ? { color: brandColor } : undefined} className={step >= 4 ? "font-bold" : "text-[#6B7280]"}>
           4. Contact Details
         </span>
       </div>
@@ -307,9 +308,10 @@ export function PublicBookingClient({
                   key={s.id}
                   type="button"
                   onClick={() => toggleService(s.id)}
+                  style={active ? { borderColor: brandColor, backgroundColor: `${brandColor}10` } : undefined}
                   className={`p-3.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
                     active
-                      ? "border-[#2A5CAA] bg-[#E8EEF7]/50 shadow-xs"
+                      ? "shadow-xs"
                       : "border-[#E4E4E7] bg-white hover:bg-[#F4F4F5]"
                   }`}
                 >
@@ -321,7 +323,7 @@ export function PublicBookingClient({
                       ~{s.durationMinutes} mins
                     </span>
                   </div>
-                  {active && <Check className="w-4 h-4 text-[#2A5CAA]" />}
+                  {active && <Check className="w-4 h-4" style={{ color: brandColor }} />}
                 </button>
               );
             })}
@@ -331,7 +333,8 @@ export function PublicBookingClient({
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="px-6 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs transition cursor-pointer"
+              style={{ backgroundColor: brandColor }}
+              className="px-6 py-2.5 rounded-xl text-white font-semibold text-xs transition hover:opacity-90 cursor-pointer shadow-xs"
             >
               Continue to Date Selection →
             </button>
@@ -360,9 +363,14 @@ export function PublicBookingClient({
               <button
                 type="button"
                 onClick={() => setSelectedDoctorId("any")}
+                style={
+                  selectedDoctorId === "any"
+                    ? { borderColor: brandColor, backgroundColor: `${brandColor}12`, color: brandColor }
+                    : undefined
+                }
                 className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer ${
                   selectedDoctorId === "any"
-                    ? "border-[#2A5CAA] bg-[#E8EEF7] font-bold text-[#2A5CAA]"
+                    ? "font-bold"
                     : "border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#1C1C1E]"
                 }`}
               >
@@ -377,9 +385,14 @@ export function PublicBookingClient({
                   key={d.id}
                   type="button"
                   onClick={() => setSelectedDoctorId(d.id)}
+                  style={
+                    selectedDoctorId === d.id
+                      ? { borderColor: brandColor, backgroundColor: `${brandColor}12`, color: brandColor }
+                      : undefined
+                  }
                   className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer ${
                     selectedDoctorId === d.id
-                      ? "border-[#2A5CAA] bg-[#E8EEF7] font-bold text-[#2A5CAA]"
+                      ? "font-bold"
                       : "border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#1C1C1E]"
                   }`}
                 >
@@ -420,7 +433,8 @@ export function PublicBookingClient({
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="px-6 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+              style={{ backgroundColor: brandColor }}
+              className="px-6 py-2.5 rounded-xl text-white font-semibold text-xs transition hover:opacity-90 cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
               <span>Find Available Times</span>
               <span>→</span>
@@ -525,10 +539,15 @@ export function PublicBookingClient({
                       onClick={() =>
                         setSelectedSlot({ time: s.time, doctorId: s.doctorId })
                       }
+                      style={
+                        active
+                          ? { backgroundColor: brandColor, borderColor: brandColor }
+                          : undefined
+                      }
                       className={`py-2.5 px-3 rounded-xl border text-center transition font-mono text-xs cursor-pointer shadow-2xs ${
                         active
-                          ? "bg-[#2A5CAA] text-white border-[#2A5CAA] font-bold shadow-xs scale-102"
-                          : "bg-white border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#E8EEF7] hover:border-[#2A5CAA]/30"
+                          ? "text-white font-bold shadow-xs scale-102"
+                          : "bg-white border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#E8EEF7]"
                       }`}
                     >
                       {s.displayTime}
@@ -551,7 +570,8 @@ export function PublicBookingClient({
               type="button"
               disabled={!selectedSlot}
               onClick={() => setStep(4)}
-              className="px-6 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs transition disabled:opacity-50 cursor-pointer"
+              style={{ backgroundColor: brandColor }}
+              className="px-6 py-2.5 rounded-xl text-white font-semibold text-xs transition disabled:opacity-50 hover:opacity-90 cursor-pointer shadow-xs"
             >
               Enter Contact Details →
             </button>
@@ -629,7 +649,8 @@ export function PublicBookingClient({
                     handleCardLookup(cardNumber, phone);
                   }}
                   disabled={isLookingUpCard || !cardNumber.trim()}
-                  className="absolute right-1.5 top-1.5 px-2.5 py-1 rounded bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-[11px] font-bold transition disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                  style={{ backgroundColor: brandColor }}
+                  className="absolute right-1.5 top-1.5 px-2.5 py-1 rounded text-white text-[11px] font-bold transition disabled:opacity-50 hover:opacity-90 flex items-center gap-1 cursor-pointer"
                 >
                   {isLookingUpCard ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -754,7 +775,8 @@ export function PublicBookingClient({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-3 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-xs flex items-center gap-2 shadow-md transition disabled:opacity-50 cursor-pointer"
+              style={{ backgroundColor: brandColor }}
+              className="px-6 py-3 rounded-xl text-white font-bold text-xs flex items-center gap-2 shadow-md transition disabled:opacity-50 hover:opacity-90 cursor-pointer"
             >
               {isSubmitting ? (
                 <>

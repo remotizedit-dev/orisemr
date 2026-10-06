@@ -14,9 +14,13 @@ import {
 
 interface TenantSidebarNavProps {
   userRole: string;
+  brandColor?: string | null;
 }
 
-export function TenantSidebarNav({ userRole }: TenantSidebarNavProps) {
+export function TenantSidebarNav({
+  userRole,
+  brandColor = "#2A5CAA",
+}: TenantSidebarNavProps) {
   const pathname = usePathname();
 
   const navItems = [
@@ -78,9 +82,10 @@ export function TenantSidebarNav({ userRole }: TenantSidebarNavProps) {
             prefetch={false}
             className={`flex items-center justify-between px-3.5 py-3 rounded-2xl text-sm font-bold transition ${
               isActive
-                ? "bg-[#2A5CAA] text-white shadow-sm"
+                ? "text-white shadow-sm"
                 : "text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#F4F4F5]"
             }`}
+            style={isActive ? { backgroundColor: brandColor || "#2A5CAA" } : undefined}
           >
             <div className="flex items-center gap-3.5 min-w-0">
               <Icon

@@ -12,6 +12,16 @@ import {
   Lock,
   ShieldAlert,
   Users,
+  CheckCircle2,
+  Printer,
+  FileText,
+  CreditCard,
+  Monitor,
+  Globe,
+  Palette,
+  Sparkles,
+  Info,
+  LayoutDashboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -146,19 +156,26 @@ export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props)
   return (
     <form onSubmit={handleSave} className="space-y-6">
       {/* Clinic Logo & Branding */}
-      <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-[#1C1C1E] uppercase tracking-wider">
-            Clinic Logo &amp; Branding
-          </h3>
-          <p className="text-xs text-[#6B7280]">
-            This logo will automatically appear on printed prescriptions, billing invoices/receipts, and automated patient emails.
-          </p>
+      <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-[#2A5CAA]" />
+              <span>Chamber Logo &amp; Official Branding</span>
+            </h3>
+            <p className="text-xs text-[#6B7280] mt-0.5">
+              Your official chamber logo printed on prescriptions, billing invoices, and displayed across your digital clinic portals.
+            </p>
+          </div>
+          <span className="self-start sm:self-auto text-[11px] font-mono font-bold bg-[#E8EEF7] text-[#2A5CAA] px-2.5 py-1 rounded-lg">
+            Tenant: {tenant.name}
+          </span>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 pt-1">
-          {/* Logo Preview Card */}
-          <div className="w-40 h-24 rounded-2xl border-2 border-dashed border-[#CBD5E1] bg-white flex flex-col items-center justify-center p-2 relative overflow-hidden shrink-0 shadow-2xs group">
+        {/* Logo Preview & Action Row */}
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 p-4 rounded-xl bg-white border border-[#E4E4E7]">
+          {/* Logo Preview Frame */}
+          <div className="w-44 h-28 rounded-2xl border-2 border-dashed border-[#CBD5E1] bg-[#F9FAFB] flex flex-col items-center justify-center p-3 relative overflow-hidden shrink-0 shadow-2xs group">
             {logoPreview ? (
               <img
                 src={logoPreview}
@@ -175,8 +192,9 @@ export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props)
               />
             ) : (
               <div className="text-center text-[#9CA3AF] space-y-1">
-                <ImageIcon className="w-7 h-7 mx-auto stroke-1" />
-                <span className="text-[10px] font-semibold block">No Logo Set</span>
+                <ImageIcon className="w-8 h-8 mx-auto stroke-1" />
+                <span className="text-[11px] font-semibold block">No Logo Uploaded</span>
+                <span className="text-[9px] text-[#A1A1AA] block">Using initials fallback</span>
               </div>
             )}
 
@@ -187,12 +205,12 @@ export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props)
             )}
           </div>
 
-          {/* Upload Controls */}
-          <div className="space-y-2.5 flex-1 text-center sm:text-left">
+          {/* Action buttons & specifications */}
+          <div className="space-y-3 flex-1 text-center sm:text-left">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-              <label className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer">
-                <Upload className="w-3.5 h-3.5" />
-                <span>{logoKey ? "Change Logo" : "Upload Clinic Logo"}</span>
+              <label className="px-4 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-2 shadow-2xs transition cursor-pointer">
+                <Upload className="w-4 h-4" />
+                <span>{logoKey ? "Change Chamber Logo" : "Upload Chamber Logo"}</span>
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/svg+xml"
@@ -207,20 +225,94 @@ export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props)
                   type="button"
                   onClick={handleRemoveLogo}
                   disabled={isUploadingLogo}
-                  className="px-3 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  className="px-3.5 py-2.5 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Remove</span>
+                  <span>Remove Logo</span>
                 </button>
               )}
             </div>
 
-            <p className="text-[11px] text-[#6B7280]">
-              Recommended: Crisp square or horizontal logo (PNG, JPG, or SVG) with transparent or white background. Max 5 MB.
-            </p>
+            {/* Dimension & File Size Specifications Box */}
+            <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-1.5 text-left">
+              <span className="text-[11px] font-bold text-[#1E293B] flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                <span>Recommended Image &amp; File Specifications:</span>
+              </span>
+              <ul className="text-[11px] text-[#475569] space-y-1 pl-4 list-disc marker:text-[#2A5CAA]">
+                <li>
+                  <strong>Dimensions:</strong> <strong>400 × 120 px</strong> for horizontal letterhead (prescription/invoice) or <strong>400 × 400 px</strong> for square/crest icons. Minimum height 60 px.
+                </li>
+                <li>
+                  <strong>File Size:</strong> Maximum <strong>5 MB</strong>.
+                </li>
+                <li>
+                  <strong>Formats:</strong> <strong>PNG</strong> (transparent background strongly recommended for crisp high-DPI print reproduction), <strong>SVG</strong>, <strong>JPG</strong>, or <strong>WEBP</strong>.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Where This Logo Appears (Destination Showcase) */}
+        <div className="space-y-2.5 pt-1">
+          <span className="text-xs font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[#2A5CAA]" />
+            <span>Where this logo automatically reflects:</span>
+          </span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <div className="p-3 rounded-xl bg-white border border-[#E4E4E7] flex items-start gap-2.5">
+              <FileText className="w-4 h-4 text-[#2A5CAA] shrink-0 mt-0.5" />
+              <div>
+                <span className="text-xs font-bold text-[#1C1C1E] block">Official Prescriptions (Rx)</span>
+                <span className="text-[11px] text-[#6B7280]">Printed on prescription letterhead header &amp; PDF exports.</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white border border-[#E4E4E7] flex items-start gap-2.5">
+              <CreditCard className="w-4 h-4 text-[#2A5CAA] shrink-0 mt-0.5" />
+              <div>
+                <span className="text-xs font-bold text-[#1C1C1E] block">Invoices &amp; Money Receipts</span>
+                <span className="text-[11px] text-[#6B7280]">Printed on billing receipts, cash vouchers &amp; patient email receipts.</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white border border-[#E4E4E7] flex items-start gap-2.5">
+              <LayoutDashboard className="w-4 h-4 text-[#2A5CAA] shrink-0 mt-0.5" />
+              <div>
+                <span className="text-xs font-bold text-[#1C1C1E] block">EMR Navigation &amp; Sidebar</span>
+                <span className="text-[11px] text-[#6B7280]">Featured on your chamber desktop sidebar &amp; mobile menu drawer.</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white border border-[#E4E4E7] flex items-start gap-2.5">
+              <Globe className="w-4 h-4 text-[#2A5CAA] shrink-0 mt-0.5" />
+              <div>
+                <span className="text-xs font-bold text-[#1C1C1E] block">Public Online Booking</span>
+                <span className="text-[11px] text-[#6B7280]">Header brand banner on patient self-booking portal (/book/{tenant.id ? 'chamber' : '...'}).</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white border border-[#E4E4E7] flex items-start gap-2.5">
+              <Monitor className="w-4 h-4 text-[#2A5CAA] shrink-0 mt-0.5" />
+              <div>
+                <span className="text-xs font-bold text-[#1C1C1E] block">Smart TV Queue Display</span>
+                <span className="text-[11px] text-[#6B7280]">Chamber branding displayed on live waiting room TV display.</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white border border-[#E4E4E7] flex items-start gap-2.5">
+              <Printer className="w-4 h-4 text-[#2A5CAA] shrink-0 mt-0.5" />
+              <div>
+                <span className="text-xs font-bold text-[#1C1C1E] block">Patient ID Cards</span>
+                <span className="text-[11px] text-[#6B7280]">Embedded on CR80 chamber membership and identification cards.</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
       {/* Clinic Identity */}
       <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
         <h3 className="text-sm font-bold text-[#1C1C1E] uppercase tracking-wider">
@@ -258,7 +350,7 @@ export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props)
             />
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 md:col-span-2">
             <label className="text-xs font-semibold text-[#6B7280]">
               Contact Email
             </label>
@@ -273,27 +365,152 @@ export default function GeneralSettingsClient({ tenant, initialLogoUrl }: Props)
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#6B7280]">
-              Brand Accent Color
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={formData.brandColor}
-                onChange={(e) =>
-                  setFormData({ ...formData, brandColor: e.target.value })
-                }
-                className="w-9 h-9 p-0.5 rounded-lg border border-[#E4E4E7] cursor-pointer"
-              />
-              <input
-                type="text"
-                value={formData.brandColor}
-                onChange={(e) =>
-                  setFormData({ ...formData, brandColor: e.target.value })
-                }
-                className="w-32 px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none font-mono"
-              />
+          {/* Brand Accent Color & Dynamic Theme Preview */}
+          <div className="md:col-span-2 space-y-3 pt-2 border-t border-[#E4E4E7]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+              <div>
+                <label className="text-xs font-bold text-[#1C1C1E] uppercase tracking-wider flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                  <span>Brand Accent Color</span>
+                </label>
+                <p className="text-[11px] text-[#6B7280]">
+                  Customizes your clinic primary action buttons, active navigation bars, public booking theme, and TV display.
+                </p>
+              </div>
+
+              {/* Color input & Hex text */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={formData.brandColor || "#2A5CAA"}
+                  onChange={(e) =>
+                    setFormData({ ...formData, brandColor: e.target.value })
+                  }
+                  className="w-10 h-10 p-0.5 rounded-xl border border-[#E4E4E7] cursor-pointer shrink-0 shadow-2xs"
+                  title="Choose brand accent color"
+                />
+                <input
+                  type="text"
+                  value={formData.brandColor || "#2A5CAA"}
+                  onChange={(e) =>
+                    setFormData({ ...formData, brandColor: e.target.value })
+                  }
+                  className="w-28 px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none font-mono font-bold"
+                  placeholder="#2A5CAA"
+                />
+              </div>
+            </div>
+
+            {/* Quick Popular Color Swatches */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="text-[11px] font-semibold text-[#6B7280]">Quick Presets:</span>
+              {[
+                { name: "Medical Navy", hex: "#2A5CAA" },
+                { name: "Emerald Green", hex: "#059669" },
+                { name: "Teal Clinic", hex: "#0D9488" },
+                { name: "Royal Sapphire", hex: "#1D4ED8" },
+                { name: "Deep Violet", hex: "#7C3AED" },
+                { name: "Crimson Rose", hex: "#BE123C" },
+                { name: "Slate Charcoal", hex: "#334155" },
+              ].map((swatch) => (
+                <button
+                  key={swatch.hex}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, brandColor: swatch.hex })}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+                    formData.brandColor?.toLowerCase() === swatch.hex.toLowerCase()
+                      ? "border-[#1C1C1E] bg-[#1C1C1E] text-white shadow-xs"
+                      : "border-[#E4E4E7] bg-white text-[#4B5563] hover:border-gray-400"
+                  }`}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: swatch.hex }}
+                  />
+                  <span>{swatch.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Live Interactive Preview Card */}
+            <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#1E293B] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#2A5CAA]" />
+                  <span>Live Theme Reflection Preview (Dynamic)</span>
+                </span>
+                <span className="text-[10px] font-mono text-[#64748B]">
+                  Applied: {formData.brandColor || "#2A5CAA"}
+                </span>
+              </div>
+
+              {/* Mock Elements demonstrating reflection */}
+              <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] space-y-3">
+                {/* 1. Top Workspace Bar Preview */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] text-[#64748B] font-semibold">
+                    <span>1. Top Workspace Accent Bar</span>
+                    <span>Clinic EMR top border</span>
+                  </div>
+                  <div
+                    className="h-1.5 w-full rounded-full transition-colors"
+                    style={{ backgroundColor: formData.brandColor || "#2A5CAA" }}
+                  />
+                </div>
+
+                {/* 2. Button and Nav pills */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  {/* Primary Action Button */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-[#64748B] font-semibold block">
+                      2. Primary Action Button
+                    </span>
+                    <button
+                      type="button"
+                      style={{ backgroundColor: formData.brandColor || "#2A5CAA" }}
+                      className="w-full py-2 px-3 rounded-xl text-white text-xs font-bold shadow-xs transition hover:opacity-90 cursor-default"
+                    >
+                      Book Appointment →
+                    </button>
+                  </div>
+
+                  {/* Active Sidebar Item */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-[#64748B] font-semibold block">
+                      3. Active Sidebar Tab
+                    </span>
+                    <div
+                      style={{ backgroundColor: formData.brandColor || "#2A5CAA" }}
+                      className="w-full py-2 px-3 rounded-xl text-white text-xs font-bold flex items-center justify-between shadow-xs"
+                    >
+                      <span>Live Queue</span>
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                    </div>
+                  </div>
+
+                  {/* Active Badge / Tag */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-[#64748B] font-semibold block">
+                      4. Public Booking &amp; TV Accent
+                    </span>
+                    <div
+                      style={{
+                        backgroundColor: `${formData.brandColor || "#2A5CAA"}18`,
+                        color: formData.brandColor || "#2A5CAA",
+                        borderColor: `${formData.brandColor || "#2A5CAA"}40`,
+                      }}
+                      className="w-full py-2 px-3 rounded-xl text-xs font-bold border text-center"
+                    >
+                      Slot 10:30 AM (Selected)
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Explanatory bullet points */}
+              <p className="text-[11px] text-[#64748B] leading-relaxed">
+                <strong>Where does Brand Accent reflect?</strong> When saved, this color dynamically themes the <strong>top accent bar</strong> across your entire EMR workspace, the <strong>active navigation indicators</strong> in the sidebar and mobile drawer, the <strong>buttons &amp; slot pickers</strong> on your public patient booking portal, and the <strong>header &amp; token cards</strong> on your waiting room TV queue.
+              </p>
             </div>
           </div>
 

@@ -157,7 +157,10 @@ export function TenantDesktopSidebar({
           )}
 
           {/* Navigation Items */}
-          <TenantSidebarNav userRole={user.role} />
+          <TenantSidebarNav
+            userRole={user.role}
+            brandColor={tenant.brandColor || "#2A5CAA"}
+          />
         </div>
 
         {/* User Profile Card & Log Out Button */}

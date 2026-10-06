@@ -15,8 +15,10 @@ import {
   Users,
   Stethoscope,
   ExternalLink,
+  Headphones,
 } from "lucide-react";
 import SignOutButton from "@/components/auth/SignOutButton";
+import { SupportModal } from "@/components/support/SupportModal";
 
 interface TenantMobileNavProps {
   userRole: string;
@@ -33,6 +35,7 @@ interface TenantMobileNavProps {
 export function TenantMobileNav({
   userRole,
   userName,
+  userEmail,
   isDoctor,
   tenantName,
   tenantShortCode,
@@ -41,6 +44,7 @@ export function TenantMobileNav({
   tenantLogoUrl,
 }: TenantMobileNavProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
   const pathname = usePathname();
 
   // Close drawer whenever route changes
@@ -184,9 +188,10 @@ export function TenantMobileNav({
                       onClick={() => setIsOpen(false)}
                       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition ${
                         isActive
-                          ? "bg-[#2A5CAA] text-white shadow-xs"
+                          ? "text-white shadow-xs"
                           : "text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#F4F4F5]"
                       }`}
+                      style={isActive ? { backgroundColor: brandColor || "#2A5CAA" } : undefined}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <Icon
@@ -221,6 +226,22 @@ export function TenantMobileNav({
                     <span>Public Booking Page</span>
                     <ExternalLink className="w-4 h-4" />
                   </Link>
+
+                  {/* Contact Support Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      setIsSupportOpen(true);
+                    }}
+                    className="w-full mt-2 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold text-[#4B5563] hover:text-[#2A5CAA] bg-[#F4F4F5] hover:bg-[#EBF2FC] transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Headphones className="w-4 h-4 text-[#2A5CAA]" />
+                      <span>Contact Support</span>
+                    </div>
+                    <span className="text-xs text-[#6B7280]">Help &amp; Tickets</span>
+                  </button>
                 </div>
               </nav>
             </div>
@@ -253,6 +274,16 @@ export function TenantMobileNav({
           </div>
         </div>
       )}
+
+      {/* Support Modal for Mobile Nav */}
+      <SupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+        triggerButton={false}
+        userName={userName}
+        userEmail={userEmail}
+        tenantName={tenantName}
+      />
     </>
   );
 }

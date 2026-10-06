@@ -11,6 +11,7 @@ import { SidebarHeaderTrigger } from "@/components/layout/SidebarHeaderTrigger";
 import { GlobalActionDock } from "@/components/layout/GlobalActionDock";
 import { FirstLoginPasswordModal } from "@/components/auth/FirstLoginPasswordModal";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { SupportModal } from "@/components/support/SupportModal";
 import { getFileUrl } from "@/lib/s3";
 import type { Metadata } from "next";
 
@@ -53,6 +54,13 @@ export default async function TenantAppLayout({
 
       {/* Main Workspace Frame */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Brand Accent Bar */}
+        <div
+          className="h-1 w-full shrink-0 transition-colors"
+          style={{ backgroundColor: tenant.brandColor || "#2A5CAA" }}
+          title={`Clinic Accent: ${tenant.brandColor || "#2A5CAA"}`}
+        />
+
         {/* Top Liquid Glass Header */}
         <header className="sticky top-0 z-30 glass-panel border-b border-[#E4E4E7] px-4 sm:px-6 py-3 flex items-center justify-between gap-3 sm:gap-4">
           {/* Mobile Drawer Trigger & Desktop Sidebar Trigger & Search Bar */}
@@ -76,6 +84,12 @@ export default async function TenantAppLayout({
 
           {/* Right Header: Scan Modal, Notifications, Public Link, User Pill & Prominent Log Out */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <SupportModal
+              userName={user.name}
+              userEmail={user.email}
+              tenantName={tenant.name}
+              triggerButton={true}
+            />
             <ScanModal
               tenantId={tenant.id}
               tenantShortCode={tenant.shortCode}

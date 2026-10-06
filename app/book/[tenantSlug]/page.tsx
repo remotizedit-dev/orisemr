@@ -139,7 +139,12 @@ export default async function PublicBookingPage({
     >
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Chamber Header */}
-        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] flex items-center gap-4">
+        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] flex items-center gap-4 relative overflow-hidden">
+          {/* Top Brand Accent Border Line */}
+          <div
+            className="absolute top-0 left-0 right-0 h-1.5"
+            style={{ backgroundColor: tenant.brandColor || "#2A5CAA" }}
+          />
           {tenant.logoKey ? (
             <div className="w-14 h-14 rounded-2xl bg-white border border-[#E4E4E7] p-1.5 flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
               <img

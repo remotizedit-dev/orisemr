@@ -31,14 +31,26 @@ export interface SendEmailOptions {
   subject: string;
   html: string;
   text?: string;
+  replyTo?: string;
+  attachments?: Array<{
+    filename: string;
+    content?: string | Buffer;
+    path?: string;
+    contentType?: string;
+    cid?: string;
+  }>;
 }
 
-export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
+export async function sendEmail({ to, subject, html, text, replyTo, attachments }: SendEmailOptions) {
   if (!transporter) {
     console.log(`\n========================================`);
     console.log(`[ORIS LOCAL EMAIL LOGGER - SMTP NOT CONFIGURED]`);
     console.log(`To: ${to}`);
+    if (replyTo) console.log(`Reply-To: ${replyTo}`);
     console.log(`Subject: ${subject}`);
+    if (attachments && attachments.length > 0) {
+      console.log(`Attachments: ${attachments.map((a) => a.filename).join(", ")}`);
+    }
     console.log(`Body:\n${text || html.replace(/<[^>]*>?/gm, "")}`);
     console.log(`========================================\n`);
     return { messageId: `mock_${Date.now()}` };
@@ -47,9 +59,11 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   const info = await transporter.sendMail({
     from: `"${env.SMTP_FROM_NAME}" <${env.SMTP_FROM_EMAIL}>`,
     to,
+    replyTo: replyTo || undefined,
     subject,
     html,
     text: text || html.replace(/<[^>]*>?/gm, ""),
+    attachments,
   });
 
   return info;
