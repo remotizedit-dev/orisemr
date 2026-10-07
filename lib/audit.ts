@@ -34,10 +34,20 @@ export async function logAudit(options: LogAuditOptions): Promise<void> {
     if (!clientIp) {
       try {
         const reqHeaders = await headers();
-        clientIp =
-          reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-          reqHeaders.get("x-real-ip") ||
-          null;
+        const forwardedFor = reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim();
+        const realIp = reqHeaders.get("x-real-ip")?.trim();
+        const cfIp = reqHeaders.get("cf-connecting-ip")?.trim();
+        const vercelIp = reqHeaders.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+        const clientIpHeader = reqHeaders.get("x-client-ip")?.trim();
+
+        clientIp = forwardedFor || realIp || cfIp || vercelIp || clientIpHeader || null;
+
+        if (!clientIp) {
+          const host = reqHeaders.get("host") || "";
+          if (host.includes("localhost") || host.includes("127.0.0.1") || host.includes("::1")) {
+            clientIp = "127.0.0.1";
+          }
+        }
       } catch {
         // Outside Next.js request context (e.g. script / cron)
       }

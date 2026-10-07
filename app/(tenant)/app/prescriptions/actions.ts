@@ -7,6 +7,7 @@ import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { generateRecordCode } from "@/lib/barcode/codes";
 import { canDoctorAccessPatient } from "@/lib/patient-privacy";
+import { logAudit } from "@/lib/audit";
 
 export interface PrescriptionItemInput {
   medicineId: string;
@@ -228,6 +229,19 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
       }
 
       return { prescriptionId: prescription.id, rxCode };
+    });
+
+    await logAudit({
+      action: "PRESCRIPTION_CREATED",
+      entityType: "prescription",
+      entityId: result.prescriptionId,
+      actorId: user.id,
+      tenantId: tenant.id,
+      after: {
+        rxCode: result.rxCode,
+        patientId: input.patientId,
+        medicinesCount: (input.items || []).length,
+      },
     });
 
     revalidatePath("/app/queue");

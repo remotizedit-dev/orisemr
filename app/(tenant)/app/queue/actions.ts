@@ -12,6 +12,7 @@ import {
 } from "@/lib/barcode/codes";
 import { formatDhakaTime, normalizeBdPhone } from "@/lib/utils";
 import { getOrSetCache, deleteCache } from "@/lib/cache";
+import { logAudit } from "@/lib/audit";
 
 export async function checkInPatientAction(appointmentId: string) {
   const { tenant, user } = await requireClinicStaff();
@@ -543,6 +544,15 @@ export async function cancelQueueBookingAction(appointmentId: string) {
   });
 
   await deleteCache(`queue:today:${tenant.id}`);
+
+  await logAudit({
+    action: "APPOINTMENT_CANCELLED",
+    entityType: "appointment",
+    entityId: appointmentId,
+    actorId: user.id,
+    tenantId: tenant.id,
+    after: { appointmentId, status: "cancelled" },
+  });
 
   revalidatePath("/app/queue");
   revalidatePath("/app/appointments");

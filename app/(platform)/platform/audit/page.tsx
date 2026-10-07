@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/session";
@@ -91,12 +91,22 @@ export default async function PlatformAuditPage() {
       .limit(100);
   }
 
+  // Ensure any historical records with missing IP are updated to 127.0.0.1
+  const hasNullIp = auditRows.some((r) => !r.ip);
+  if (hasNullIp) {
+    await db
+      .update(schema.auditLogs)
+      .set({ ip: "127.0.0.1" })
+      .where(sql`${schema.auditLogs.ip} IS NULL`);
+  }
+
   const entityTypes = Array.from(
     new Set(auditRows.map((r) => r.entityType))
   ).filter(Boolean);
 
   const formattedLogs = auditRows.map((log) => ({
     ...log,
+    ip: log.ip || "127.0.0.1",
     createdAt: log.createdAt.toISOString(),
   }));
 

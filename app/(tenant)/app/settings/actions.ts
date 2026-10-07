@@ -7,6 +7,7 @@ import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { auth } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 export interface UpdateGeneralSettingsInput {
   name: string;
@@ -291,6 +292,15 @@ export async function updateServiceItemAction(
       )
     );
 
+  await logAudit({
+    action: "SERVICE_PRICE_MODIFIED",
+    entityType: "service",
+    entityId: id,
+    actorId: user.id,
+    tenantId: tenant.id,
+    after: { priceBdt, durationMinutes, isActive },
+  });
+
   revalidatePath("/app/settings/services");
   return { success: true };
 }
@@ -559,6 +569,15 @@ export async function deleteDoctorAction(doctorId: string) {
       );
   });
 
+  await logAudit({
+    action: "DOCTOR_REMOVED",
+    entityType: "doctor",
+    entityId: doctorId,
+    actorId: user.id,
+    tenantId: tenant.id,
+    after: { doctorId, status: "disabled" },
+  });
+
   revalidatePath("/app/settings/doctors");
   revalidatePath("/app/appointments/new");
   revalidatePath(`/book/${tenant.slug}`);
@@ -641,6 +660,15 @@ export async function addStaffAction(input: AddStaffInput) {
       updatedAt: new Date(),
     })
     .where(eq(schema.users.id, authRes.user.id));
+
+  await logAudit({
+    action: "STAFF_ADDED",
+    entityType: "staff",
+    entityId: authRes.user.id,
+    actorId: user.id,
+    tenantId: tenant.id,
+    after: { name: input.name.trim(), email: cleanEmail, role: "RECEPTIONIST" },
+  });
 
   revalidatePath("/app/settings/staff");
   return { success: true, staffId: authRes.user.id };
