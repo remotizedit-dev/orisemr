@@ -9,6 +9,7 @@ import {
   sendEmailInBackground,
   renderBroadcastAnnouncementHtml,
 } from "@/lib/email/mailer";
+import { logAudit } from "@/lib/audit";
 
 export interface SendBroadcastInput {
   title: string;
@@ -68,6 +69,7 @@ export async function sendBroadcastAction(input: SendBroadcastInput) {
     .where(and(...userConditions));
 
   const recipientCount = targetUsers.length;
+  let createdBroadcastId: string | null = null;
 
   await db.transaction(async (tx) => {
     // 3. Create Broadcast Record
@@ -87,6 +89,8 @@ export async function sendBroadcastAction(input: SendBroadcastInput) {
         sentAt: new Date(),
       })
       .returning({ id: schema.platformBroadcasts.id });
+
+    createdBroadcastId = broadcast.id;
 
     // 4. Send In-App Notifications (Batch Insert)
     if (input.sendInApp && targetUsers.length > 0) {
@@ -140,6 +144,21 @@ export async function sendBroadcastAction(input: SendBroadcastInput) {
     }
   });
 
+  await logAudit({
+    action: "PLATFORM_BROADCAST_SENT",
+    entityType: "broadcast",
+    entityId: createdBroadcastId,
+    actorId: session.user.id,
+    after: {
+      title: input.title.trim(),
+      audience: input.audience,
+      recipientCount,
+      sendEmail: input.sendEmail,
+      sendInApp: input.sendInApp,
+    },
+  });
+
   revalidatePath("/platform/broadcasts");
+  revalidatePath("/platform/audit");
   return { success: true, recipientCount };
 }

@@ -8,13 +8,14 @@ import * as schema from "@/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import { deleteCachePattern } from "@/lib/cache";
+import { logAudit } from "@/lib/audit";
 
 export async function createClinicAction(formData: FormData): Promise<{
   success?: boolean;
   tenantId?: string;
   error?: string;
 }> {
-  await requireSuperAdmin();
+  const session = await requireSuperAdmin();
 
   const name = (formData.get("name") as string || "").trim();
   const slug = (formData.get("slug") as string || "").toLowerCase().trim();
@@ -106,7 +107,29 @@ export async function createClinicAction(formData: FormData): Promise<{
       billingCycle,
     });
 
+    await logAudit({
+      action: "TENANT_CREATED",
+      entityType: "tenant",
+      entityId: result.tenant.id,
+      actorId: session.user.id,
+      tenantId: result.tenant.id,
+      after: {
+        name,
+        slug,
+        shortCode,
+        phone,
+        email,
+        address,
+        adminName,
+        adminEmail,
+        planName,
+        priceBdt,
+        billingCycle,
+      },
+    });
+
     revalidatePath("/platform/tenants");
+    revalidatePath("/platform/audit");
     return { success: true, tenantId: result.tenant.id };
   } catch (err: any) {
     console.error("[CREATE CLINIC ACTION ERROR]:", err);
@@ -119,7 +142,7 @@ export async function toggleTenantStatusAction(
   newStatus: "active" | "suspended",
   reason?: string
 ): Promise<{ success: boolean; error?: string }> {
-  await requireSuperAdmin();
+  const session = await requireSuperAdmin();
 
   try {
     const [existing] = await db
@@ -166,9 +189,28 @@ export async function toggleTenantStatusAction(
     // Invalidate in-memory session cache so any active staff sessions are instantly revoked
     invalidateSession();
 
+    await logAudit({
+      action: newStatus === "suspended" ? "TENANT_SUSPENDED" : "TENANT_ACTIVATED",
+      entityType: "tenant",
+      entityId: tenantId,
+      actorId: session.user.id,
+      tenantId: tenantId,
+      before: {
+        status: existing.status,
+      },
+      after: {
+        status: newStatus,
+        reason:
+          newStatus === "suspended"
+            ? reason?.trim() || "Suspended by Super Administrator"
+            : "Reactivated by Super Administrator",
+      },
+    });
+
     revalidatePath("/platform/tenants");
     revalidatePath(`/platform/tenants/${tenantId}`);
     revalidatePath("/platform/subscriptions");
+    revalidatePath("/platform/audit");
     revalidatePath("/platform");
 
     return { success: true };
@@ -202,7 +244,7 @@ export async function updateTenantDetailsAction(input: UpdateTenantDetailsInput)
   error?: string;
   updatedSlug?: string;
 }> {
-  await requireSuperAdmin();
+  const session = await requireSuperAdmin();
 
   const cleanName = (input.name || "").trim();
   const cleanSlug = (input.slug || "").toLowerCase().trim();
@@ -401,6 +443,32 @@ export async function updateTenantDetailsAction(input: UpdateTenantDetailsInput)
 
     invalidateSession();
 
+    await logAudit({
+      action: "TENANT_UPDATED",
+      entityType: "tenant",
+      entityId: tenant.id,
+      actorId: session.user.id,
+      tenantId: tenant.id,
+      before: {
+        name: tenant.name,
+        slug: tenant.slug,
+        shortCode: tenant.shortCode,
+        phone: tenant.phone,
+        email: tenant.email,
+        address: tenant.address,
+      },
+      after: {
+        name: cleanName,
+        slug: cleanSlug,
+        shortCode: cleanShortCode,
+        phone: cleanPhone,
+        email: cleanEmail,
+        address: cleanAddress,
+        adminEmail: cleanAdminEmail,
+        adminName: input.adminName || undefined,
+      },
+    });
+
     // Purge cached tenant resolutions and public booking caches
     await deleteCachePattern("tenant:*");
     await deleteCachePattern("booking:*");
@@ -415,6 +483,7 @@ export async function updateTenantDetailsAction(input: UpdateTenantDetailsInput)
     }
     revalidatePath("/app");
     revalidatePath("/app/settings");
+    revalidatePath("/platform/audit");
 
     return { success: true, updatedSlug: cleanSlug };
   } catch (err: any) {

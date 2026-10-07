@@ -7,6 +7,7 @@ import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
 import { generateRecordCode } from "@/lib/barcode/codes";
 import { canDoctorAccessPatient } from "@/lib/patient-privacy";
+import { logAudit } from "@/lib/audit";
 
 export interface RecordPaymentInput {
   invoiceId: string;
@@ -577,6 +578,24 @@ export async function voidInvoiceAction(invoiceId: string, voidReason: string) {
       updatedAt: new Date(),
     })
     .where(eq(schema.invoices.id, invoiceId));
+
+  await logAudit({
+    action: "INVOICE_VOIDED",
+    entityType: "invoice",
+    entityId: invoice.id,
+    actorId: user.id,
+    tenantId: tenant.id,
+    before: {
+      invoiceCode: invoice.invoiceCode,
+      totalBdt: invoice.totalBdt,
+      paidBdt: invoice.paidBdt,
+      status: invoice.status,
+    },
+    after: {
+      status: "void",
+      voidReason: voidReason.trim(),
+    },
+  });
 
   revalidatePath("/app/billing");
   revalidatePath("/app/billing/dues");
