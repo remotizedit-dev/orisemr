@@ -127,17 +127,20 @@ export function ClinicalAutocompleteInput({
   return (
     <div ref={containerRef} className="space-y-1.5 relative">
       <div className="flex items-center justify-between">
-        <label className="block text-xs font-black uppercase tracking-wider text-[#1C1C1E]">
-          {label}
-        </label>
+        {label ? (
+          <label className="block text-xs font-black uppercase tracking-wider text-[#1C1C1E]">
+            {label}
+          </label>
+        ) : <div />}
         {suggestions.length > 0 && (
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="text-[11px] font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
+            className="text-[11px] font-bold text-[#2A5CAA] hover:text-[#1E4282] hover:bg-[#EBF2FC] px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer border border-[#2A5CAA]/20"
+            title="View all preset templates"
           >
-            <Search className="w-3 h-3" />
-            <span>Browse Templates ({suggestions.length})</span>
+            <Plus className="w-3 h-3 stroke-[2.5]" />
+            <span>All List ({suggestions.length})</span>
           </button>
         )}
       </div>
@@ -151,7 +154,7 @@ export function ClinicalAutocompleteInput({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="w-full p-3 rounded-xl border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA] shadow-2xs font-medium leading-relaxed transition"
+            className="w-full p-2.5 rounded-xl border border-gray-300 bg-white text-xs focus:outline-none focus:border-black shadow-2xs font-medium leading-relaxed transition"
           />
         ) : (
           <input
@@ -161,16 +164,16 @@ export function ClinicalAutocompleteInput({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="w-full px-3.5 py-2.5 rounded-xl border border-[#E4E4E7] bg-white text-sm focus:outline-none focus:border-[#2A5CAA] shadow-2xs font-medium transition"
+            className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-white text-xs focus:outline-none focus:border-black shadow-2xs font-medium transition"
           />
         )}
 
         {/* Floating Autocomplete Dropdown */}
         {isOpen && matchingSuggestions.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white rounded-2xl border border-[#2A5CAA]/30 shadow-xl overflow-hidden divide-y divide-[#E4E4E7] animate-in fade-in-50 duration-150">
-            <div className="px-3 py-1.5 bg-[#EBF2FC] text-[11px] font-bold text-[#2A5CAA] flex items-center justify-between">
-              <span>Matching Templates (Press Enter to insert)</span>
-              <span className="font-mono text-[10px]">{matchingSuggestions.length} found</span>
+          <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white rounded-xl border border-gray-300 shadow-xl overflow-hidden divide-y divide-gray-100 animate-in fade-in-50 duration-150">
+            <div className="px-3 py-1.5 bg-[#EBF2FC] text-[10px] font-bold text-[#2A5CAA] flex items-center justify-between">
+              <span>Matching Presets (Press Enter to insert)</span>
+              <span className="font-mono">{matchingSuggestions.length} found</span>
             </div>
             <div className="max-h-56 overflow-y-auto">
               {matchingSuggestions.map((item, idx) => (
@@ -178,13 +181,13 @@ export function ClinicalAutocompleteInput({
                   key={item.id}
                   type="button"
                   onClick={() => applySuggestion(item.text)}
-                  className={`w-full px-3.5 py-2.5 text-left text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                    idx === highlightIndex ? "bg-[#2A5CAA] text-white" : "text-[#1C1C1E] hover:bg-[#F4F4F5]"
+                  className={`w-full px-3 py-2 text-left text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                    idx === highlightIndex ? "bg-[#2A5CAA] text-white" : "text-[#1C1C1E] hover:bg-gray-100"
                   }`}
                 >
                   <span>{item.text}</span>
                   <span className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded ${
-                    idx === highlightIndex ? "bg-white/20 text-white" : "bg-[#F4F4F5] text-[#6B7280]"
+                    idx === highlightIndex ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
                   }`}>
                     Insert ↵
                   </span>
@@ -194,22 +197,6 @@ export function ClinicalAutocompleteInput({
           </div>
         )}
       </div>
-
-      {/* Quick Clickable Chips */}
-      {quickPills.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-0.5">
-          {quickPills.map((q) => (
-            <button
-              key={q.id}
-              type="button"
-              onClick={() => applySuggestion(q.text)}
-              className="px-2 py-0.5 rounded-lg bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[11px] font-semibold text-[#4B5563] hover:text-[#2A5CAA] transition cursor-pointer border border-[#E4E4E7]/60"
-            >
-              + {q.text}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Full Browse Modal for when clinic has 100+ or 1,000 records */}
       {isModalOpen && (

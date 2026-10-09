@@ -8,7 +8,6 @@ import { ToothSelector } from "./ToothSelector";
 import { ClinicalAutocompleteInput } from "./ClinicalAutocompleteInput";
 import { PatientProfileModal } from "./PatientProfileModal";
 import { UploadReportModal } from "./UploadReportModal";
-import { PrescriptionViewModal } from "./PrescriptionViewModal";
 import { BarcodeSvg } from "@/components/barcode/BarcodeSvg";
 import { checkMedicineAllergy, type AllergyCheckResult } from "@/lib/clinical-flags";
 import { getDhakaTodayStr, addDhakaDays, addDhakaMonths, formatDhakaDate } from "@/lib/utils";
@@ -23,6 +22,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  CreditCard,
   ExternalLink,
   FileText,
   Loader2,
@@ -629,103 +629,58 @@ export function PrescriptionBuilder({
             <div className="md:col-span-4 border-r border-gray-200 pr-5 space-y-6">
               {/* 1. CHIEF COMPLAINT */}
               <div>
-                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600 mb-1">
-                  CHIEF COMPLAINT
-                </h3>
                 <ClinicalAutocompleteInput
-                  label=""
+                  label="CHIEF COMPLAINT"
                   value={chiefComplaint}
                   onChange={setChiefComplaint}
-                  placeholder="Type or select complaints..."
+                  placeholder="Type or search complaints..."
                   suggestions={ccSuggestions}
                   rows={2}
                 />
-                {/* Quick Chips */}
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {ccSuggestions.slice(0, 5).map((q) => (
-                    <button
-                      key={q.id}
-                      type="button"
-                      onClick={() => appendChipText(chiefComplaint, setChiefComplaint, q.text)}
-                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-blue-50 hover:text-[#2A5CAA] text-[10px] font-medium text-gray-700 transition cursor-pointer"
-                    >
-                      + {q.text}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* 2. ON EXAMINATION */}
               <div>
-                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600 mb-1">
-                  ON EXAMINATION
-                </h3>
                 <ClinicalAutocompleteInput
-                  label=""
+                  label="ON EXAMINATION"
                   value={examination}
                   onChange={setExamination}
                   placeholder="Clinical findings..."
                   suggestions={oeSuggestions}
                   rows={2}
                 />
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {oeSuggestions.slice(0, 5).map((q) => (
-                    <button
-                      key={q.id}
-                      type="button"
-                      onClick={() => appendChipText(examination, setExamination, q.text)}
-                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-blue-50 hover:text-[#2A5CAA] text-[10px] font-medium text-gray-700 transition cursor-pointer"
-                    >
-                      + {q.text}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* 3. DIAGNOSIS */}
               <div>
-                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600 mb-1">
-                  DIAGNOSIS
-                </h3>
                 <ClinicalAutocompleteInput
-                  label=""
+                  label="DIAGNOSIS"
                   value={diagnosis}
                   onChange={setDiagnosis}
                   placeholder="Provisional diagnosis..."
                   suggestions={dxSuggestions}
                   rows={2}
                 />
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {dxSuggestions.slice(0, 5).map((q) => (
-                    <button
-                      key={q.id}
-                      type="button"
-                      onClick={() => appendChipText(diagnosis, setDiagnosis, q.text)}
-                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-blue-50 hover:text-[#2A5CAA] text-[10px] font-medium text-gray-700 transition cursor-pointer"
-                    >
-                      + {q.text}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* 4. TEETH (FDI) */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-black uppercase tracking-wider text-[#1C1C1E]">
                     TEETH (FDI)
-                  </h3>
+                  </label>
                   <button
                     type="button"
                     onClick={() => setIsToothModalOpen(true)}
-                    className="text-[11px] font-bold text-[#2A5CAA] hover:underline cursor-pointer"
+                    className="text-[11px] font-bold text-[#2A5CAA] hover:text-[#1E4282] hover:bg-[#EBF2FC] px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer border border-[#2A5CAA]/20"
                   >
-                    {toothCodes.length > 0 ? "Edit Teeth" : "+ Select FDI"}
+                    <Plus className="w-3 h-3 stroke-[2.5]" />
+                    <span>{toothCodes.length > 0 ? "Edit Teeth" : "Select FDI"}</span>
                   </button>
                 </div>
 
                 {toothCodes.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 border border-gray-200 rounded-xl">
                     {toothCodes.map((code) => (
                       <span
                         key={code}
@@ -736,40 +691,25 @@ export function PrescriptionBuilder({
                     ))}
                   </div>
                 ) : (
-                  <p
+                  <div
                     onClick={() => setIsToothModalOpen(true)}
-                    className="text-xs text-gray-400 italic cursor-pointer hover:text-gray-600"
+                    className="p-2.5 rounded-xl border border-dashed border-gray-300 bg-gray-50/50 text-xs text-gray-400 italic cursor-pointer hover:bg-gray-100 hover:text-gray-600 transition"
                   >
-                    Click to select affected teeth...
-                  </p>
+                    Click to select affected teeth on FDI chart...
+                  </div>
                 )}
               </div>
 
               {/* 5. INVESTIGATIONS ADVISED */}
               <div>
-                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600 mb-1">
-                  INVESTIGATIONS ADVISED
-                </h3>
                 <ClinicalAutocompleteInput
-                  label=""
+                  label="INVESTIGATIONS ADVISED"
                   value={investigations}
                   onChange={setInvestigations}
                   placeholder="X-rays, OPG, lab tests..."
                   suggestions={ixSuggestions}
                   rows={2}
                 />
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {ixSuggestions.slice(0, 4).map((q) => (
-                    <button
-                      key={q.id}
-                      type="button"
-                      onClick={() => appendChipText(investigations, setInvestigations, q.text)}
-                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-blue-50 hover:text-[#2A5CAA] text-[10px] font-medium text-gray-700 transition cursor-pointer"
-                    >
-                      + {q.text}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -1147,15 +1087,69 @@ export function PrescriptionBuilder({
       {/* MODALS: POST-SAVE, PROFILE, UPLOAD, ALLERGY, TOOTH            */}
       {/* ------------------------------------------------------------- */}
 
-      {/* 1. Post-Save Print Preview Modal (PrescriptionViewModal) */}
-      <PrescriptionViewModal
-        prescriptionId={savedPrescription?.id || null}
-        isOpen={Boolean(savedPrescription)}
-        onClose={() => {
-          setSavedPrescription(null);
-          router.push(appointmentId ? "/app/queue" : "/app/prescriptions");
-        }}
-      />
+      {/* 1. Prescription Saved Success Action Modal */}
+      {savedPrescription && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 border border-[#E4E4E7] shadow-2xl space-y-6 animate-in zoom-in-95">
+            <div className="text-center space-y-2.5">
+              <div className="w-16 h-16 rounded-full bg-[#30D158]/15 text-[#30D158] flex items-center justify-center mx-auto mb-2">
+                <Check className="w-8 h-8 stroke-[3]" />
+              </div>
+              <h3 className="text-xl font-black text-[#1C1C1E]">
+                Prescription Issued Successfully!
+              </h3>
+              <p className="text-sm text-[#4B5563] leading-relaxed">
+                Prescription{" "}
+                <span className="font-mono font-bold text-[#2A5CAA] bg-[#E8EEF7] px-2 py-0.5 rounded">
+                  {savedPrescription.rxCode}
+                </span>{" "}
+                for <strong>{patient.name}</strong> has been saved.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-1">
+              <Link
+                href={`/app/billing/new?patientId=${patient.id}${
+                  appointmentId ? `&appointmentId=${appointmentId}` : ""
+                }`}
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+              >
+                <CreditCard className="w-4.5 h-4.5" />
+                <span>Proceed to Billing &amp; Collect Payment →</span>
+              </Link>
+
+              <Link
+                href={`/print/prescription/${savedPrescription.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+              >
+                <Printer className="w-4.5 h-4.5" />
+                <span>Open &amp; Print Prescription ↗</span>
+              </Link>
+
+              <Link
+                href="/app/queue"
+                className="w-full py-3 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer"
+              >
+                <Armchair className="w-4.5 h-4.5 text-[#2A5CAA]" />
+                <span>Return to In-Chair Queue</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSavedPrescription(null);
+                  router.push("/app/prescriptions");
+                }}
+                className="w-full py-2.5 px-4 rounded-xl text-gray-500 hover:text-gray-800 font-semibold text-xs text-center transition cursor-pointer"
+              >
+                Close &amp; Go to Prescriptions List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Patient Profile Modal */}
       {isProfileModalOpen && (
@@ -1183,17 +1177,22 @@ export function PrescriptionBuilder({
       {/* 4. Tooth Selector Modal */}
       {isToothModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-300 space-y-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-7 shadow-2xl border border-gray-300 space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-gray-200">
-              <h3 className="text-sm font-bold text-gray-900">
-                Select Teeth (FDI Notation)
-              </h3>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  Select Teeth (FDI Notation)
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Full adult &amp; child panoramic dental arch.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsToothModalOpen(false)}
-                className="text-gray-400 hover:text-black p-1"
+                className="text-gray-400 hover:text-black p-1.5 rounded-lg hover:bg-gray-100 transition cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1206,9 +1205,9 @@ export function PrescriptionBuilder({
               <button
                 type="button"
                 onClick={() => setIsToothModalOpen(false)}
-                className="px-4 py-2 bg-black text-white text-xs font-bold rounded-xl"
+                className="px-6 py-2.5 bg-black hover:bg-gray-800 text-white text-xs font-bold rounded-xl transition cursor-pointer"
               >
-                Done
+                Done ({toothCodes.length} selected)
               </button>
             </div>
           </div>

@@ -98,19 +98,20 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
         </div>
       )}
 
-      {/* Scrollable FDI Teeth Grid */}
-      <div className="overflow-x-auto pb-2 pt-1 -mx-1 px-1 [scrollbar-width:thin]">
-        <div className="w-fit min-w-full mx-auto space-y-2.5 select-none font-mono text-xs px-1">
+      {/* FDI Teeth Grid (Panoramic Arch Layout) */}
+      <div className="w-full overflow-x-auto pb-2 pt-1 scrollbar-thin">
+        <div className="w-full min-w-[580px] sm:min-w-0 max-w-4xl mx-auto space-y-3 select-none font-mono text-xs px-1">
           {/* Upper Arch Labels */}
-          <div className="flex justify-between items-center px-1 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide min-w-[460px]">
+          <div className="flex justify-between items-center px-2 text-xs font-bold text-[#6B7280] uppercase tracking-wide">
             <span>Maxillary Right (UR)</span>
+            <span className="text-[10px] text-gray-400 font-sans">UPPER ARCH</span>
             <span>Maxillary Left (UL)</span>
           </div>
 
           {/* Upper Arch Buttons */}
-          <div className="flex justify-center items-center gap-1 sm:gap-1.5 pb-2.5 border-b border-[#E4E4E7] min-w-[460px]">
+          <div className="flex justify-center items-center gap-1 sm:gap-2 pb-3 border-b border-[#E4E4E7]">
             {/* Upper Right Quadrant (18 -> 11) */}
-            <div className="flex gap-1 sm:gap-1.5 justify-end">
+            <div className="flex gap-1 sm:gap-1.5 justify-end flex-1">
               {upperRight.map((t) => {
                 const active = selectedTeeth.includes(t);
                 return (
@@ -119,9 +120,9 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
                     type="button"
                     onClick={() => toggleTooth(t)}
                     title={`Tooth ${t}`}
-                    className={`w-6.5 h-8 sm:w-7.5 sm:h-8.5 rounded-md sm:rounded-lg flex items-center justify-center font-bold text-[11px] sm:text-xs transition cursor-pointer shrink-0 ${
+                    className={`flex-1 max-w-[48px] h-10 sm:h-12 rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm transition cursor-pointer shrink-0 ${
                       active
-                        ? "bg-[#2A5CAA] text-white shadow-sm ring-2 ring-[#2A5CAA]/40 scale-105"
+                        ? "bg-[#2A5CAA] text-white shadow-md ring-2 ring-[#2A5CAA]/40 scale-105"
                         : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7] hover:text-[#2A5CAA]"
                     }`}
                   >
@@ -132,10 +133,10 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
             </div>
 
             {/* Midline Divider */}
-            <div className="w-0.5 sm:w-1 h-8 sm:h-8.5 bg-[#2A5CAA]/40 rounded-full mx-1 sm:mx-1.5 shrink-0" />
+            <div className="w-1 h-10 sm:h-12 bg-[#2A5CAA] rounded-full mx-1.5 sm:mx-2 shrink-0 opacity-60" />
 
             {/* Upper Left Quadrant (21 -> 28) */}
-            <div className="flex gap-1 sm:gap-1.5 justify-start">
+            <div className="flex gap-1 sm:gap-1.5 justify-start flex-1">
               {upperLeft.map((t) => {
                 const active = selectedTeeth.includes(t);
                 return (
@@ -144,9 +145,9 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
                     type="button"
                     onClick={() => toggleTooth(t)}
                     title={`Tooth ${t}`}
-                    className={`w-6.5 h-8 sm:w-7.5 sm:h-8.5 rounded-md sm:rounded-lg flex items-center justify-center font-bold text-[11px] sm:text-xs transition cursor-pointer shrink-0 ${
+                    className={`flex-1 max-w-[48px] h-10 sm:h-12 rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm transition cursor-pointer shrink-0 ${
                       active
-                        ? "bg-[#2A5CAA] text-white shadow-sm ring-2 ring-[#2A5CAA]/40 scale-105"
+                        ? "bg-[#2A5CAA] text-white shadow-md ring-2 ring-[#2A5CAA]/40 scale-105"
                         : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7] hover:text-[#2A5CAA]"
                     }`}
                   >
@@ -158,9 +159,9 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
           </div>
 
           {/* Lower Arch Buttons */}
-          <div className="flex justify-center items-center gap-1 sm:gap-1.5 pt-1 min-w-[460px]">
+          <div className="flex justify-center items-center gap-1 sm:gap-2 pt-1">
             {/* Lower Right Quadrant (48 -> 41) */}
-            <div className="flex gap-1 sm:gap-1.5 justify-end">
+            <div className="flex gap-1 sm:gap-1.5 justify-end flex-1">
               {lowerRight.map((t) => {
                 const active = selectedTeeth.includes(t);
                 return (
@@ -169,9 +170,9 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
                     type="button"
                     onClick={() => toggleTooth(t)}
                     title={`Tooth ${t}`}
-                    className={`w-6.5 h-8 sm:w-7.5 sm:h-8.5 rounded-md sm:rounded-lg flex items-center justify-center font-bold text-[11px] sm:text-xs transition cursor-pointer shrink-0 ${
+                    className={`flex-1 max-w-[48px] h-10 sm:h-12 rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm transition cursor-pointer shrink-0 ${
                       active
-                        ? "bg-[#2A5CAA] text-white shadow-sm ring-2 ring-[#2A5CAA]/40 scale-105"
+                        ? "bg-[#2A5CAA] text-white shadow-md ring-2 ring-[#2A5CAA]/40 scale-105"
                         : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7] hover:text-[#2A5CAA]"
                     }`}
                   >
@@ -182,10 +183,10 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
             </div>
 
             {/* Midline Divider */}
-            <div className="w-0.5 sm:w-1 h-8 sm:h-8.5 bg-[#2A5CAA]/40 rounded-full mx-1 sm:mx-1.5 shrink-0" />
+            <div className="w-1 h-10 sm:h-12 bg-[#2A5CAA] rounded-full mx-1.5 sm:mx-2 shrink-0 opacity-60" />
 
             {/* Lower Left Quadrant (31 -> 38) */}
-            <div className="flex gap-1 sm:gap-1.5 justify-start">
+            <div className="flex gap-1 sm:gap-1.5 justify-start flex-1">
               {lowerLeft.map((t) => {
                 const active = selectedTeeth.includes(t);
                 return (
@@ -194,9 +195,9 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
                     type="button"
                     onClick={() => toggleTooth(t)}
                     title={`Tooth ${t}`}
-                    className={`w-6.5 h-8 sm:w-7.5 sm:h-8.5 rounded-md sm:rounded-lg flex items-center justify-center font-bold text-[11px] sm:text-xs transition cursor-pointer shrink-0 ${
+                    className={`flex-1 max-w-[48px] h-10 sm:h-12 rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm transition cursor-pointer shrink-0 ${
                       active
-                        ? "bg-[#2A5CAA] text-white shadow-sm ring-2 ring-[#2A5CAA]/40 scale-105"
+                        ? "bg-[#2A5CAA] text-white shadow-md ring-2 ring-[#2A5CAA]/40 scale-105"
                         : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7] hover:text-[#2A5CAA]"
                     }`}
                   >
@@ -208,8 +209,9 @@ export function ToothSelector({ selectedTeeth, onChange }: ToothSelectorProps) {
           </div>
 
           {/* Lower Arch Labels */}
-          <div className="flex justify-between items-center px-1 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide pt-1 min-w-[460px]">
+          <div className="flex justify-between items-center px-2 text-xs font-bold text-[#6B7280] uppercase tracking-wide pt-1">
             <span>Mandibular Right (LR)</span>
+            <span className="text-[10px] text-gray-400 font-sans">LOWER ARCH</span>
             <span>Mandibular Left (LL)</span>
           </div>
         </div>
