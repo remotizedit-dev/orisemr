@@ -1003,3 +1003,109 @@ export async function deleteAdviceTemplateAction(id: string) {
   revalidatePath("/app/prescriptions/new");
   return { success: true };
 }
+
+// -----------------------------------------------------------------------------
+// Quick Texts & Clinical Templates (Chief Complaints, Findings, Diagnosis, Investigations)
+// -----------------------------------------------------------------------------
+export async function createQuickTextAction(input: {
+  kind: (typeof schema.quickTextKindEnum.enumValues)[number];
+  text: string;
+}) {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "clinic_settings")) {
+    throw new Error("Only Chamber Admins may add clinical templates");
+  }
+
+  const cleanText = input.text.trim();
+  if (!cleanText) {
+    throw new Error("Template text is required");
+  }
+
+  const [created] = await db
+    .insert(schema.quickTexts)
+    .values({
+      tenantId: tenant.id,
+      kind: input.kind,
+      text: cleanText,
+      source: "custom",
+      isActive: true,
+    })
+    .returning();
+
+  const { deleteCache } = await import("@/lib/cache");
+  await deleteCache(`catalog:prescription:${tenant.id}`);
+  revalidatePath("/app/settings/prescriptions");
+  revalidatePath("/app/prescriptions/new");
+  return { success: true, item: created };
+}
+
+export async function updateQuickTextAction(input: {
+  id: string;
+  text?: string;
+  isActive?: boolean;
+}) {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "clinic_settings")) {
+    throw new Error("Only Chamber Admins may modify clinical templates");
+  }
+
+  const [existing] = await db
+    .select()
+    .from(schema.quickTexts)
+    .where(
+      and(
+        eq(schema.quickTexts.tenantId, tenant.id),
+        eq(schema.quickTexts.id, input.id)
+      )
+    )
+    .limit(1);
+
+  if (!existing) {
+    throw new Error("Template not found");
+  }
+
+  await db
+    .update(schema.quickTexts)
+    .set({
+      ...(input.text !== undefined && { text: input.text.trim() }),
+      ...(input.isActive !== undefined && { isActive: input.isActive }),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.quickTexts.tenantId, tenant.id),
+        eq(schema.quickTexts.id, input.id)
+      )
+    );
+
+  const { deleteCache } = await import("@/lib/cache");
+  await deleteCache(`catalog:prescription:${tenant.id}`);
+  revalidatePath("/app/settings/prescriptions");
+  revalidatePath("/app/prescriptions/new");
+  return { success: true };
+}
+
+export async function deleteQuickTextAction(id: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  if (!can({ role: user.role as any, isDoctor: user.isDoctor }, "clinic_settings")) {
+    throw new Error("Only Chamber Admins may delete clinical templates");
+  }
+
+  await db
+    .delete(schema.quickTexts)
+    .where(
+      and(
+        eq(schema.quickTexts.tenantId, tenant.id),
+        eq(schema.quickTexts.id, id)
+      )
+    );
+
+  const { deleteCache } = await import("@/lib/cache");
+  await deleteCache(`catalog:prescription:${tenant.id}`);
+  revalidatePath("/app/settings/prescriptions");
+  revalidatePath("/app/prescriptions/new");
+  return { success: true };
+}

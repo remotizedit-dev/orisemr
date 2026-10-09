@@ -13,6 +13,12 @@ import {
   X,
   Loader2,
   Sparkles,
+  AlertCircle,
+  Stethoscope,
+  Activity,
+  ClipboardList,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -22,6 +28,9 @@ import {
   createAdviceTemplateAction,
   updateAdviceTemplateAction,
   deleteAdviceTemplateAction,
+  createQuickTextAction,
+  updateQuickTextAction,
+  deleteQuickTextAction,
 } from "@/app/(tenant)/app/settings/actions";
 
 const MEDICINE_FORMS = [
@@ -39,7 +48,7 @@ const MEDICINE_FORMS = [
   "other",
 ] as const;
 
-interface Medicine {
+export interface Medicine {
   id: string;
   brandName: string | null;
   genericName: string;
@@ -49,37 +58,64 @@ interface Medicine {
   isActive: boolean;
 }
 
-interface AdviceTemplate {
+export interface AdviceTemplate {
   id: string;
   groupName: string;
   textBn: string;
   isActive: boolean;
 }
 
+export interface QuickTextItem {
+  id: string;
+  kind: "chief_complaint" | "examination" | "diagnosis" | "investigation";
+  text: string;
+  source: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export type CatalogTab =
+  | "medicines"
+  | "advice"
+  | "chief_complaint"
+  | "examination"
+  | "diagnosis"
+  | "investigation";
+
 interface Props {
   initialMedicines: Medicine[];
   initialAdvice: AdviceTemplate[];
+  initialQuickTexts?: QuickTextItem[];
 }
 
 export default function PrescriptionsCatalogClient({
   initialMedicines,
   initialAdvice,
+  initialQuickTexts = [],
 }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"medicines" | "advice">("medicines");
+  const [activeTab, setActiveTab] = useState<CatalogTab>("medicines");
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAdviceGroup, setSelectedAdviceGroup] = useState<string>("all");
 
-  // Modals
+  // Modals - Medicine
   const [showAddMedModal, setShowAddMedModal] = useState(false);
   const [editingMed, setEditingMed] = useState<Medicine | null>(null);
   const [deletingMedId, setDeletingMedId] = useState<string | null>(null);
 
+  // Modals - Advice
   const [showAddAdviceModal, setShowAddAdviceModal] = useState(false);
   const [editingAdvice, setEditingAdvice] = useState<AdviceTemplate | null>(null);
   const [deletingAdviceId, setDeletingAdviceId] = useState<string | null>(null);
+
+  // Modals - Quick Texts (Chief complaints, examination, diagnosis, investigations)
+  const [showAddQuickTextModal, setShowAddQuickTextModal] = useState(false);
+  const [editingQuickText, setEditingQuickText] = useState<QuickTextItem | null>(null);
+  const [deletingQuickTextId, setDeletingQuickTextId] = useState<string | null>(null);
+  const [quickTextContent, setQuickTextContent] = useState("");
+  const [isSubmittingQuickText, setIsSubmittingQuickText] = useState(false);
 
   // Form states - Medicine
   const [medGeneric, setMedGeneric] = useState("");
@@ -111,15 +147,21 @@ export default function PrescriptionsCatalogClient({
   });
 
   const filteredAdvice = initialAdvice.filter((a) => {
-    if (selectedAdviceGroup !== "all" && a.groupName !== selectedAdviceGroup) {
-      return false;
-    }
+    const matchesGroup =
+      selectedAdviceGroup === "all" || a.groupName === selectedAdviceGroup;
+    if (!matchesGroup) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
-      a.textBn.toLowerCase().includes(q) ||
-      a.groupName.toLowerCase().includes(q)
+      a.textBn.toLowerCase().includes(q) || a.groupName.toLowerCase().includes(q)
     );
+  });
+
+  const currentKindQuickTexts = initialQuickTexts.filter((q) => {
+    if (activeTab === "medicines" || activeTab === "advice") return false;
+    if (q.kind !== activeTab) return false;
+    if (!searchQuery) return true;
+    return q.text.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   // Handlers - Medicine
@@ -159,7 +201,7 @@ export default function PrescriptionsCatalogClient({
           strength: medStrength.trim() || undefined,
           drugClass: medClass.trim() || undefined,
         });
-        toast.success(`Updated ${medBrand || medGeneric}`);
+        toast.success("Updated medicine successfully");
         setEditingMed(null);
       } else {
         await createMedicineAction({
@@ -169,7 +211,7 @@ export default function PrescriptionsCatalogClient({
           strength: medStrength.trim() || undefined,
           drugClass: medClass.trim() || undefined,
         });
-        toast.success(`Added ${medBrand || medGeneric}`);
+        toast.success("Added new medicine successfully");
         setShowAddMedModal(false);
       }
       router.refresh();
@@ -181,11 +223,7 @@ export default function PrescriptionsCatalogClient({
   }
 
   async function handleDeleteMed(m: Medicine) {
-    if (
-      !confirm(
-        `Are you sure you want to delete ${m.brandName ? `${m.brandName} (${m.genericName})` : m.genericName}?`
-      )
-    ) {
+    if (!confirm(`Are you sure you want to delete ${m.brandName || m.genericName}?`)) {
       return;
     }
 
@@ -264,25 +302,132 @@ export default function PrescriptionsCatalogClient({
     }
   }
 
+  // Handlers - Quick Texts (Chief complaints, examination, diagnosis, investigations)
+  function openAddQuickText() {
+    setQuickTextContent("");
+    setShowAddQuickTextModal(true);
+  }
+
+  function openEditQuickText(item: QuickTextItem) {
+    setEditingQuickText(item);
+    setQuickTextContent(item.text);
+  }
+
+  async function handleSaveQuickText(e: React.FormEvent) {
+    e.preventDefault();
+    if (!quickTextContent.trim()) {
+      toast.error("Template text is required");
+      return;
+    }
+    if (activeTab === "medicines" || activeTab === "advice") return;
+
+    setIsSubmittingQuickText(true);
+    try {
+      if (editingQuickText) {
+        await updateQuickTextAction({
+          id: editingQuickText.id,
+          text: quickTextContent.trim(),
+        });
+        toast.success("Template updated successfully");
+        setEditingQuickText(null);
+      } else {
+        await createQuickTextAction({
+          kind: activeTab,
+          text: quickTextContent.trim(),
+        });
+        toast.success("Template added successfully");
+        setShowAddQuickTextModal(false);
+      }
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save template");
+    } finally {
+      setIsSubmittingQuickText(false);
+    }
+  }
+
+  async function handleToggleQuickTextActive(item: QuickTextItem) {
+    try {
+      await updateQuickTextAction({
+        id: item.id,
+        isActive: !item.isActive,
+      });
+      toast.success(item.isActive ? "Template deactivated" : "Template activated");
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to toggle status");
+    }
+  }
+
+  async function handleDeleteQuickText(item: QuickTextItem) {
+    if (!confirm(`Are you sure you want to delete "${item.text}"?`)) {
+      return;
+    }
+
+    setDeletingQuickTextId(item.id);
+    try {
+      await deleteQuickTextAction(item.id);
+      toast.success("Template deleted successfully");
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete template");
+    } finally {
+      setDeletingQuickTextId(null);
+    }
+  }
+
+  const getTabLabel = (tab: CatalogTab) => {
+    switch (tab) {
+      case "medicines":
+        return `Medicines (${initialMedicines.length})`;
+      case "advice":
+        return `Advice Templates (${initialAdvice.length})`;
+      case "chief_complaint":
+        return `Chief Complaints (${initialQuickTexts.filter((q) => q.kind === "chief_complaint").length})`;
+      case "examination":
+        return `On Examination (${initialQuickTexts.filter((q) => q.kind === "examination").length})`;
+      case "diagnosis":
+        return `Diagnosis (${initialQuickTexts.filter((q) => q.kind === "diagnosis").length})`;
+      case "investigation":
+        return `Investigations (${initialQuickTexts.filter((q) => q.kind === "investigation").length})`;
+    }
+  };
+
+  const getQuickTextCategoryName = () => {
+    switch (activeTab) {
+      case "chief_complaint":
+        return "Chief Complaint";
+      case "examination":
+        return "Examination Finding";
+      case "diagnosis":
+        return "Diagnosis";
+      case "investigation":
+        return "Investigation Advised";
+      default:
+        return "Clinical Template";
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Sub Navigation Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 glass-panel p-5 rounded-2xl border border-[#E4E4E7]">
-        <div className="flex items-center gap-2">
+      {/* Top Tabs Navigation Bar */}
+      <div className="glass-panel p-4 rounded-2xl border border-[#E4E4E7] bg-white shadow-2xs flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+        {/* Horizontal Scrollable Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full xl:w-auto pb-1 xl:pb-0 scrollbar-none">
           <button
             type="button"
             onClick={() => {
               setActiveTab("medicines");
               setSearchQuery("");
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === "medicines"
                 ? "bg-[#2A5CAA] text-white shadow-xs"
-                : "bg-white text-[#6B7280] hover:text-[#1C1C1E] border border-[#E4E4E7]"
+                : "bg-[#F4F4F5] text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#E4E4E7]"
             }`}
           >
-            <Pill className="w-4 h-4" />
-            <span>Medicines Catalog ({initialMedicines.length})</span>
+            <Pill className="w-3.5 h-3.5" />
+            <span>{getTabLabel("medicines")}</span>
           </button>
 
           <button
@@ -291,41 +436,121 @@ export default function PrescriptionsCatalogClient({
               setActiveTab("advice");
               setSearchQuery("");
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === "advice"
                 ? "bg-[#2A5CAA] text-white shadow-xs"
-                : "bg-white text-[#6B7280] hover:text-[#1C1C1E] border border-[#E4E4E7]"
+                : "bg-[#F4F4F5] text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#E4E4E7]"
             }`}
           >
-            <FileText className="w-4 h-4" />
-            <span>Pre-Advice Templates ({initialAdvice.length})</span>
+            <FileText className="w-3.5 h-3.5" />
+            <span>{getTabLabel("advice")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("chief_complaint");
+              setSearchQuery("");
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "chief_complaint"
+                ? "bg-[#2A5CAA] text-white shadow-xs"
+                : "bg-[#F4F4F5] text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#E4E4E7]"
+            }`}
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>{getTabLabel("chief_complaint")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("examination");
+              setSearchQuery("");
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "examination"
+                ? "bg-[#2A5CAA] text-white shadow-xs"
+                : "bg-[#F4F4F5] text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#E4E4E7]"
+            }`}
+          >
+            <Stethoscope className="w-3.5 h-3.5" />
+            <span>{getTabLabel("examination")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("diagnosis");
+              setSearchQuery("");
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "diagnosis"
+                ? "bg-[#2A5CAA] text-white shadow-xs"
+                : "bg-[#F4F4F5] text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#E4E4E7]"
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>{getTabLabel("diagnosis")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("investigation");
+              setSearchQuery("");
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "investigation"
+                ? "bg-[#2A5CAA] text-white shadow-xs"
+                : "bg-[#F4F4F5] text-[#4B5563] hover:text-[#1C1C1E] hover:bg-[#E4E4E7]"
+            }`}
+          >
+            <ClipboardList className="w-3.5 h-3.5" />
+            <span>{getTabLabel("investigation")}</span>
           </button>
         </div>
 
-        {activeTab === "medicines" ? (
-          <button
-            type="button"
-            onClick={openAddMed}
-            className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-semibold flex items-center gap-2 transition cursor-pointer shadow-xs shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Medicine</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={openAddAdvice}
-            className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-semibold flex items-center gap-2 transition cursor-pointer shadow-xs shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Advice Template</span>
-          </button>
-        )}
+        {/* Action Button */}
+        <div>
+          {activeTab === "medicines" && (
+            <button
+              type="button"
+              onClick={openAddMed}
+              className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Medicine</span>
+            </button>
+          )}
+
+          {activeTab === "advice" && (
+            <button
+              type="button"
+              onClick={openAddAdvice}
+              className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Advice Template</span>
+            </button>
+          )}
+
+          {activeTab !== "medicines" && activeTab !== "advice" && (
+            <button
+              type="button"
+              onClick={openAddQuickText}
+              className="px-4 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add {getQuickTextCategoryName()}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* TAB 1: MEDICINES */}
       {activeTab === "medicines" && (
-        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
+        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4 bg-white shadow-2xs">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#A1A1AA]" />
@@ -334,23 +559,23 @@ export default function PrescriptionsCatalogClient({
                 placeholder="Search generic, brand, or drug class..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
+                className="w-full pl-9 pr-3 py-2 text-xs bg-[#F4F4F5] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#2A5CAA]"
               />
             </div>
-            <span className="text-xs text-[#6B7280]">
+            <div className="text-xs font-medium text-[#6B7280]">
               Showing {filteredMedicines.length} of {initialMedicines.length} medicines
-            </span>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border border-[#E4E4E7] rounded-xl">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-[#E4E4E7] bg-white/50 text-[11px] font-bold text-[#6B7280] uppercase tracking-wider">
-                  <th className="py-3 px-4">Brand Name</th>
+                <tr className="border-b border-[#E4E4E7] bg-[#F8FAFC] text-[11px] font-bold text-[#6B7280] uppercase tracking-wider">
                   <th className="py-3 px-4">Generic Name</th>
+                  <th className="py-3 px-4">Brand / Trade Name</th>
                   <th className="py-3 px-4">Form</th>
                   <th className="py-3 px-4">Strength</th>
-                  <th className="py-3 px-4">Class</th>
+                  <th className="py-3 px-4">Drug Class</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -358,22 +583,24 @@ export default function PrescriptionsCatalogClient({
                 {filteredMedicines.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-[#6B7280]">
-                      No medicines found matching filter.
+                      No medicines found matching &quot;{searchQuery}&quot;
                     </td>
                   </tr>
                 ) : (
                   filteredMedicines.map((m) => (
-                    <tr key={m.id} className="hover:bg-white/70 transition">
+                    <tr key={m.id} className="hover:bg-[#F8FAFC] transition">
                       <td className="py-3 px-4 font-bold text-[#1C1C1E]">
-                        {m.brandName || "—"}
-                      </td>
-                      <td className="py-3 px-4 text-[#2A5CAA] font-medium">
                         {m.genericName}
                       </td>
-                      <td className="py-3 px-4 capitalize font-mono text-[11px]">
-                        {m.form}
+                      <td className="py-3 px-4 text-[#2A5CAA] font-semibold">
+                        {m.brandName || "—"}
                       </td>
-                      <td className="py-3 px-4 font-mono text-[11px] text-[#6B7280]">
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded-md bg-[#EBF2FC] text-[#2A5CAA] font-semibold text-[10px] uppercase">
+                          {m.form}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-[#6B7280] font-mono">
                         {m.strength || "—"}
                       </td>
                       <td className="py-3 px-4 text-[#6B7280]">
@@ -384,7 +611,7 @@ export default function PrescriptionsCatalogClient({
                           <button
                             type="button"
                             onClick={() => openEditMed(m)}
-                            className="p-1.5 rounded-lg border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#6B7280] hover:text-[#1C1C1E] transition cursor-pointer"
+                            className="p-1.5 rounded-lg text-[#6B7280] hover:text-[#2A5CAA] hover:bg-[#EBF2FC] transition"
                             title="Edit Medicine"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -393,7 +620,7 @@ export default function PrescriptionsCatalogClient({
                             type="button"
                             onClick={() => handleDeleteMed(m)}
                             disabled={deletingMedId === m.id}
-                            className="p-1.5 rounded-lg border border-[#FF453A]/20 bg-white hover:bg-[#FF453A]/10 text-[#FF453A] transition cursor-pointer"
+                            className="p-1.5 rounded-lg text-[#6B7280] hover:text-[#FF453A] hover:bg-[#FF453A]/10 transition disabled:opacity-50"
                             title="Delete Medicine"
                           >
                             {deletingMedId === m.id ? (
@@ -413,92 +640,190 @@ export default function PrescriptionsCatalogClient({
         </div>
       )}
 
-      {/* TAB 2: PRE-ADVICE TEMPLATES */}
+      {/* TAB 2: ADVICE TEMPLATES */}
       {activeTab === "advice" && (
-        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4">
+        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4 bg-white shadow-2xs">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#A1A1AA]" />
+                <input
+                  type="text"
+                  placeholder="Search advice text or category..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-[#F4F4F5] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#2A5CAA]"
+                />
+              </div>
+
+              <select
+                value={selectedAdviceGroup}
+                onChange={(e) => setSelectedAdviceGroup(e.target.value)}
+                className="px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none bg-white font-medium text-[#1C1C1E]"
+              >
+                <option value="all">All Categories</option>
+                {adviceGroups.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-xs font-medium text-[#6B7280]">
+              Showing {filteredAdvice.length} of {initialAdvice.length} templates
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredAdvice.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-[#6B7280]">
+                No advice templates found matching your criteria.
+              </div>
+            ) : (
+              filteredAdvice.map((a) => (
+                <div
+                  key={a.id}
+                  className="p-4 rounded-xl border border-[#E4E4E7] bg-[#F8FAFC] flex flex-col justify-between gap-3 hover:border-[#2A5CAA]/40 transition group"
+                >
+                  <div className="space-y-1.5">
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-[#E4E4E7] text-[10px] font-bold text-[#2A5CAA] inline-block uppercase">
+                      {a.groupName}
+                    </span>
+                    <p className="text-xs text-[#1C1C1E] leading-relaxed font-medium">
+                      {a.textBn}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-[#E4E4E7]/60">
+                    <button
+                      type="button"
+                      onClick={() => openEditAdvice(a)}
+                      className="p-1.5 rounded-lg text-[#6B7280] hover:text-[#2A5CAA] hover:bg-white transition"
+                      title="Edit Advice"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAdvice(a)}
+                      disabled={deletingAdviceId === a.id}
+                      className="p-1.5 rounded-lg text-[#6B7280] hover:text-[#FF453A] hover:bg-white transition disabled:opacity-50"
+                      title="Delete Advice"
+                    >
+                      {deletingAdviceId === a.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TABS 3, 4, 5, 6: CLINICAL TEMPLATES (Chief Complaints, Findings, Diagnosis, Investigations) */}
+      {activeTab !== "medicines" && activeTab !== "advice" && (
+        <div className="glass-panel p-6 rounded-2xl border border-[#E4E4E7] space-y-4 bg-white shadow-2xs">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#A1A1AA]" />
               <input
                 type="text"
-                placeholder="Search advice text or group..."
+                placeholder={`Search ${getQuickTextCategoryName().toLowerCase()} templates...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
+                className="w-full pl-9 pr-3 py-2 text-xs bg-[#F4F4F5] border border-transparent rounded-xl outline-none focus:bg-white focus:border-[#2A5CAA]"
               />
             </div>
 
-            {/* Filter by group */}
-            <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1">
-              <button
-                onClick={() => setSelectedAdviceGroup("all")}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                  selectedAdviceGroup === "all"
-                    ? "bg-[#2A5CAA] text-white shadow-xs"
-                    : "bg-white text-[#6B7280] hover:bg-[#F4F4F5] border border-[#E4E4E7]"
-                }`}
-              >
-                All Groups
-              </button>
-              {adviceGroups.map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setSelectedAdviceGroup(g)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                    selectedAdviceGroup === g
-                      ? "bg-[#2A5CAA] text-white shadow-xs"
-                      : "bg-white text-[#6B7280] hover:bg-[#F4F4F5] border border-[#E4E4E7]"
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
+            <div className="text-xs font-medium text-[#6B7280]">
+              Showing {currentKindQuickTexts.length} presets
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border border-[#E4E4E7] rounded-xl">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-[#E4E4E7] bg-white/50 text-[11px] font-bold text-[#6B7280] uppercase tracking-wider">
-                  <th className="py-3 px-4 w-48">Group Name</th>
-                  <th className="py-3 px-4">Clinical Advice (Pre-Op / Post-Op)</th>
-                  <th className="py-3 px-4 text-right w-24">Actions</th>
+                <tr className="border-b border-[#E4E4E7] bg-[#F8FAFC] text-[11px] font-bold text-[#6B7280] uppercase tracking-wider">
+                  <th className="py-3 px-4">Template Text / Clinical Finding</th>
+                  <th className="py-3 px-4">Source</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E4E7]">
-                {filteredAdvice.length === 0 ? (
+                {currentKindQuickTexts.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-8 text-center text-[#6B7280]">
-                      No advice templates found matching filter.
+                    <td colSpan={4} className="py-8 text-center text-[#6B7280]">
+                      No {getQuickTextCategoryName().toLowerCase()} templates found matching &quot;{searchQuery}&quot;
                     </td>
                   </tr>
                 ) : (
-                  filteredAdvice.map((a) => (
-                    <tr key={a.id} className="hover:bg-white/70 transition">
-                      <td className="py-3 px-4 font-bold text-[#2A5CAA] align-top">
-                        {a.groupName}
+                  currentKindQuickTexts.map((qt) => (
+                    <tr key={qt.id} className="hover:bg-[#F8FAFC] transition">
+                      <td className="py-3 px-4 font-semibold text-[#1C1C1E] text-xs">
+                        {qt.text}
                       </td>
-                      <td className="py-3 px-4 text-[#1C1C1E] leading-relaxed align-top">
-                        {a.textBn}
+
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
+                            qt.source === "master"
+                              ? "bg-[#EBF2FC] text-[#2A5CAA]"
+                              : "bg-[#F3E8FF] text-[#7E22CE]"
+                          }`}
+                        >
+                          {qt.source === "master" ? "Default Standard" : "Custom Clinic"}
+                        </span>
                       </td>
-                      <td className="py-3 px-4 text-right align-top">
+
+                      <td className="py-3 px-4">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleQuickTextActive(qt)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                            qt.isActive
+                              ? "bg-[#DCFCE7] text-[#15803D] hover:bg-[#BBF7D0]"
+                              : "bg-[#F4F4F5] text-[#9CA3AF] hover:bg-[#E4E4E7]"
+                          }`}
+                        >
+                          {qt.isActive ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-[#16A34A]" />
+                              <span>Active</span>
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-3 h-3 text-[#9CA3AF]" />
+                              <span>Disabled</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
+
+                      <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => openEditAdvice(a)}
-                            className="p-1.5 rounded-lg border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#6B7280] hover:text-[#1C1C1E] transition cursor-pointer"
-                            title="Edit Advice"
+                            onClick={() => openEditQuickText(qt)}
+                            className="p-1.5 rounded-lg text-[#6B7280] hover:text-[#2A5CAA] hover:bg-[#EBF2FC] transition cursor-pointer"
+                            title="Edit Template"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
+
                           <button
                             type="button"
-                            onClick={() => handleDeleteAdvice(a)}
-                            disabled={deletingAdviceId === a.id}
-                            className="p-1.5 rounded-lg border border-[#FF453A]/20 bg-white hover:bg-[#FF453A]/10 text-[#FF453A] transition cursor-pointer"
-                            title="Delete Advice"
+                            onClick={() => handleDeleteQuickText(qt)}
+                            disabled={deletingQuickTextId === qt.id}
+                            className="p-1.5 rounded-lg text-[#6B7280] hover:text-[#FF453A] hover:bg-[#FF453A]/10 transition disabled:opacity-50 cursor-pointer"
+                            title="Delete Template"
                           >
-                            {deletingAdviceId === a.id ? (
+                            {deletingQuickTextId === qt.id ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <Trash2 className="w-3.5 h-3.5" />
@@ -515,17 +840,17 @@ export default function PrescriptionsCatalogClient({
         </div>
       )}
 
-      {/* MEDICINE MODAL (Add / Edit) */}
+      {/* MODAL: ADD / EDIT MEDICINE */}
       {(showAddMedModal || editingMed) && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-[#E4E4E7] shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-[#E4E4E7] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-[#E4E4E7]">
+            <div className="p-5 border-b border-[#E4E4E7] flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-[#1C1C1E]">
-                  {editingMed ? "Edit Medicine" : "Add Medicine"}
+                  {editingMed ? "Edit Medicine" : "Add Medicine to Chamber Catalog"}
                 </h3>
                 <p className="text-xs text-[#6B7280]">
-                  Configure medicine formula for chamber prescription catalog.
+                  Configure medicine details for quick prescription searching.
                 </p>
               </div>
               <button
@@ -540,58 +865,58 @@ export default function PrescriptionsCatalogClient({
             </div>
 
             <form onSubmit={handleSaveMedicine} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                  Generic Name: *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Amoxicillin, Paracetamol"
-                  value={medGeneric}
-                  onChange={(e) => setMedGeneric(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                  Brand Name:
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Moxacil, Napa Extra"
-                  value={medBrand}
-                  onChange={(e) => setMedBrand(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                    Generic Name: *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Amoxicillin"
+                    value={medGeneric}
+                    onChange={(e) => setMedGeneric(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                    Brand Name (Optional):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Moxacil, Fimoxyl"
+                    value={medBrand}
+                    onChange={(e) => setMedBrand(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                    Dosage Form:
+                    Dosage Form: *
                   </label>
                   <select
                     value={medForm}
                     onChange={(e) => setMedForm(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA] bg-white capitalize"
+                    className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none bg-white focus:border-[#2A5CAA]"
                   >
                     {MEDICINE_FORMS.map((f) => (
                       <option key={f} value={f}>
-                        {f}
+                        {f.toUpperCase()}
                       </option>
                     ))}
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
                     Strength:
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. 500mg, 10mg"
+                    placeholder="e.g. 500 mg, 0.2% w/v"
                     value={medStrength}
                     onChange={(e) => setMedStrength(e.target.value)}
                     className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
@@ -601,11 +926,11 @@ export default function PrescriptionsCatalogClient({
 
               <div>
                 <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                  Drug Class:
+                  Drug Class (for Allergy Checking):
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Antibiotic, NSAID, Antiseptic"
+                  placeholder="e.g. penicillin, nsaid, macrolide"
                   value={medClass}
                   onChange={(e) => setMedClass(e.target.value)}
                   className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
@@ -637,14 +962,14 @@ export default function PrescriptionsCatalogClient({
         </div>
       )}
 
-      {/* ADVICE MODAL (Add / Edit) */}
+      {/* MODAL: ADD / EDIT ADVICE */}
       {(showAddAdviceModal || editingAdvice) && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-[#E4E4E7] shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-[#E4E4E7] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-[#E4E4E7]">
+            <div className="p-5 border-b border-[#E4E4E7] flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-[#1C1C1E]">
-                  {editingAdvice ? "Edit Advice Template" : "Add Advice Template"}
+                  {editingAdvice ? "Edit Advice Template" : "Add Pre-Advice Template"}
                 </h3>
                 <p className="text-xs text-[#6B7280]">
                   Pre-advice instruction for dental treatment prescriptions.
@@ -708,6 +1033,80 @@ export default function PrescriptionsCatalogClient({
                 >
                   {isSubmittingAdvice && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>{editingAdvice ? "Save Changes" : "Add Template"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT CLINICAL QUICK TEXT TEMPLATE */}
+      {(showAddQuickTextModal || editingQuickText) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-[#E4E4E7]">
+            <div className="p-5 border-b border-[#E4E4E7] flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-[#1C1C1E]">
+                  {editingQuickText
+                    ? `Edit ${getQuickTextCategoryName()}`
+                    : `Add ${getQuickTextCategoryName()}`}
+                </h3>
+                <p className="text-xs text-[#6B7280]">
+                  This preset will be instantly selectable when creating prescriptions.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAddQuickTextModal(false);
+                  setEditingQuickText(null);
+                }}
+                className="p-1 rounded-lg text-[#6B7280] hover:text-[#1C1C1E] hover:bg-[#F4F4F5]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuickText} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                  {getQuickTextCategoryName()} Text: *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={`e.g. ${
+                    activeTab === "chief_complaint"
+                      ? "Severe toothache at night, Food lodgement"
+                      : activeTab === "examination"
+                      ? "Deep caries on 46, Calculus and stains"
+                      : activeTab === "diagnosis"
+                      ? "Acute apical periodontitis, Dental caries"
+                      : "IOPA X-ray, Bitewing X-ray, OPG"
+                  }`}
+                  value={quickTextContent}
+                  onChange={(e) => setQuickTextContent(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA]"
+                />
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-[#E4E4E7]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddQuickTextModal(false);
+                    setEditingQuickText(null);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-[#6B7280] hover:text-[#1C1C1E]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingQuickText}
+                  className="px-5 py-2 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-semibold transition disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-xs"
+                >
+                  {isSubmittingQuickText && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{editingQuickText ? "Save Changes" : "Add Preset"}</span>
                 </button>
               </div>
             </form>

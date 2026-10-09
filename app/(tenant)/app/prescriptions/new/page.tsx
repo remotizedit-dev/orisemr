@@ -10,6 +10,7 @@ import { getPatientAttachmentsAction } from "@/app/(tenant)/app/patients/actions
 import { getOrSetCache } from "@/lib/cache";
 import { ShieldAlert } from "lucide-react";
 import { canDoctorAccessPatient } from "@/lib/patient-privacy";
+import { getFileUrl } from "@/lib/s3";
 
 /**
  * Cache chamber clinical catalogs (medicines, dosage patterns, timings, durations, advice, quick texts)
@@ -288,6 +289,21 @@ export default async function NewPrescriptionPage({
         durationOptions={catalog.durationOptions}
         adviceTemplates={catalog.adviceTemplates}
         quickTexts={catalog.quickTexts}
+        clinic={{
+          name: tenant.name,
+          address: tenant.address,
+          phone: tenant.phone,
+          logoKey: tenant.logoKey,
+          logoUrl: tenant.logoKey ? getFileUrl(tenant.logoKey) : null,
+          rxPrintLetterhead: tenant.rxPrintLetterhead,
+        }}
+        doctor={{
+          name: user.name,
+          doctorTitle: user.doctorTitle || "Dr.",
+          doctorDegrees: user.doctorDegrees || "BDS",
+          doctorSpecialty: user.doctorSpecialty || "Dental Surgeon",
+          doctorRegNo: user.doctorRegNo || "BMDC-Reg",
+        }}
       />
     </div>
   );

@@ -63,7 +63,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/app/settings/prescriptions",
     label: "Prescription Catalog",
-    description: "Medicines & advice templates",
+    description: "Medicines, clinical findings & advice",
     icon: Pill,
   },
   {

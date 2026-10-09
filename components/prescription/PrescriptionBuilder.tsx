@@ -8,32 +8,27 @@ import { ToothSelector } from "./ToothSelector";
 import { ClinicalAutocompleteInput } from "./ClinicalAutocompleteInput";
 import { PatientProfileModal } from "./PatientProfileModal";
 import { UploadReportModal } from "./UploadReportModal";
+import { PrescriptionViewModal } from "./PrescriptionViewModal";
+import { BarcodeSvg } from "@/components/barcode/BarcodeSvg";
 import { checkMedicineAllergy, type AllergyCheckResult } from "@/lib/clinical-flags";
-import { getDhakaTodayStr, addDhakaDays, addDhakaMonths } from "@/lib/utils";
+import { getDhakaTodayStr, addDhakaDays, addDhakaMonths, formatDhakaDate } from "@/lib/utils";
 import { savePrescriptionAction } from "@/app/(tenant)/app/prescriptions/actions";
 import { deletePatientAttachmentAction } from "@/app/(tenant)/app/patients/actions";
 import {
   AlertCircle,
   AlertTriangle,
   Armchair,
-  ArrowRight,
+  ArrowLeft,
   Camera,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Clock,
-  Copy,
-  CreditCard,
   ExternalLink,
   FileText,
-  Image as ImageIcon,
   Loader2,
-  Maximize2,
   Phone,
   Plus,
   Printer,
-  RotateCcw,
   Search,
   Sparkles,
   Stethoscope,
@@ -41,8 +36,6 @@ import {
   Upload,
   User,
   X,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -107,6 +100,21 @@ interface PrescriptionBuilderProps {
     kind: string;
     text: string;
   }[];
+  clinic?: {
+    name: string;
+    address?: string | null;
+    phone?: string | null;
+    logoKey?: string | null;
+    logoUrl?: string | null;
+    rxPrintLetterhead?: boolean;
+  };
+  doctor?: {
+    name: string;
+    doctorTitle?: string | null;
+    doctorDegrees?: string | null;
+    doctorSpecialty?: string | null;
+    doctorRegNo?: string | null;
+  };
 }
 
 interface SelectedMedicineItem {
@@ -137,41 +145,25 @@ export function PrescriptionBuilder({
   durationOptions,
   adviceTemplates,
   quickTexts,
+  clinic = {
+    name: "Smile Care Dental",
+    address: "House 24, Road 7, Dhanmondi, Dhaka 1205",
+    phone: "01700000000",
+    rxPrintLetterhead: true,
+  },
+  doctor = {
+    name: "Karim Mbappe",
+    doctorTitle: "Dr.",
+    doctorDegrees: "BDS (DU), PGT (OMS)",
+    doctorSpecialty: "Dental Surgeon",
+    doctorRegNo: "BMDC-0025",
+  },
 }: PrescriptionBuilderProps) {
   const router = useRouter();
 
-  // In-chair patient clinical reports state (filtered for this patient only)
+  // Clinical reports & attachments
   const [reports, setReports] = useState<PatientAttachmentItem[]>(initialReports);
-  const [lightboxAttachment, setLightboxAttachment] = useState<PatientAttachmentItem | null>(null);
-  const [lightboxZoom, setLightboxZoom] = useState<number>(1);
-  const [lightboxRotation, setLightboxRotation] = useState<number>(0);
-  const [isReportsExpanded, setIsReportsExpanded] = useState<boolean>(true);
-
-  // Keyboard navigation for radiograph Lightbox
-  useEffect(() => {
-    if (!lightboxAttachment) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setLightboxAttachment(null);
-      } else if (e.key === "ArrowLeft") {
-        const idx = reports.findIndex((r) => r.id === lightboxAttachment.id);
-        if (idx > 0) {
-          setLightboxAttachment(reports[idx - 1]);
-          setLightboxZoom(1);
-          setLightboxRotation(0);
-        }
-      } else if (e.key === "ArrowRight") {
-        const idx = reports.findIndex((r) => r.id === lightboxAttachment.id);
-        if (idx < reports.length - 1) {
-          setLightboxAttachment(reports[idx + 1]);
-          setLightboxZoom(1);
-          setLightboxRotation(0);
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxAttachment, reports]);
+  const [isReportsDrawerOpen, setIsReportsDrawerOpen] = useState(false);
 
   // Clinical Notes State
   const [chiefComplaint, setChiefComplaint] = useState("");
@@ -182,20 +174,25 @@ export function PrescriptionBuilder({
   const [nextVisitDate, setNextVisitDate] = useState<string>("");
   const [notes, setNotes] = useState("");
 
+  // Tooth selector modal
+  const [isToothModalOpen, setIsToothModalOpen] = useState(false);
+
   // Prescribed items & advice state
   const [selectedItems, setSelectedItems] = useState<SelectedMedicineItem[]>([]);
   const [selectedAdvice, setSelectedAdvice] = useState<string[]>([]);
+  const [customAdviceInput, setCustomAdviceInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   // Medicine search
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<typeof catalogMedicines>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   // Modals state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
-  // Post-save modal state
+  // Post-save modal state (PrescriptionViewModal)
   const [savedPrescription, setSavedPrescription] = useState<{
     id: string;
     rxCode: string;
@@ -235,7 +232,7 @@ export function PrescriptionBuilder({
     }
 
     const defaultDosage = dosagePatterns[0]?.labelBn || "১+০+১";
-    const defaultMeal = mealTimings[0]?.labelBn || "খাবার পর";
+    const defaultMeal = mealTimings[0]?.labelBn || "খাবার পরে";
     const defaultDuration = durationOptions[0]?.labelBn || "৫ দিন";
 
     const newItem: SelectedMedicineItem = {
@@ -249,72 +246,79 @@ export function PrescriptionBuilder({
       dosageTextBn: defaultDosage,
       mealTimingTextBn: defaultMeal,
       durationTextBn: defaultDuration,
-      allergyNotice: medicine.drugClass
-        ? checkMedicineAllergy(medicine, patient.allergyFlags)
-        : undefined,
+      customInstruction: "",
+      allergyNotice: checkMedicineAllergy(medicine, patient.allergyFlags),
     };
 
-    setSelectedItems([...selectedItems, newItem]);
+    setSelectedItems((prev) => [...prev, newItem]);
     setSearchQuery("");
     setSearchResults([]);
+    setIsSearchFocused(false);
   };
 
-  const toggleAdviceGroup = (groupName: string) => {
-    const templatesInGroup = adviceTemplates.filter((a) => a.groupName === groupName);
-    const linesToAdd = templatesInGroup.map((t) => t.textBn);
-    const newAdvice = Array.from(new Set([...selectedAdvice, ...linesToAdd]));
-    setSelectedAdvice(newAdvice);
+  const updateItem = (id: string, updates: Partial<SelectedMedicineItem>) => {
+    setSelectedItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    );
+  };
+
+  const removeItem = (id: string) => {
+    setSelectedItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const toggleAdviceLine = (line: string) => {
     if (selectedAdvice.includes(line)) {
-      setSelectedAdvice(selectedAdvice.filter((a) => a !== line));
+      setSelectedAdvice((prev) => prev.filter((a) => a !== line));
     } else {
-      setSelectedAdvice([...selectedAdvice, line]);
+      setSelectedAdvice((prev) => [...prev, line]);
     }
   };
 
-  const handleSave = async () => {
-    // Medicines are now OPTIONAL. Ensure at least one clinical finding or advice or medicine is present.
-    const hasAnyContent =
-      selectedItems.length > 0 ||
-      selectedAdvice.length > 0 ||
-      chiefComplaint.trim() ||
-      examination.trim() ||
-      diagnosis.trim() ||
-      investigations.trim() ||
-      toothCodes.length > 0;
+  const toggleAdviceGroup = (groupName: string) => {
+    const groupLines = adviceTemplates
+      .filter((a) => a.groupName === groupName)
+      .map((a) => a.textBn);
 
-    if (!hasAnyContent) {
-      toast.error("Please provide at least a diagnosis, advice, or medicine before saving.");
+    const allPresent = groupLines.every((l) => selectedAdvice.includes(l));
+    if (allPresent) {
+      setSelectedAdvice((prev) => prev.filter((l) => !groupLines.includes(l)));
+    } else {
+      const missing = groupLines.filter((l) => !selectedAdvice.includes(l));
+      setSelectedAdvice((prev) => [...prev, ...missing]);
+    }
+  };
+
+  const handleAddCustomAdvice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customAdviceInput.trim()) return;
+    if (!selectedAdvice.includes(customAdviceInput.trim())) {
+      setSelectedAdvice((prev) => [...prev, customAdviceInput.trim()]);
+    }
+    setCustomAdviceInput("");
+  };
+
+  const handleSave = async () => {
+    if (selectedItems.length === 0 && !chiefComplaint && !diagnosis) {
+      toast.error("Please add at least one medication, chief complaint, or diagnosis");
       return;
     }
 
     setIsSaving(true);
     try {
-      const formattedItems = selectedItems.map((item, idx) => {
-        const formPrefix =
-          item.form === "tablet"
-            ? "Tab."
-            : item.form === "capsule"
-            ? "Cap."
-            : item.form === "mouthwash"
-            ? "Mouthwash"
-            : "";
-        const lineSnapshot = item.brandName
-          ? `${formPrefix} ${item.brandName} ${item.strength || ""} (${item.genericName})`.trim()
-          : `${formPrefix} ${item.genericName} ${item.strength || ""}`.trim();
-
-        return {
-          medicineId: item.medicineId,
-          medicineLineSnapshot: lineSnapshot,
-          dosageTextBn: item.dosageTextBn || null,
-          mealTimingTextBn: item.mealTimingTextBn || null,
-          durationTextBn: item.durationTextBn || null,
-          customInstruction: item.customInstruction || null,
-          sortOrder: idx + 1,
-        };
-      });
+      const formattedItems = selectedItems.map((item, idx) => ({
+        medicineId: item.medicineId,
+        medicineLineSnapshot: `${item.form ? item.form.toUpperCase() + ". " : ""}${
+          item.brandName || item.genericName
+        } ${item.strength || ""}`.trim(),
+        dosagePatternId: item.dosagePatternId || null,
+        dosageTextBn: item.dosageTextBn || null,
+        mealTimingId: item.mealTimingId || null,
+        mealTimingTextBn: item.mealTimingTextBn || null,
+        durationOptionId: item.durationOptionId || null,
+        durationTextBn: item.durationTextBn || null,
+        customInstruction: item.customInstruction || null,
+        sortOrder: idx + 1,
+      }));
 
       const formattedAdvice = selectedAdvice.map((text, idx) => ({
         textBn: text,
@@ -347,34 +351,878 @@ export function PrescriptionBuilder({
 
   const adviceGroups = Array.from(new Set(adviceTemplates.map((a) => a.groupName)));
 
-  // Separate suggestions for each finding category
+  // Filtered template suggestions
   const ccSuggestions = quickTexts.filter((q) => q.kind === "chief_complaint");
   const oeSuggestions = quickTexts.filter((q) => q.kind === "examination");
   const dxSuggestions = quickTexts.filter((q) => q.kind === "diagnosis");
   const ixSuggestions = quickTexts.filter((q) => q.kind === "investigation");
 
-  async function handleDeleteReport(reportId: string, e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this clinical document?")) return;
-    try {
-      await deletePatientAttachmentAction(reportId);
-      setReports((prev) => prev.filter((r) => r.id !== reportId));
-      toast.success("Clinical document deleted successfully");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete document");
+  // Helper for quick chip appending to clinical notes
+  const appendChipText = (
+    current: string,
+    setFunc: (val: string) => void,
+    chipText: string
+  ) => {
+    if (!current.trim()) {
+      setFunc(chipText);
+    } else if (!current.toLowerCase().includes(chipText.toLowerCase())) {
+      setFunc(`${current.trim()}, ${chipText}`);
     }
-  }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Allergy Warning Modal */}
+    <div className="bg-[#EAEAEA] min-h-screen py-6 px-3 sm:px-6 font-sans">
+      {/* ------------------------------------------------------------- */}
+      {/* TOP FLOATING / STICKY ACTION BAR (OUTSIDE THE WHITE PAGE)     */}
+      {/* ------------------------------------------------------------- */}
+      <header className="sticky top-3 z-30 max-w-4xl mx-auto mb-6">
+        <div className="bg-[#1C1C1E] text-white p-3 rounded-2xl shadow-2xl border border-white/10 flex flex-wrap items-center justify-between gap-3">
+          {/* Left Actions */}
+          <div className="flex items-center gap-2">
+            <Link
+              href="/app/prescriptions"
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center gap-1.5 transition text-white"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Go Back</span>
+            </Link>
+
+            {appointmentId && (
+              <Link
+                href="/app/queue"
+                className="px-3 py-1.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-xs font-bold flex items-center gap-1.5 transition text-white shadow-xs"
+              >
+                <Armchair className="w-3.5 h-3.5" />
+                <span>Return to Queue</span>
+              </Link>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsProfileModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center gap-1.5 transition text-white cursor-pointer"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Patient Profile</span>
+            </button>
+          </div>
+
+          {/* Right Actions */}
+          <div className="flex items-center gap-2">
+            {/* Upload / Reports button */}
+            <button
+              type="button"
+              onClick={() => setIsUploadModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center gap-1.5 transition text-white cursor-pointer"
+            >
+              <Camera className="w-3.5 h-3.5 text-blue-300" />
+              <span>Upload Scans / Reports</span>
+              {reports.length > 0 && (
+                <span className="px-1.5 py-0.2 bg-[#2A5CAA] text-white rounded-full text-[10px] font-bold">
+                  {reports.length}
+                </span>
+              )}
+            </button>
+
+            {/* View Reports Drawer Toggle if reports exist */}
+            {reports.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsReportsDrawerOpen(!isReportsDrawerOpen)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  isReportsDrawerOpen
+                    ? "bg-amber-500 text-black font-extrabold"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>{isReportsDrawerOpen ? "Hide Scans" : "View Scans"}</span>
+              </button>
+            )}
+
+            {/* Allergy Banner Pill */}
+            {patient.allergyFlags.length > 0 && (
+              <div className="px-3 py-1.5 rounded-xl bg-[#FF453A]/20 border border-[#FF453A]/40 text-[#FF453A] text-xs font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Allergy:</span>
+                <span className="font-extrabold">{patient.allergyFlags.join(", ")}</span>
+              </div>
+            )}
+
+            {/* Prominent Save & Print Prescription Button */}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-5 py-2 rounded-xl bg-[#30D158] hover:bg-[#28B84D] text-black font-black text-xs flex items-center gap-2 shadow-lg shadow-[#30D158]/20 transition disabled:opacity-50 cursor-pointer"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-black" />
+                  <span>Issuing...</span>
+                </>
+              ) : (
+                <>
+                  <Printer className="w-4 h-4 text-black" />
+                  <span>Save &amp; Print Document</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Reports / Scans Drawer (Collapsible) */}
+      <AnimatePresence>
+        {isReportsDrawerOpen && reports.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="max-w-4xl mx-auto mb-6 bg-white p-4 rounded-2xl border border-gray-300 shadow-xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-[#2A5CAA]" />
+                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Patient Scans &amp; Radiographs ({reports.length})
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsUploadModalOpen(true)}
+                className="text-xs text-[#2A5CAA] hover:underline font-bold flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Upload New Scan</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+              {reports.map((r) => (
+                <div
+                  key={r.id}
+                  className="group relative border border-gray-200 rounded-xl p-2 bg-gray-50 hover:bg-white transition"
+                >
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block aspect-video bg-black rounded-lg overflow-hidden relative flex items-center justify-center text-white"
+                  >
+                    {r.contentType?.startsWith("image/") ? (
+                      <img
+                        src={r.url}
+                        alt={r.title || "Scan"}
+                        className="w-full h-full object-cover group-hover:scale-105 transition"
+                      />
+                    ) : (
+                      <FileText className="w-8 h-8 text-gray-400" />
+                    )}
+                    <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-[9px] font-mono text-white">
+                      {r.kind.toUpperCase()}
+                    </span>
+                  </a>
+                  <p className="text-[11px] font-bold text-gray-800 mt-1.5 truncate">
+                    {r.title || r.reportCode || "Clinical Scan"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ------------------------------------------------------------- */}
+      {/* THE WHITE PAPER PRESCRIPTION CANVAS (WYSIWYG Dental Sheet)    */}
+      {/* ------------------------------------------------------------- */}
+      <main className="bg-white shadow-2xl rounded-sm border border-gray-300 max-w-4xl mx-auto p-8 sm:p-12 text-black font-sans min-h-[1150px] relative transition-all flex flex-col justify-between">
+        <div>
+          {/* Header / Clinic Letterhead */}
+          {clinic.rxPrintLetterhead !== false && (
+            <div className="border-b-2 border-black pb-4 mb-5 flex flex-col sm:flex-row items-start justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                {clinic.logoUrl ? (
+                  <img
+                    src={clinic.logoUrl}
+                    alt={clinic.name}
+                    className="w-16 h-16 object-contain shrink-0 rounded-lg"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-2xl bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-sm font-black text-xl">
+                    🦷
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-gray-950">
+                    {clinic.name}
+                  </h1>
+                  <p className="text-xs text-gray-700 font-medium">{clinic.address}</p>
+                  <p className="text-xs text-gray-700 font-medium">
+                    Phone: {clinic.phone || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right">
+                <h2 className="text-base sm:text-lg font-bold text-gray-950">
+                  {doctor.doctorTitle} {doctor.name}
+                </h2>
+                <p className="text-xs text-gray-700">{doctor.doctorDegrees}</p>
+                <p className="text-xs text-gray-700">{doctor.doctorSpecialty}</p>
+                <p className="text-xs font-mono font-bold text-gray-900 mt-0.5">
+                  Reg No: {doctor.doctorRegNo}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Patient Information Banner Box */}
+          <div className="border border-black p-3.5 rounded-xs mb-6 flex flex-wrap items-center justify-between text-xs bg-gray-50/70 text-gray-950 gap-4">
+            <div className="space-y-1">
+              <div>
+                <span className="font-bold text-gray-700">Patient Name:</span>{" "}
+                <span className="font-bold text-gray-950 text-sm ml-1">{patient.name}</span>
+              </div>
+              <div>
+                <span className="font-bold text-gray-700">Age/Gender:</span>{" "}
+                <span className="font-medium ml-1">
+                  {patient.approxAge ? `${patient.approxAge} yrs` : "—"} / {patient.gender}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div>
+                <span className="font-bold text-gray-700">Card No:</span>{" "}
+                <span className="font-mono font-bold ml-1 text-sm tracking-wide">
+                  {patient.cardNumber}
+                </span>
+              </div>
+              <div>
+                <span className="font-bold text-gray-700">Date:</span>{" "}
+                <span className="font-medium ml-1">
+                  {formatDhakaDate(new Date(), "d MMM yyyy")}
+                </span>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <BarcodeSvg
+                value={patient.cardNumber}
+                width={1.2}
+                height={28}
+                fontSize={9}
+                className="inline-block"
+              />
+              <span className="block text-[10px] font-mono text-gray-500 font-bold mt-0.5">
+                RX BARCODE (PREVIEW)
+              </span>
+            </div>
+          </div>
+
+          {/* ------------------------------------------------------------- */}
+          {/* 2-COLUMN PRESCRIPTION BODY (FINDINGS & RX MEDICINES)          */}
+          {/* ------------------------------------------------------------- */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+            {/* LEFT COLUMN: Clinical Findings (4 Cols) */}
+            <div className="md:col-span-4 border-r border-gray-200 pr-5 space-y-6">
+              {/* 1. CHIEF COMPLAINT */}
+              <div>
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600 mb-1">
+                  CHIEF COMPLAINT
+                </h3>
+                <ClinicalAutocompleteInput
+                  label=""
+                  value={chiefComplaint}
+                  onChange={setChiefComplaint}
+                  placeholder="Type or select complaints..."
+                  suggestions={ccSuggestions}
+                  rows={2}
+                />
+                {/* Quick Chips */}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {ccSuggestions.slice(0, 5).map((q) => (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => appendChipText(chiefComplaint, setChiefComplaint, q.text)}
+                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-blue-50 hover:text-[#2A5CAA] text-[10px] font-medium text-gray-700 transition cursor-pointer"
+                    >
+                      + {q.text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. ON EXAMINATION */}
+              <div>
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600 mb-1">
+                  ON EXAMINATION
+                </h3>
+                <ClinicalAutocompleteInput
+                  label=""
+                  value={examination}
+                  onChange={setExamination}
+                  placeholder="Clinical findings..."
+                  suggestions={oeSuggestions}
+                  rows={2}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {oeSuggestions.slice(0, 5).map((q) => (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => appendChipText(examination, setExamination, q.text)}
+                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-blue-50 hover:text-[#2A5CAA] text-[10px] font-medium text-gray-700 transition cursor-pointer"
+                    >
+                      + {q.text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. DIAGNOSIS */}
+              <div>
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600 mb-1">
+                  DIAGNOSIS
+                </h3>
+                <ClinicalAutocompleteInput
+                  label=""
+                  value={diagnosis}
+                  onChange={setDiagnosis}
+                  placeholder="Provisional diagnosis..."
+                  suggestions={dxSuggestions}
+                  rows={2}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {dxSuggestions.slice(0, 5).map((q) => (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => appendChipText(diagnosis, setDiagnosis, q.text)}
+                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-blue-50 hover:text-[#2A5CAA] text-[10px] font-medium text-gray-700 transition cursor-pointer"
+                    >
+                      + {q.text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. TEETH (FDI) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600">
+                    TEETH (FDI)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsToothModalOpen(true)}
+                    className="text-[11px] font-bold text-[#2A5CAA] hover:underline cursor-pointer"
+                  >
+                    {toothCodes.length > 0 ? "Edit Teeth" : "+ Select FDI"}
+                  </button>
+                </div>
+
+                {toothCodes.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {toothCodes.map((code) => (
+                      <span
+                        key={code}
+                        className="px-2 py-0.5 rounded bg-black text-white font-mono font-bold text-xs"
+                      >
+                        {code}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p
+                    onClick={() => setIsToothModalOpen(true)}
+                    className="text-xs text-gray-400 italic cursor-pointer hover:text-gray-600"
+                  >
+                    Click to select affected teeth...
+                  </p>
+                )}
+              </div>
+
+              {/* 5. INVESTIGATIONS ADVISED */}
+              <div>
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-600 mb-1">
+                  INVESTIGATIONS ADVISED
+                </h3>
+                <ClinicalAutocompleteInput
+                  label=""
+                  value={investigations}
+                  onChange={setInvestigations}
+                  placeholder="X-rays, OPG, lab tests..."
+                  suggestions={ixSuggestions}
+                  rows={2}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {ixSuggestions.slice(0, 4).map((q) => (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => appendChipText(investigations, setInvestigations, q.text)}
+                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-blue-50 hover:text-[#2A5CAA] text-[10px] font-medium text-gray-700 transition cursor-pointer"
+                    >
+                      + {q.text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: ℞ Medications & Advice (8 Cols) */}
+            <div className="md:col-span-8 pl-1 space-y-6">
+              {/* Stylized ℞ Mark */}
+              <div className="flex items-center justify-between">
+                <span className="text-3xl font-serif font-black text-black select-none tracking-tight">
+                  ℞
+                </span>
+                <span className="text-xs text-gray-500 font-medium">
+                  {selectedItems.length} {selectedItems.length === 1 ? "medicine" : "medicines"} added
+                </span>
+              </div>
+
+              {/* Fast Medicine Search Input */}
+              <div className="relative">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search medicine by brand or generic name (e.g. Napa, Amodis, Amoxicillin)..."
+                    value={searchQuery}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onChange={(e) => handleSearchMedicine(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-medium outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black transition"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setSearchResults([]);
+                      }}
+                      className="absolute right-3 top-2.5 text-gray-400 hover:text-black cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Instant Search Results Dropdown */}
+                {isSearchFocused && searchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-gray-300 rounded-xl shadow-2xl max-h-72 overflow-y-auto divide-y divide-gray-100">
+                    {searchResults.map((med) => {
+                      const allergy = checkMedicineAllergy(med, patient.allergyFlags);
+                      return (
+                        <div
+                          key={med.id}
+                          onClick={() => addMedicine(med)}
+                          className={`p-3 flex items-center justify-between hover:bg-blue-50 transition cursor-pointer ${
+                            allergy.level === "block" ? "bg-red-50/60" : ""
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs text-gray-950">
+                                {med.brandName || med.genericName}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded bg-gray-200 text-[10px] font-bold uppercase text-gray-700">
+                                {med.form}
+                              </span>
+                              {med.strength && (
+                                <span className="text-[11px] text-gray-500 font-mono">
+                                  {med.strength}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              {med.genericName}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {allergy.level === "block" && (
+                              <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold">
+                                ALLERGY
+                              </span>
+                            )}
+                            <span className="text-xs font-bold text-[#2A5CAA] hover:underline">
+                              + Add
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Numbered Prescribed Items (Exactly Matching the Screenshot!) */}
+              <div className="space-y-4">
+                {selectedItems.length === 0 ? (
+                  <div className="py-8 text-center border border-dashed border-gray-300 rounded-xl bg-gray-50/50">
+                    <p className="text-xs text-gray-500 font-medium">
+                      No medications prescribed yet. Search above to add medicines.
+                    </p>
+                  </div>
+                ) : (
+                  selectedItems.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/40 hover:bg-white hover:border-gray-400 transition group"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        {/* Clinical Line Header (e.g. 1. Tab. Amodis 400 mg (Metronidazole)) */}
+                        <div>
+                          <h4 className="text-sm font-extrabold text-gray-950">
+                            {idx + 1}. {item.form ? item.form.charAt(0).toUpperCase() + item.form.slice(1) + ". " : ""}
+                            {item.brandName || item.genericName}{" "}
+                            {item.strength ? `${item.strength} ` : ""}
+                            {item.brandName && (
+                              <span className="font-normal text-gray-600">
+                                ({item.genericName})
+                              </span>
+                            )}
+                          </h4>
+
+                          {/* Bangla Dosage Preview (১+০+১ — খাবার পরে — ৭ দিন) */}
+                          <div className="text-xs text-gray-800 font-semibold mt-1 flex items-center gap-2">
+                            <span>{item.dosageTextBn || "১+০+১"}</span>
+                            <span>—</span>
+                            <span>{item.mealTimingTextBn || "খাবার পরে"}</span>
+                            <span>—</span>
+                            <span>{item.durationTextBn || "৭ দিন"}</span>
+                            {item.customInstruction && (
+                              <>
+                                <span>—</span>
+                                <span className="text-blue-700 italic">
+                                  {item.customInstruction}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Remove item button */}
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          className="text-gray-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                          title="Remove medicine"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Inline Interactive Selectors */}
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-3 mt-2 border-t border-gray-200/60">
+                        {/* Dosage Pattern */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase">
+                            Dosage
+                          </label>
+                          <select
+                            value={item.dosageTextBn}
+                            onChange={(e) => updateItem(item.id, { dosageTextBn: e.target.value })}
+                            className="w-full text-xs font-semibold bg-white border border-gray-300 rounded-lg p-1.5 focus:border-black outline-none"
+                          >
+                            {dosagePatterns.map((dp) => (
+                              <option key={dp.id} value={dp.labelBn}>
+                                {dp.labelBn}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Meal Timing */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase">
+                            Timing
+                          </label>
+                          <select
+                            value={item.mealTimingTextBn}
+                            onChange={(e) => updateItem(item.id, { mealTimingTextBn: e.target.value })}
+                            className="w-full text-xs font-semibold bg-white border border-gray-300 rounded-lg p-1.5 focus:border-black outline-none"
+                          >
+                            {mealTimings.map((mt) => (
+                              <option key={mt.id} value={mt.labelBn}>
+                                {mt.labelBn}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Duration */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase">
+                            Duration
+                          </label>
+                          <select
+                            value={item.durationTextBn}
+                            onChange={(e) => updateItem(item.id, { durationTextBn: e.target.value })}
+                            className="w-full text-xs font-semibold bg-white border border-gray-300 rounded-lg p-1.5 focus:border-black outline-none"
+                          >
+                            {durationOptions.map((dur) => (
+                              <option key={dur.id} value={dur.labelBn}>
+                                {dur.labelBn}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Custom Instruction */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase">
+                            Note (optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. ব্যথা থাকলে"
+                            value={item.customInstruction || ""}
+                            onChange={(e) => updateItem(item.id, { customInstruction: e.target.value })}
+                            className="w-full text-xs bg-white border border-gray-300 rounded-lg p-1.5 focus:border-black outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Divider between medicines and advice */}
+              <div className="border-t border-gray-200 pt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-gray-950">
+                    উপদেশ (ADVICE):
+                  </h3>
+                  <span className="text-xs text-gray-500">
+                    {selectedAdvice.length} advice lines
+                  </span>
+                </div>
+
+                {/* Advice Category Tags */}
+                <div className="flex flex-wrap gap-1.5">
+                  {adviceGroups.map((group) => {
+                    const groupLines = adviceTemplates
+                      .filter((a) => a.groupName === group)
+                      .map((a) => a.textBn);
+                    const isAllSelected = groupLines.every((l) => selectedAdvice.includes(l));
+                    return (
+                      <button
+                        key={group}
+                        type="button"
+                        onClick={() => toggleAdviceGroup(group)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer border ${
+                          isAllSelected
+                            ? "bg-black text-white border-black"
+                            : "bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200"
+                        }`}
+                      >
+                        {isAllSelected ? "✓ " : "+ "} {group}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected Advice Bullets */}
+                {selectedAdvice.length > 0 && (
+                  <div className="space-y-1.5 text-xs text-gray-900 leading-relaxed font-medium pt-1">
+                    {selectedAdvice.map((line, idx) => (
+                      <div key={idx} className="flex items-start justify-between gap-2 group">
+                        <span>• {line}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleAdviceLine(line)}
+                          className="text-gray-400 hover:text-red-600 p-0.5 cursor-pointer opacity-0 group-hover:opacity-100 transition"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Custom Advice Input */}
+                <form onSubmit={handleAddCustomAdvice} className="flex gap-2 pt-2">
+                  <input
+                    type="text"
+                    placeholder="Type custom advice line (Bangla / English)..."
+                    value={customAdviceInput}
+                    onChange={(e) => setCustomAdviceInput(e.target.value)}
+                    className="flex-1 px-3 py-1.5 text-xs bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:border-black"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold cursor-pointer"
+                  >
+                    + Add
+                  </button>
+                </form>
+              </div>
+
+              {/* Next Follow-up Visit (পরবর্তী সাক্ষাৎ) */}
+              <div className="border-t border-gray-200 pt-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-gray-950">
+                    পরবর্তী সাক্ষাৎ (Next Follow-up):
+                  </h3>
+                  {nextVisitDate && (
+                    <span className="text-xs font-bold text-[#2A5CAA]">
+                      {formatDhakaDate(new Date(nextVisitDate), "d MMM yyyy")}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {["+3 days", "+7 days", "+14 days", "+1 month"].map((dur) => (
+                    <button
+                      key={dur}
+                      type="button"
+                      onClick={() => {
+                        const todayDhaka = getDhakaTodayStr();
+                        if (dur === "+3 days") setNextVisitDate(addDhakaDays(todayDhaka, 3));
+                        if (dur === "+7 days") setNextVisitDate(addDhakaDays(todayDhaka, 7));
+                        if (dur === "+14 days") setNextVisitDate(addDhakaDays(todayDhaka, 14));
+                        if (dur === "+1 month") setNextVisitDate(addDhakaMonths(todayDhaka, 1));
+                      }}
+                      className="px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-semibold text-gray-800 transition cursor-pointer"
+                    >
+                      {dur}
+                    </button>
+                  ))}
+
+                  <input
+                    type="date"
+                    value={nextVisitDate}
+                    min={getDhakaTodayStr()}
+                    onChange={(e) => setNextVisitDate(e.target.value)}
+                    className="px-3 py-1 bg-white border border-gray-300 rounded-lg text-xs font-medium focus:border-black outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Private Doctor's Clinical Notes (Not Printed) */}
+              <div className="border-t border-gray-200 pt-5">
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                  Private Clinical Notes (For Doctor&apos;s Record, Not Printed)
+                </label>
+                <textarea
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Internal treatment notes, procedure reminders..."
+                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs outline-none focus:bg-white focus:border-black"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* PRESCRIPTION FOOTER & SIGNATURE BLOCK                         */}
+        {/* ------------------------------------------------------------- */}
+        <footer className="border-t border-gray-200 pt-8 mt-12 flex flex-col sm:flex-row items-end justify-between gap-4 text-xs text-gray-600">
+          <div>
+            <span className="font-mono text-gray-500">
+              Generated via Oris EMR • {patient.cardNumber}
+            </span>
+          </div>
+
+          <div className="text-right space-y-0.5">
+            <div className="w-48 border-b border-black mb-1.5 ml-auto" />
+            <p className="font-bold text-gray-900 text-sm">
+              {doctor.doctorTitle} {doctor.name}
+            </p>
+            <p className="font-mono text-[11px] text-gray-600">
+              {doctor.doctorRegNo}
+            </p>
+          </div>
+        </footer>
+      </main>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODALS: POST-SAVE, PROFILE, UPLOAD, ALLERGY, TOOTH            */}
+      {/* ------------------------------------------------------------- */}
+
+      {/* 1. Post-Save Print Preview Modal (PrescriptionViewModal) */}
+      <PrescriptionViewModal
+        prescriptionId={savedPrescription?.id || null}
+        isOpen={Boolean(savedPrescription)}
+        onClose={() => {
+          setSavedPrescription(null);
+          router.push(appointmentId ? "/app/queue" : "/app/prescriptions");
+        }}
+      />
+
+      {/* 2. Patient Profile Modal */}
+      {isProfileModalOpen && (
+        <PatientProfileModal
+          patientId={patient.id}
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+        />
+      )}
+
+      {/* 3. Upload Radiograph / Report Modal */}
+      {isUploadModalOpen && (
+        <UploadReportModal
+          patientId={patient.id}
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+          onUploaded={(newReport) => {
+            setReports((prev) => [newReport, ...prev]);
+            setIsReportsDrawerOpen(true);
+            setIsUploadModalOpen(false);
+          }}
+        />
+      )}
+
+      {/* 4. Tooth Selector Modal */}
+      {isToothModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-300 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+              <h3 className="text-sm font-bold text-gray-900">
+                Select Teeth (FDI Notation)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsToothModalOpen(false)}
+                className="text-gray-400 hover:text-black p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <ToothSelector
+              selectedTeeth={toothCodes}
+              onChange={setToothCodes}
+            />
+
+            <div className="flex justify-end pt-3 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => setIsToothModalOpen(false)}
+                className="px-4 py-2 bg-black text-white text-xs font-bold rounded-xl"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Drug Allergy Conflict Modal */}
       {blockingItem && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-[#FF453A] shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center gap-3 text-[#FF453A]">
               <AlertCircle className="w-8 h-8 shrink-0" />
               <div>
-                <h3 className="text-base font-bold text-[#1C1C1E]">
+                <h3 className="text-base font-bold text-gray-950">
                   Drug Allergy Warning
                 </h3>
                 <span className="text-xs font-semibold text-[#FF453A]">
@@ -383,24 +1231,23 @@ export function PrescriptionBuilder({
               </div>
             </div>
 
-            <p className="text-sm text-[#1C1C1E] leading-relaxed">
+            <p className="text-sm text-gray-800 leading-relaxed">
               Patient has documented allergy:{" "}
               <strong className="text-[#FF453A]">
                 {blockingItem.allergy.matchedFlag}
               </strong>
-              .<br />
-              Prescribing{" "}
-              <strong>
-                {blockingItem.medicine.brandName || blockingItem.medicine.genericName}
-              </strong>{" "}
-              may trigger severe allergic reaction.
+              . This medicine belongs to drug class:{" "}
+              <strong className="text-gray-900 font-mono">
+                {blockingItem.medicine.drugClass}
+              </strong>
+              . Prescribing this may cause adverse allergic reactions.
             </p>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => setBlockingItem(null)}
-                className="px-4 py-2 rounded-xl bg-[#F4F4F5] text-xs font-semibold text-[#1C1C1E] hover:bg-[#E4E4E7] cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100"
               >
                 Cancel
               </button>
@@ -410,941 +1257,15 @@ export function PrescriptionBuilder({
                   const med = blockingItem.medicine;
                   setBlockingItem(null);
                   addMedicine(med, true);
-                  toast.warning("Allergy override confirmed and audited");
                 }}
-                className="px-4 py-2 rounded-xl bg-[#FF453A] hover:bg-[#e0382e] text-white text-xs font-bold shadow cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[#FF453A] hover:bg-[#D9382F] text-white text-xs font-bold transition shadow-xs"
               >
-                Override &amp; Prescribe Anyway
+                Override &amp; Add Anyway
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Prescription Saved Success Modal */}
-      {savedPrescription && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 border border-[#E4E4E7] shadow-2xl space-y-6 animate-in zoom-in-95">
-            <div className="text-center space-y-2.5">
-              <div className="w-16 h-16 rounded-full bg-[#30D158]/15 text-[#30D158] flex items-center justify-center mx-auto mb-2">
-                <Check className="w-8 h-8 stroke-[3]" />
-              </div>
-              <h3 className="text-xl font-black text-[#1C1C1E]">
-                Prescription Issued Successfully!
-              </h3>
-              <p className="text-sm text-[#4B5563] leading-relaxed">
-                Prescription{" "}
-                <span className="font-mono font-bold text-[#2A5CAA] bg-[#E8EEF7] px-2 py-0.5 rounded">
-                  {savedPrescription.rxCode}
-                </span>{" "}
-                for <strong>{patient.name}</strong> has been saved.
-              </p>
-            </div>
-
-            <div className="space-y-3 pt-1">
-              <Link
-                href={`/app/billing/new?patientId=${patient.id}${appointmentId ? `&appointmentId=${appointmentId}` : ""}`}
-                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
-              >
-                <CreditCard className="w-4.5 h-4.5" />
-                <span>Proceed to Billing &amp; Collect Payment →</span>
-              </Link>
-
-              <Link
-                href={`/print/prescription/${savedPrescription.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
-              >
-                <Printer className="w-4.5 h-4.5" />
-                <span>Open &amp; Print Prescription ↗</span>
-              </Link>
-
-              <Link
-                href="/app/queue"
-                className="w-full py-3 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer"
-              >
-                <Armchair className="w-4.5 h-4.5 text-[#2A5CAA]" />
-                <span>Return to In-Chair Queue</span>
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => setIsProfileModalOpen(true)}
-                className="w-full py-3 px-4 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer"
-              >
-                <User className="w-4.5 h-4.5 text-[#2A5CAA]" />
-                <span>View Patient Records &amp; History</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Patient Profile Popup Modal */}
-      <PatientProfileModal
-        patientId={patient.id}
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-      />
-
-      {/* Upload Report / Camera Capture Modal */}
-      <UploadReportModal
-        patientId={patient.id}
-        prescriptionId={savedPrescription?.id}
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onUploaded={(newDoc) => {
-          setReports((prev) => [
-            {
-              id: newDoc.id,
-              title: newDoc.title,
-              kind: newDoc.kind,
-              reportCode: newDoc.reportCode,
-              s3Key: newDoc.s3Key,
-              contentType: newDoc.contentType,
-              sizeBytes: newDoc.sizeBytes,
-              uploadedAt:
-                newDoc.uploadedAt instanceof Date
-                  ? newDoc.uploadedAt.toISOString()
-                  : String(newDoc.uploadedAt || new Date().toISOString()),
-              uploadedByName: newDoc.uploadedByName,
-              url: newDoc.url,
-            },
-            ...prev,
-          ]);
-        }}
-      />
-
-      {/* High-Resolution In-Chair Radiograph Lightbox Modal */}
-      <AnimatePresence>
-        {lightboxAttachment && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            onClick={() => setLightboxAttachment(null)}
-            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-between p-3 sm:p-5"
-          >
-            {/* Top Header Bar */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-5xl flex flex-wrap items-center justify-between gap-3 py-2.5 px-4 rounded-2xl bg-white/10 backdrop-blur-md text-white border border-white/10"
-            >
-              <div className="flex items-center gap-3">
-                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#2A5CAA] text-white">
-                  {lightboxAttachment.kind.replace("_", " ")}
-                </span>
-                <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <span>{lightboxAttachment.title}</span>
-                    {lightboxAttachment.reportCode && (
-                      <span className="font-mono text-xs text-white/70 font-normal">
-                        ({lightboxAttachment.reportCode})
-                      </span>
-                    )}
-                  </h3>
-                  <p className="text-[11px] text-white/70">
-                    Patient: {patient.name} ({patient.cardNumber}) • Uploaded:{" "}
-                    {new Date(lightboxAttachment.uploadedAt).toLocaleDateString([], {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </p>
-                </div>
-              </div>
-
-              {/* Toolbar Controls */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setLightboxZoom((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
-                  className="p-2 rounded-xl hover:bg-white/15 text-white/90 hover:text-white transition cursor-pointer"
-                  title="Zoom Out (-25%)"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <span className="text-xs font-mono font-bold px-1 text-white/80 min-w-[48px] text-center">
-                  {Math.round(lightboxZoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setLightboxZoom((z) => Math.min(3.0, Number((z + 0.25).toFixed(2))))}
-                  className="p-2 rounded-xl hover:bg-white/15 text-white/90 hover:text-white transition cursor-pointer"
-                  title="Zoom In (+25%)"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setLightboxRotation((r) => (r + 90) % 360)}
-                  className="p-2 rounded-xl hover:bg-white/15 text-white/90 hover:text-white transition cursor-pointer flex items-center gap-1"
-                  title="Rotate 90° Clockwise"
-                >
-                  <RotateCcw className="w-4 h-4 -scale-x-100" />
-                  <span className="text-xs font-mono">{lightboxRotation}°</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLightboxZoom(1);
-                    setLightboxRotation(0);
-                  }}
-                  className="px-2.5 py-1 rounded-xl hover:bg-white/15 text-white/80 hover:text-white text-xs font-bold transition cursor-pointer"
-                >
-                  Reset
-                </button>
-
-                <a
-                  href={lightboxAttachment.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2 rounded-xl hover:bg-white/15 text-white/90 hover:text-white transition cursor-pointer"
-                  title="Open in Full Tab ↗"
-                >
-                  <ArrowRight className="w-4 h-4 -rotate-45" />
-                </a>
-
-                <button
-                  type="button"
-                  onClick={() => setLightboxAttachment(null)}
-                  className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition cursor-pointer ml-1"
-                  title="Close Lightbox (Esc)"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Main Image Canvas */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="w-full flex-1 max-w-5xl my-4 flex items-center justify-center overflow-auto relative select-none"
-            >
-              <img
-                src={lightboxAttachment.url}
-                alt={lightboxAttachment.title || "Radiograph"}
-                style={{
-                  transform: `scale(${lightboxZoom}) rotate(${lightboxRotation}deg)`,
-                  transition: "transform 0.18s ease-out",
-                }}
-                className="max-h-[72vh] max-w-full object-contain rounded-lg shadow-2xl"
-                draggable={false}
-              />
-            </div>
-
-            {/* Bottom Navigation Strip */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md flex items-center justify-between gap-3 py-1.5 px-4 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/10"
-            >
-              {(() => {
-                const currentIdx = reports.findIndex((r) => r.id === lightboxAttachment.id);
-                const hasPrev = currentIdx > 0;
-                const hasNext = currentIdx < reports.length - 1;
-
-                return (
-                  <>
-                    <button
-                      type="button"
-                      disabled={!hasPrev}
-                      onClick={() => {
-                        if (hasPrev) {
-                          setLightboxAttachment(reports[currentIdx - 1]);
-                          setLightboxZoom(1);
-                          setLightboxRotation(0);
-                        }
-                      }}
-                      className="px-3 py-1 rounded-full text-xs font-bold hover:bg-white/20 disabled:opacity-30 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      <span>Previous</span>
-                    </button>
-                    <span className="text-xs font-mono text-white/80">
-                      {currentIdx + 1} of {reports.length}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={!hasNext}
-                      onClick={() => {
-                        if (hasNext) {
-                          setLightboxAttachment(reports[currentIdx + 1]);
-                          setLightboxZoom(1);
-                          setLightboxRotation(0);
-                        }
-                      }}
-                      className="px-3 py-1 rounded-full text-xs font-bold hover:bg-white/20 disabled:opacity-30 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Next</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </>
-                );
-              })()}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ==================================================================== */}
-      {/* ROW 1: FULL-WIDTH STICKY PATIENT CLINICAL BANNER                     */}
-      {/* ==================================================================== */}
-      <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-[#E4E4E7] shadow-sm bg-white space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#2A5CAA] to-[#1E4282] text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
-              {patient.name[0] || "P"}
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-[#1C1C1E] tracking-tight">
-                  {patient.name}
-                </h1>
-                <span className="font-mono text-xs sm:text-sm font-extrabold text-[#2A5CAA] bg-[#E8EEF7] px-2.5 py-0.5 rounded-lg border border-[#2A5CAA]/20">
-                  Card: {patient.cardNumber}
-                </span>
-                {patient.bloodGroup && (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-50 text-red-700 border border-red-200">
-                    {patient.bloodGroup}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs sm:text-sm font-semibold text-[#4B5563] mt-0.5">
-                {patient.approxAge ? `${patient.approxAge} yrs` : "Age —"} •{" "}
-                <span className="capitalize">{patient.gender}</span>
-                {patient.phone && ` • ${patient.phone}`}
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Action Buttons (No page navigation needed!) */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-2 lg:pt-0">
-            <button
-              type="button"
-              onClick={() => setIsProfileModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-[#1C1C1E] hover:text-[#2A5CAA] text-xs font-bold flex items-center gap-2 border border-[#E4E4E7] transition cursor-pointer shadow-2xs"
-            >
-              <User className="w-4 h-4 text-[#2A5CAA]" />
-              <span>View Profile &amp; History</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Clinical Alerts Strip: Allergies & Conditions */}
-        <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-[#F4F4F5] text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold uppercase text-[#FF453A] tracking-wider text-[11px]">
-              Allergies:
-            </span>
-            {patient.allergyFlags.length === 0 ? (
-              <span className="text-[#6B7280] font-medium italic">None reported</span>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {patient.allergyFlags.map((flag) => (
-                  <span
-                    key={flag}
-                    className="px-2 py-0.5 rounded-md bg-[#FFEBEA] border border-[#FF453A]/40 text-[#FF453A] font-extrabold"
-                  >
-                    ⚠️ {flag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <span className="text-[#D1D5DB] hidden sm:inline">•</span>
-
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold uppercase text-[#D97706] tracking-wider text-[11px]">
-              Conditions:
-            </span>
-            {patient.medicalConditions.length === 0 ? (
-              <span className="text-[#6B7280] font-medium italic">None recorded</span>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {patient.medicalConditions.map((cond) => (
-                  <span
-                    key={cond}
-                    className="px-2 py-0.5 rounded-md bg-[#FFF7EB] border border-[#FF9F0A]/40 text-[#D97706] font-bold"
-                  >
-                    {cond}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ==================================================================== */}
-      {/* IN-CHAIR PATIENT RADIOGRAPHS & CLINICAL DOCUMENTS TRAY               */}
-      {/* Strictly filtered for this patient only                               */}
-      {/* ==================================================================== */}
-      <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] shadow-sm bg-white space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#E8EEF7] text-[#2A5CAA] flex items-center justify-center font-bold">
-              <ImageIcon className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-black text-[#1C1C1E] tracking-tight">
-                  Patient Radiographs &amp; Clinical Documents
-                </h2>
-                <span className="px-2 py-0.5 rounded-full bg-[#E8EEF7] text-[#2A5CAA] text-xs font-black">
-                  {reports.length}
-                </span>
-              </div>
-              <p className="text-[11px] font-medium text-[#6B7280]">
-                Instant in-chair access to {patient.name}&apos;s X-rays, OPG scans, and lab reports while prescribing
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsUploadModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <span>+ Upload / Capture</span>
-            </button>
-
-            {reports.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsReportsExpanded((prev) => !prev)}
-                className="px-2.5 py-1.5 rounded-xl border border-[#E4E4E7] hover:bg-[#F4F4F5] text-xs font-bold text-[#4B5563] transition flex items-center gap-1 cursor-pointer"
-              >
-                <span>{isReportsExpanded ? "Collapse" : "Show All"}</span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isReportsExpanded ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Document Cards Display */}
-        {isReportsExpanded && (
-          <>
-            {reports.length === 0 ? (
-              <div
-                onClick={() => setIsUploadModalOpen(true)}
-                className="p-3.5 rounded-2xl bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-dashed border-[#CBD5E1] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left cursor-pointer transition group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center text-[#2A5CAA] shrink-0 transition">
-                    <Camera className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-[#1C1C1E]">
-                      No radiographs or clinical documents uploaded for this patient yet
-                    </p>
-                    <p className="text-[11px] text-[#6B7280]">
-                      Click here or use &quot;+ Upload / Capture&quot; to add X-rays, intraoral photos, or lab reports
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-[#2A5CAA] group-hover:underline shrink-0">
-                  + Add Document
-                </span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 pt-1">
-                {reports.map((report) => {
-                  const isImg =
-                    report.contentType?.startsWith("image/") ||
-                    /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(report.s3Key || "");
-
-                  return (
-                    <div
-                      key={report.id}
-                      className="group relative rounded-xl border border-[#E4E4E7] hover:border-[#2A5CAA] bg-white p-2 transition shadow-2xs hover:shadow-md flex flex-col justify-between overflow-hidden"
-                    >
-                      {/* Delete Cross Icon */}
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteReport(report.id, e)}
-                        className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-black/60 hover:bg-rose-600 text-white flex items-center justify-center transition opacity-70 group-hover:opacity-100 z-10 cursor-pointer shadow-xs"
-                        title="Delete document"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-
-                      {/* Thumbnail */}
-                      <div
-                        onClick={() => {
-                          if (isImg) {
-                            setLightboxAttachment(report);
-                            setLightboxZoom(1);
-                            setLightboxRotation(0);
-                          } else {
-                            window.open(report.url, "_blank");
-                          }
-                        }}
-                        className="w-full h-20 rounded-lg bg-[#0F172A] relative overflow-hidden flex items-center justify-center cursor-pointer group/thumb"
-                      >
-                        {isImg ? (
-                          <>
-                            <img
-                              src={report.url}
-                              alt={report.title || "Report Thumbnail"}
-                              className="w-full h-full object-contain transition-transform duration-300 group-hover/thumb:scale-105"
-                              loading="lazy"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-1 text-white">
-                              <Search className="w-3.5 h-3.5" />
-                              <span className="text-[9px] font-bold">Inspect</span>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center text-slate-300 gap-1 p-1">
-                            <FileText className="w-5 h-5 text-[#2A5CAA]" />
-                            <span className="text-[8px] uppercase font-bold text-center line-clamp-1">
-                              {report.contentType?.split("/")[1] || "DOC"}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Kind Badge Tag */}
-                        <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
-                          {report.kind.replace("_", " ")}
-                        </span>
-                      </div>
-
-                      {/* Details */}
-                      <div className="pt-1.5 space-y-0.5">
-                        <div className="flex items-center justify-between text-[9px]">
-                          <span className="font-mono text-[#2A5CAA] font-bold truncate max-w-[60px]">
-                            {report.reportCode || "DOC"}
-                          </span>
-                          <span className="text-[#8E8E93]">
-                            {new Date(report.uploadedAt).toLocaleDateString([], {
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </span>
-                        </div>
-                        <p
-                          className="text-[11px] font-bold text-[#1C1C1E] truncate group-hover:text-[#2A5CAA] transition"
-                          title={report.title || "Document"}
-                        >
-                          {report.title || "Document"}
-                        </p>
-
-                        <div className="pt-1 flex items-center justify-between gap-1 border-t border-[#F4F4F5]">
-                          {isImg ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLightboxAttachment(report);
-                                setLightboxZoom(1);
-                                setLightboxRotation(0);
-                              }}
-                              className="text-[10px] font-bold text-[#2A5CAA] hover:underline flex items-center gap-1 cursor-pointer"
-                            >
-                              <Search className="w-3 h-3" />
-                              <span>Inspect</span>
-                            </button>
-                          ) : (
-                            <span className="text-[9px] text-[#6B7280]">
-                              {report.sizeBytes ? `${Math.round(report.sizeBytes / 1024)} KB` : "File"}
-                            </span>
-                          )}
-
-                          <a
-                            href={report.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-0.5 rounded text-[#8E8E93] hover:text-[#2A5CAA] hover:bg-[#E8EEF7] transition"
-                            title="Open in new window ↗"
-                          >
-                            <ArrowRight className="w-3 h-3 -rotate-45" />
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* ==================================================================== */}
-      {/* ROW 2: ERGONOMIC 2-COLUMN CLINICAL WORKSPACE                         */}
-      {/* ==================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* ================================================================== */}
-        {/* Left Column (5 of 12 cols): FDI Tooth Chart & Clinical Findings    */}
-        {/* ================================================================== */}
-        <div className="lg:col-span-5 min-w-0 space-y-5">
-          {/* Tile 1: Tooth Selector */}
-          <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] shadow-2xs space-y-3 bg-white">
-            <h2 className="text-xs font-black uppercase text-[#4B5563] tracking-wider flex items-center gap-1.5">
-              <Stethoscope className="w-4 h-4 text-[#2A5CAA]" />
-              <span>Affected Tooth Chart (FDI Dental Arch)</span>
-            </h2>
-            <ToothSelector selectedTeeth={toothCodes} onChange={setToothCodes} />
-          </div>
-
-          {/* Tile 2: Clinical Findings with Typeahead Autocomplete */}
-          <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] shadow-2xs space-y-4 bg-white">
-            <h2 className="text-xs font-black uppercase text-[#4B5563] tracking-wider pb-2 border-b border-[#E4E4E7]">
-              Clinical Findings &amp; Diagnosis
-            </h2>
-
-            {/* Chief Complaint */}
-            <ClinicalAutocompleteInput
-              label="Chief Complaint (C/C)"
-              value={chiefComplaint}
-              onChange={setChiefComplaint}
-              placeholder="Type complaint (e.g. Toothache, Cavity, Bleeding gum)..."
-              suggestions={ccSuggestions}
-              rows={2}
-            />
-
-            {/* On Examination */}
-            <ClinicalAutocompleteInput
-              label="On Examination (O/E)"
-              value={examination}
-              onChange={setExamination}
-              placeholder="Type findings (e.g. Deep caries, Percussion positive)..."
-              suggestions={oeSuggestions}
-              rows={2}
-            />
-
-            {/* Diagnosis */}
-            <ClinicalAutocompleteInput
-              label="Diagnosis"
-              value={diagnosis}
-              onChange={setDiagnosis}
-              placeholder="Type diagnosis (e.g. Irreversible pulpitis, Chronic gingivitis)..."
-              suggestions={dxSuggestions}
-              rows={2}
-            />
-
-            {/* Investigations Advised */}
-            <ClinicalAutocompleteInput
-              label="Investigations Advised"
-              value={investigations}
-              onChange={setInvestigations}
-              placeholder="e.g. IOPA X-Ray, OPG Panoramic, Blood Glucose..."
-              suggestions={ixSuggestions}
-              isTextarea={false}
-            />
-          </div>
-        </div>
-
-        {/* ================================================================== */}
-        {/* Right Column (7 of 12 cols): Prescription Items & Bangla Advice    */}
-        {/* ================================================================== */}
-        <div className="lg:col-span-7 space-y-5">
-          {/* Tile 3: Prescription Items */}
-          <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-[#E4E4E7] space-y-5 bg-white shadow-2xs">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E4E4E7]">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-[#2A5CAA]" />
-                <h2 className="text-base font-black uppercase tracking-wider text-[#1C1C1E]">
-                  Prescription (Rx)
-                </h2>
-                <span className="text-xs font-bold text-[#6B7280]">
-                  (Medicines are optional)
-                </span>
-              </div>
-              <span className="text-xs font-bold bg-[#E8EEF7] text-[#2A5CAA] px-3 py-1 rounded-full font-mono">
-                {selectedItems.length} items
-              </span>
-            </div>
-
-            {/* Fast Medicine Search Input */}
-            <div className="relative">
-              <div className="flex items-center rounded-2xl border-2 border-[#2A5CAA]/40 focus-within:border-[#2A5CAA] bg-white px-3.5 py-3 shadow-2xs transition">
-                <Search className="w-5 h-5 text-[#2A5CAA] mr-2 shrink-0" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => handleSearchMedicine(e.target.value)}
-                  placeholder="Type medicine name to search & add (e.g. Napa, Moxacil, Rolac, A-Clox)..."
-                  className="w-full bg-transparent text-sm sm:text-base focus:outline-none placeholder:text-sm placeholder:text-[#6B7280] font-medium"
-                />
-              </div>
-
-              {/* Autocomplete Dropdown */}
-              {searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white rounded-2xl border border-[#2A5CAA]/30 shadow-2xl overflow-hidden divide-y divide-[#E4E4E7] max-h-72 overflow-y-auto animate-in fade-in-50 duration-150">
-                  {searchResults.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => addMedicine(m)}
-                      className="w-full px-4 py-3 text-left hover:bg-[#E8EEF7] flex items-center justify-between transition cursor-pointer"
-                    >
-                      <div>
-                        <span className="font-black text-sm sm:text-base text-[#1C1C1E] block">
-                          {m.brandName ? `${m.brandName} ${m.strength || ""}` : m.genericName}
-                        </span>
-                        {m.brandName && (
-                          <span className="block text-xs font-semibold text-[#6B7280]">
-                            {m.genericName}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs font-mono font-bold capitalize px-2.5 py-1 rounded-lg bg-[#F4F4F5] text-[#4B5563] shrink-0">
-                        {m.form}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Prescribed Medicines List */}
-            {selectedItems.length === 0 ? (
-              <div className="p-6 text-center text-sm font-medium text-[#6B7280] bg-[#F8FAFC] rounded-2xl border border-dashed border-[#E4E4E7]">
-                No medicines added yet. Medicines are optional — you can issue an advice or referral prescription without prescribing medicines.
-              </div>
-            ) : (
-              <div className="space-y-3.5">
-                {selectedItems.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="p-4 rounded-2xl border border-[#E4E4E7] space-y-3 bg-white shadow-xs hover:border-[#2A5CAA]/40 transition"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="font-black text-base text-[#1C1C1E] block">
-                          {idx + 1}. {item.brandName ? `${item.brandName} ${item.strength || ""}` : item.genericName}
-                        </span>
-                        {item.brandName && (
-                          <span className="text-xs font-semibold text-[#6B7280] block mt-0.5">
-                            ({item.genericName}) • <span className="capitalize">{item.form}</span>
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedItems(selectedItems.filter((i) => i.id !== item.id))
-                        }
-                        className="text-[#6B7280] hover:text-[#FF453A] p-1.5 transition rounded-lg hover:bg-rose-50 cursor-pointer"
-                        title="Remove medicine"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {item.allergyNotice && (
-                      <div className="p-2.5 rounded-xl bg-[#FFEBEA] border border-[#FF453A]/30 text-xs text-[#FF453A] flex items-center gap-2 font-bold">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>{item.allergyNotice.message}</span>
-                      </div>
-                    )}
-
-                    {/* Bangla Chips for Quick Dosage */}
-                    <div className="space-y-2 pt-2 border-t border-[#F4F4F5]">
-                      {/* Frequency */}
-                      <div className="flex flex-wrap gap-1.5 items-center">
-                        <span className="text-xs uppercase font-black text-[#4B5563] mr-1">
-                          মাত্রা:
-                        </span>
-                        {dosagePatterns.slice(0, 6).map((dp) => (
-                          <button
-                            key={dp.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedItems(
-                                selectedItems.map((i) =>
-                                  i.id === item.id ? { ...i, dosageTextBn: dp.labelBn } : i
-                                )
-                              );
-                            }}
-                            className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
-                              item.dosageTextBn === dp.labelBn
-                                ? "bg-[#2A5CAA] text-white shadow-xs"
-                                : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7]"
-                            }`}
-                          >
-                            {dp.labelBn}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Meal timing */}
-                      <div className="flex flex-wrap gap-1.5 items-center">
-                        <span className="text-xs uppercase font-black text-[#4B5563] mr-1">
-                          নিয়ম:
-                        </span>
-                        {mealTimings.slice(0, 4).map((mt) => (
-                          <button
-                            key={mt.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedItems(
-                                selectedItems.map((i) =>
-                                  i.id === item.id ? { ...i, mealTimingTextBn: mt.labelBn } : i
-                                )
-                              );
-                            }}
-                            className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
-                              item.mealTimingTextBn === mt.labelBn
-                                ? "bg-[#2A5CAA] text-white shadow-xs"
-                                : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7]"
-                            }`}
-                          >
-                            {mt.labelBn}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Duration */}
-                      <div className="flex flex-wrap gap-1.5 items-center">
-                        <span className="text-xs uppercase font-black text-[#4B5563] mr-1">
-                          সময়:
-                        </span>
-                        {durationOptions.slice(0, 5).map((dr) => (
-                          <button
-                            key={dr.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedItems(
-                                selectedItems.map((i) =>
-                                  i.id === item.id ? { ...i, durationTextBn: dr.labelBn } : i
-                                )
-                              );
-                            }}
-                            className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
-                              item.durationTextBn === dr.labelBn
-                                ? "bg-[#2A5CAA] text-white shadow-xs"
-                                : "bg-[#F4F4F5] text-[#1C1C1E] hover:bg-[#E8EEF7]"
-                            }`}
-                          >
-                            {dr.labelBn}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Tile 4: Clinical Advice & Instructions */}
-          <div className="glass-panel p-5 sm:p-6 rounded-3xl border border-[#E4E4E7] space-y-4 bg-white shadow-2xs">
-            <h2 className="text-xs font-black uppercase text-[#4B5563] tracking-wider">
-              পরামর্শ (Bangla Clinical Advice)
-            </h2>
-
-            <div className="flex flex-wrap gap-2">
-              {adviceGroups.map((group) => (
-                <button
-                  key={group}
-                  type="button"
-                  onClick={() => toggleAdviceGroup(group)}
-                  className="px-3 py-1.5 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-bold text-[#1C1C1E] hover:text-[#2A5CAA] transition cursor-pointer shadow-2xs border border-[#E4E4E7]/60"
-                >
-                  + {group}
-                </button>
-              ))}
-            </div>
-
-            {selectedAdvice.length > 0 && (
-              <div className="p-3.5 rounded-2xl bg-[#F8FAFC] space-y-2 text-sm text-[#1C1C1E] font-medium border border-[#E4E4E7]">
-                {selectedAdvice.map((line, idx) => (
-                  <div key={idx} className="flex items-start justify-between gap-2">
-                    <span>• {line}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleAdviceLine(line)}
-                      className="text-[#6B7280] hover:text-[#FF453A] cursor-pointer p-0.5"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Next Follow-up Visit Quick Picks */}
-            <div className="pt-3 border-t border-[#E4E4E7] space-y-2">
-              <span className="text-xs font-bold text-[#1C1C1E] block">
-                Next Follow-up Visit:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {["+3 days", "+7 days", "+14 days", "+1 month"].map((dur) => (
-                  <button
-                    key={dur}
-                    type="button"
-                    onClick={() => {
-                      const todayDhaka = getDhakaTodayStr();
-                      if (dur === "+3 days") setNextVisitDate(addDhakaDays(todayDhaka, 3));
-                      if (dur === "+7 days") setNextVisitDate(addDhakaDays(todayDhaka, 7));
-                      if (dur === "+14 days") setNextVisitDate(addDhakaDays(todayDhaka, 14));
-                      if (dur === "+1 month") setNextVisitDate(addDhakaMonths(todayDhaka, 1));
-                    }}
-                    className="px-3 py-1 rounded-xl bg-[#F4F4F5] hover:bg-[#E8EEF7] text-xs font-bold text-[#1C1C1E] hover:text-[#2A5CAA] cursor-pointer transition border border-[#E4E4E7]/60"
-                  >
-                    {dur}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="date"
-                value={nextVisitDate}
-                min={getDhakaTodayStr()}
-                onChange={(e) => setNextVisitDate(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[#E4E4E7] bg-white text-xs font-mono font-bold focus:outline-none focus:border-[#2A5CAA]"
-              />
-            </div>
-
-            {/* Doctor Internal Notes */}
-            <div className="pt-2">
-              <label className="block text-xs font-bold text-[#1C1C1E] mb-1">
-                Doctor&apos;s Private Clinical Notes
-              </label>
-              <textarea
-                rows={2}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional internal notes (not printed on prescription)..."
-                className="w-full p-2.5 rounded-xl border border-[#E4E4E7] text-xs focus:outline-none focus:border-[#2A5CAA]"
-              />
-            </div>
-          </div>
-
-          {/* Tile 5: Prominent Save & Print Action */}
-          <div className="glass-panel p-5 rounded-3xl border border-[#E4E4E7] bg-white shadow-lg space-y-2">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="w-full py-4 px-6 rounded-2xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white font-black text-base flex items-center justify-center gap-2.5 shadow-xl shadow-[#2A5CAA]/25 transition disabled:opacity-50 cursor-pointer"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Issuing Prescription...</span>
-                </>
-              ) : (
-                <>
-                  <Printer className="w-5 h-5" />
-                  <span>Save &amp; Print Prescription</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
