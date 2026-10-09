@@ -402,7 +402,7 @@ export function QueueTvDisplay({
                           <span className="text-[11px] font-black uppercase tracking-widest text-emerald-100">
                             TOKEN
                           </span>
-                          <span className="text-3xl sm:text-4xl font-black text-white font-mono leading-none tracking-tight">
+                          <span className="text-3xl sm:text-4xl font-black text-white font-mono leading-none tracking-tight whitespace-nowrap">
                             {item.serialCode || (item.serialNo ? `#${String(item.serialNo).padStart(2, "0")}` : "--")}
                           </span>
                         </div>
@@ -491,7 +491,7 @@ export function QueueTvDisplay({
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex flex-col items-center justify-center shrink-0 font-mono font-black text-white shadow-inner">
                   <span className="text-[9px] uppercase tracking-wider text-amber-100 leading-none">NEXT</span>
-                  <span className="text-base sm:text-lg leading-none mt-0.5 truncate px-1">
+                  <span className="text-base sm:text-lg leading-none mt-0.5 truncate px-1 whitespace-nowrap">
                     {nextUpPatient.serialCode || (nextUpPatient.serialNo ? `#${String(nextUpPatient.serialNo).padStart(2, "0")}` : "--")}
                   </span>
                 </div>
@@ -565,7 +565,7 @@ export function QueueTvDisplay({
                           <span className="text-[9px] font-extrabold tracking-wider uppercase">
                             {isFirstInList ? "NEXT" : "TOKEN"}
                           </span>
-                          <span className="text-lg sm:text-xl font-black leading-none truncate px-1">
+                          <span className="text-lg sm:text-xl font-black leading-none truncate px-1 whitespace-nowrap">
                             {item.serialCode || (item.serialNo ? `#${String(item.serialNo).padStart(2, "0")}` : "--")}
                           </span>
                         </div>

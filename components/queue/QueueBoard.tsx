@@ -805,14 +805,16 @@ export function QueueBoard({
                         type="button"
                         onClick={() => handleCheckIn(item.appointmentId)}
                         disabled={processingId === item.appointmentId}
-                        className="w-full py-2.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-bold flex items-center justify-center gap-2 transition shadow-xs disabled:opacity-50 cursor-pointer"
+                        className="w-full py-2.5 px-3 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition shadow-xs disabled:opacity-50 cursor-pointer"
                       >
                         {processingId === item.appointmentId ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                         ) : (
                           <>
-                            <span>{item.appointmentStatus === "pending" ? "Confirm Booking" : "Check In (Assign SL)"}</span>
-                            <ArrowRight className="w-4 h-4" />
+                            <span className="whitespace-nowrap truncate">
+                              {item.appointmentStatus === "pending" ? "Confirm Booking" : "Check In (Assign SL)"}
+                            </span>
+                            <ArrowRight className="w-4 h-4 shrink-0" />
                           </>
                         )}
                       </button>
@@ -927,7 +929,7 @@ export function QueueBoard({
                           </div>
 
                           {/* Serial Badge */}
-                          <div className="min-w-12 h-12 px-2 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white font-black text-lg flex items-center justify-center font-mono shadow-md border border-amber-500">
+                          <div className="shrink-0 min-w-fit px-3 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white font-black text-base flex items-center justify-center font-mono shadow-md border border-amber-500 whitespace-nowrap select-none">
                             {item.serialCode || (item.serialNo ? `#${item.serialNo}` : "?")}
                           </div>
 
@@ -1023,21 +1025,21 @@ export function QueueBoard({
                           )
                         }
                         disabled={processingId === item.id}
-                        className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 transition shadow-sm disabled:opacity-50 cursor-pointer"
+                        className="w-full py-2.5 px-3 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition shadow-sm disabled:opacity-50 cursor-pointer"
                       >
                         {processingId === item.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                         ) : enableChairManagement ? (
                           <>
-                            <Armchair className="w-4 h-4" />
-                            <span>Send to Chair Now</span>
-                            <ArrowRight className="w-4 h-4" />
+                            <Armchair className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">Send to Chair</span>
+                            <ArrowRight className="w-4 h-4 shrink-0" />
                           </>
                         ) : (
                           <>
-                            <Stethoscope className="w-4 h-4" />
-                            <span>Start Treatment Now</span>
-                            <ArrowRight className="w-4 h-4" />
+                            <Stethoscope className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">Start Treatment</span>
+                            <ArrowRight className="w-4 h-4 shrink-0" />
                           </>
                         )}
                       </button>
@@ -1082,7 +1084,7 @@ export function QueueBoard({
                       {/* Big Serial Badge & Active Chair Tag */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-[#2A5CAA] to-[#1E4282] text-white font-black text-xl flex items-center justify-center font-mono shadow-md border border-[#2A5CAA]">
+                          <div className="shrink-0 min-w-fit px-3 h-11 rounded-2xl bg-gradient-to-br from-[#2A5CAA] to-[#1E4282] text-white font-black text-base flex items-center justify-center font-mono shadow-md border border-[#2A5CAA] whitespace-nowrap select-none">
                             {item.serialCode || (item.serialNo ? `#${item.serialNo}` : "?")}
                           </div>
                           <div>
@@ -1156,14 +1158,14 @@ export function QueueBoard({
                           type="button"
                           onClick={() => handleAdvance(item.id, "billing")}
                           disabled={processingId === item.id}
-                          className="w-full py-2.5 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-xs"
+                          className="w-full py-2.5 px-3 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-xs"
                         >
                           {processingId === item.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                           ) : (
                             <>
-                              <span>Finish Treatment → Bill</span>
-                              <ArrowRight className="w-4 h-4" />
+                              <span className="whitespace-nowrap">Finish Treatment</span>
+                              <ArrowRight className="w-4 h-4 shrink-0" />
                             </>
                           )}
                         </button>
@@ -1207,7 +1209,7 @@ export function QueueBoard({
                     {/* Header: BIG SERIAL NUMBER + Payment Flag */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="min-w-13 h-13 px-2.5 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 text-white font-black text-xl flex items-center justify-center font-mono shadow-md border border-rose-500">
+                        <div className="shrink-0 min-w-fit px-3 h-11 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 text-white font-black text-base flex items-center justify-center font-mono shadow-md border border-rose-500 whitespace-nowrap select-none">
                           {item.serialCode || (item.serialNo ? `#${item.serialNo}` : "?")}
                         </div>
                         <div>
@@ -1244,10 +1246,11 @@ export function QueueBoard({
                     <div className="space-y-2 pt-2 border-t border-[#E4E4E7]">
                       <Link
                         href={`/app/billing/new?patientId=${item.patientId}&appointmentId=${item.appointmentId}`}
-                        className="w-full py-3 px-4 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-sm font-black flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
+                        className="w-full py-2.5 px-3 rounded-xl bg-[#2A5CAA] hover:bg-[#1E4282] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
                       >
-                        <CreditCard className="w-4.5 h-4.5" />
-                        <span>Collect Payment &amp; Invoice →</span>
+                        <CreditCard className="w-4 h-4 shrink-0" />
+                        <span className="whitespace-nowrap truncate">Collect Payment &amp; Invoice</span>
+                        <ArrowRight className="w-4 h-4 shrink-0" />
                       </Link>
 
                       <button
@@ -1303,7 +1306,7 @@ export function QueueBoard({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="min-w-8 h-8 px-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center font-mono">
+                        <span className="shrink-0 min-w-fit px-2 h-8 rounded-xl bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center font-mono whitespace-nowrap select-none">
                           {item.serialCode || (item.serialNo ? `#${item.serialNo}` : "✓")}
                         </span>
                         <Link

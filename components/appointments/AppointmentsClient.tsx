@@ -417,7 +417,7 @@ export default function AppointmentsClient({
                           <Armchair className="w-3.5 h-3.5" />
                           <span>In Chair</span>
                           {apt.serialCode || apt.serialNo ? (
-                            <span className="bg-[#2A5CAA] text-white text-[10px] font-black px-1.5 py-0.2 rounded-md">
+                            <span className="bg-[#2A5CAA] text-white text-[10px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap">
                               Token #{apt.serialCode || apt.serialNo}
                             </span>
                           ) : null}
@@ -428,7 +428,7 @@ export default function AppointmentsClient({
                           <Clock className="w-3.5 h-3.5" />
                           <span>Waiting in Chamber</span>
                           {apt.serialCode || apt.serialNo ? (
-                            <span className="bg-[#FF9F0A] text-white text-[10px] font-black px-1.5 py-0.2 rounded-md">
+                            <span className="bg-[#FF9F0A] text-white text-[10px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap">
                               Token #{apt.serialCode || apt.serialNo}
                             </span>
                           ) : null}
