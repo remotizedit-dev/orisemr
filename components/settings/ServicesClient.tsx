@@ -84,7 +84,7 @@ export default function ServicesClient({ initialServices }: Props) {
       setSavingId(service.id);
       await updateServiceItemAction(
         service.id,
-        service.priceBdt,
+        0,
         service.durationMinutes,
         service.isActive
       );
@@ -135,7 +135,7 @@ export default function ServicesClient({ initialServices }: Props) {
       await createServiceItemAction({
         name: addName.trim(),
         categoryName: finalCat,
-        priceBdt: Number(addPrice) || 0,
+        priceBdt: 0,
         durationMinutes: Number(addDuration) || 30,
         bookableOnline: addBookableOnline,
       });
@@ -143,7 +143,7 @@ export default function ServicesClient({ initialServices }: Props) {
       toast.success(`Added procedure "${addName}"`);
       setShowAddModal(false);
       setAddName("");
-      setAddPrice(1000);
+      setAddPrice(0);
       setAddDuration(30);
       setAddCustomCategory("");
       router.refresh();
@@ -229,7 +229,6 @@ export default function ServicesClient({ initialServices }: Props) {
                 <th className="py-3 px-4">Procedure Name</th>
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4">Duration (Mins)</th>
-                <th className="py-3 px-4">Price (৳ BDT)</th>
                 <th className="py-3 px-4">Active</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -237,7 +236,7 @@ export default function ServicesClient({ initialServices }: Props) {
             <tbody className="divide-y divide-[#E4E4E7]">
               {filteredServices.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-[#6B7280]">
+                  <td colSpan={5} className="py-8 text-center text-[#6B7280]">
                     No procedures found matching search filter.
                   </td>
                 </tr>
@@ -267,21 +266,6 @@ export default function ServicesClient({ initialServices }: Props) {
                           })
                         }
                         className="w-20 px-2 py-1 text-xs border border-[#E4E4E7] rounded-lg outline-none bg-white text-center font-semibold"
-                      />
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <input
-                        type="number"
-                        min={0}
-                        step={50}
-                        value={service.priceBdt}
-                        onChange={(e) =>
-                          updateLocal(service.id, {
-                            priceBdt: Number(e.target.value),
-                          })
-                        }
-                        className="w-28 px-2 py-1 text-xs border border-[#E4E4E7] rounded-lg outline-none bg-white font-bold text-[#2A5CAA]"
                       />
                     </td>
 
@@ -408,36 +392,22 @@ export default function ServicesClient({ initialServices }: Props) {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                    Fee (৳ BDT): *
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={50}
-                    required
-                    value={addPrice}
-                    onChange={(e) => setAddPrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA] font-bold text-[#2A5CAA]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
-                    Duration (Minutes): *
-                  </label>
-                  <input
-                    type="number"
-                    min={5}
-                    step={5}
-                    required
-                    value={addDuration}
-                    onChange={(e) => setAddDuration(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA] font-semibold"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#1C1C1E] mb-1">
+                  Duration (Minutes): *
+                </label>
+                <input
+                  type="number"
+                  min={5}
+                  step={5}
+                  required
+                  value={addDuration}
+                  onChange={(e) => setAddDuration(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-xs border border-[#E4E4E7] rounded-xl outline-none focus:border-[#2A5CAA] font-semibold"
+                />
+                <p className="text-[11px] text-[#71717A] mt-1">
+                  Standard chair time reserved for scheduling this procedure. Fees are set directly by the attending doctor during the consultation.
+                </p>
               </div>
 
               <div className="flex items-center gap-2 pt-1">

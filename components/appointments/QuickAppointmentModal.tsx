@@ -191,11 +191,6 @@ export function QuickAppointmentModal({
     .filter((s) => selectedServices.includes(s.id))
     .reduce((acc, s) => acc + s.durationMinutes, 0);
 
-  // Total Estimated Price
-  const totalEstimatedPrice = services
-    .filter((s) => selectedServices.includes(s.id))
-    .reduce((acc, s) => acc + s.priceBdt, 0);
-
   const filteredServices = useMemo(() => {
     if (!serviceSearchQuery.trim()) return services;
     const q = serviceSearchQuery.toLowerCase().trim();
@@ -478,7 +473,7 @@ export function QuickAppointmentModal({
                         <span>Select Dental Service(s)</span>
                       </label>
                       <span className="text-xs font-extrabold text-[#2A5CAA]">
-                        {totalDuration} mins • ৳{totalEstimatedPrice.toLocaleString()}
+                        {totalDuration} mins reserved
                       </span>
                     </div>
 

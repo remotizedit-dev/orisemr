@@ -32,6 +32,7 @@ import {
   Phone,
   Plus,
   Printer,
+  RotateCcw,
   Search,
   Sparkles,
   Stethoscope,
@@ -55,6 +56,42 @@ export interface PatientAttachmentItem {
   url: string;
 }
 
+export interface SelectedMedicineItem {
+  id: string;
+  medicineId: string;
+  brandName: string | null;
+  genericName: string;
+  strength: string | null;
+  form: string;
+  drugClass: string | null;
+  dosagePatternId?: string;
+  dosageTextBn?: string;
+  mealTimingId?: string;
+  mealTimingTextBn?: string;
+  durationOptionId?: string;
+  durationTextBn?: string;
+  customInstruction?: string;
+  allergyNotice?: AllergyCheckResult;
+}
+
+export interface PreviousPrescriptionData {
+  id: string;
+  rxCode: string;
+  chiefComplaint?: string | null;
+  examination?: string | null;
+  diagnosis?: string | null;
+  investigations?: string | null;
+  toothCodes?: string[];
+  nextVisitDate?: string | null;
+  notes?: string | null;
+  sessionNotes?: string | null;
+  sessionFeeBdt?: number | null;
+  createdAt: string;
+  doctorName?: string | null;
+  items: SelectedMedicineItem[];
+  advice: string[];
+}
+
 interface PrescriptionBuilderProps {
   patient: {
     id: string;
@@ -68,6 +105,7 @@ interface PrescriptionBuilderProps {
     phone?: string | null;
   };
   appointmentId?: string;
+  previousPrescription?: PreviousPrescriptionData | null;
   initialReports?: PatientAttachmentItem[];
   catalogMedicines: {
     id: string;
@@ -120,27 +158,10 @@ interface PrescriptionBuilderProps {
   };
 }
 
-interface SelectedMedicineItem {
-  id: string;
-  medicineId: string;
-  brandName: string | null;
-  genericName: string;
-  strength: string | null;
-  form: string;
-  drugClass: string | null;
-  dosagePatternId?: string;
-  dosageTextBn?: string;
-  mealTimingId?: string;
-  mealTimingTextBn?: string;
-  durationOptionId?: string;
-  durationTextBn?: string;
-  customInstruction?: string;
-  allergyNotice?: AllergyCheckResult;
-}
-
 export function PrescriptionBuilder({
   patient,
   appointmentId,
+  previousPrescription,
   initialReports = [],
   catalogMedicines,
   dosagePatterns,
@@ -168,16 +189,26 @@ export function PrescriptionBuilder({
   const [reports, setReports] = useState<PatientAttachmentItem[]>(initialReports);
   const [isReportsDrawerOpen, setIsReportsDrawerOpen] = useState(false);
 
-  // Clinical Notes State
-  const [chiefComplaint, setChiefComplaint] = useState("");
-  const [examination, setExamination] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
-  const [investigations, setInvestigations] = useState("");
-  const [toothCodes, setToothCodes] = useState<string[]>([]);
-  const [nextVisitDate, setNextVisitDate] = useState<string>("");
-  const [notes, setNotes] = useState("");
-  const [sessionNotes, setSessionNotes] = useState("");
-  const [sessionFeeBdt, setSessionFeeBdt] = useState<number | string>("");
+  // Follow-up rewrite mode state
+  const [isRewriting, setIsRewriting] = useState<boolean>(Boolean(previousPrescription));
+  const [rewritePrescriptionId, setRewritePrescriptionId] = useState<string | null>(
+    previousPrescription ? previousPrescription.id : null
+  );
+
+  // Clinical Notes State (prefilled from previous Rx by default if follow-up)
+  const [chiefComplaint, setChiefComplaint] = useState(previousPrescription?.chiefComplaint || "");
+  const [examination, setExamination] = useState(previousPrescription?.examination || "");
+  const [diagnosis, setDiagnosis] = useState(previousPrescription?.diagnosis || "");
+  const [investigations, setInvestigations] = useState(previousPrescription?.investigations || "");
+  const [toothCodes, setToothCodes] = useState<string[]>(previousPrescription?.toothCodes || []);
+  const [nextVisitDate, setNextVisitDate] = useState<string>(previousPrescription?.nextVisitDate || "");
+  const [notes, setNotes] = useState(previousPrescription?.notes || "");
+  const [sessionNotes, setSessionNotes] = useState(previousPrescription?.sessionNotes || "");
+  const [sessionFeeBdt, setSessionFeeBdt] = useState<number | string>(
+    previousPrescription?.sessionFeeBdt !== null && previousPrescription?.sessionFeeBdt !== undefined
+      ? previousPrescription.sessionFeeBdt
+      : ""
+  );
 
   // Patient Clinical History State
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
@@ -190,11 +221,54 @@ export function PrescriptionBuilder({
   // Tooth selector modal
   const [isToothModalOpen, setIsToothModalOpen] = useState(false);
 
-  // Prescribed items & advice state
-  const [selectedItems, setSelectedItems] = useState<SelectedMedicineItem[]>([]);
-  const [selectedAdvice, setSelectedAdvice] = useState<string[]>([]);
+  // Prescribed items & advice state (prefilled from previous Rx if follow-up)
+  const [selectedItems, setSelectedItems] = useState<SelectedMedicineItem[]>(
+    previousPrescription?.items || []
+  );
+  const [selectedAdvice, setSelectedAdvice] = useState<string[]>(
+    previousPrescription?.advice || []
+  );
   const [customAdviceInput, setCustomAdviceInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  function handleStartNewPrescription() {
+    setIsRewriting(false);
+    setRewritePrescriptionId(null);
+    setChiefComplaint("");
+    setExamination("");
+    setDiagnosis("");
+    setInvestigations("");
+    setToothCodes([]);
+    setNextVisitDate("");
+    setNotes("");
+    setSessionNotes("");
+    setSessionFeeBdt("");
+    setSelectedItems([]);
+    setSelectedAdvice([]);
+    toast.info("Switched to Blank New Prescription. You can revert back to the previous Rx anytime.");
+  }
+
+  function handleRevertToRewrite() {
+    if (!previousPrescription) return;
+    setIsRewriting(true);
+    setRewritePrescriptionId(previousPrescription.id);
+    setChiefComplaint(previousPrescription.chiefComplaint || "");
+    setExamination(previousPrescription.examination || "");
+    setDiagnosis(previousPrescription.diagnosis || "");
+    setInvestigations(previousPrescription.investigations || "");
+    setToothCodes(previousPrescription.toothCodes || []);
+    setNextVisitDate(previousPrescription.nextVisitDate || "");
+    setNotes(previousPrescription.notes || "");
+    setSessionNotes(previousPrescription.sessionNotes || "");
+    setSessionFeeBdt(
+      previousPrescription.sessionFeeBdt !== null && previousPrescription.sessionFeeBdt !== undefined
+        ? previousPrescription.sessionFeeBdt
+        : ""
+    );
+    setSelectedItems(previousPrescription.items || []);
+    setSelectedAdvice(previousPrescription.advice || []);
+    toast.success(`Restored previous prescription (${previousPrescription.rxCode}) for rewriting.`);
+  }
 
   // Medicine search
   const [searchQuery, setSearchQuery] = useState("");
@@ -383,6 +457,7 @@ export function PrescriptionBuilder({
 
       const res = await savePrescriptionAction({
         patientId: patient.id,
+        rewritePrescriptionId: isRewriting ? rewritePrescriptionId : undefined,
         appointmentId,
         chiefComplaint,
         examination,
@@ -398,7 +473,11 @@ export function PrescriptionBuilder({
         adviceLines: formattedAdvice,
       });
 
-      toast.success(`Prescription ${res.rxCode} saved successfully!`);
+      toast.success(
+        isRewriting
+          ? `Prescription ${res.rxCode} updated successfully!`
+          : `Prescription ${res.rxCode} saved successfully!`
+      );
       setSavedPrescription({ id: res.prescriptionId, rxCode: res.rxCode });
     } catch (e: any) {
       toast.error(e?.message || "Failed to save prescription");
@@ -552,12 +631,16 @@ export function PrescriptionBuilder({
               {isSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-black" />
-                  <span>Issuing...</span>
+                  <span>{isRewriting ? "Updating..." : "Issuing..."}</span>
                 </>
               ) : (
                 <>
                   <Printer className="w-4 h-4 text-black" />
-                  <span>Save &amp; Print Document</span>
+                  <span>
+                    {isRewriting
+                      ? `Update & Save Rx (${previousPrescription?.rxCode})`
+                      : "Save & Print Document"}
+                  </span>
                 </>
               )}
             </button>
@@ -796,6 +879,75 @@ export function PrescriptionBuilder({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ------------------------------------------------------------- */}
+      {/* FOLLOW-UP REWRITE / NEW PRESCRIPTION BANNER                   */}
+      {/* ------------------------------------------------------------- */}
+      {previousPrescription && (
+        <div className="max-w-4xl mx-auto w-full">
+          {isRewriting ? (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border-2 border-emerald-500/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-950">
+                      Follow-up Visit • Rewriting on Previous Rx
+                    </span>
+                    <span className="font-mono font-bold text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-md shadow-2xs">
+                      {previousPrescription.rxCode}
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-800 font-medium mt-0.5">
+                    Previous Rx issued on {formatDhakaDate(new Date(previousPrescription.createdAt), "dd MMM yyyy")}
+                    {previousPrescription.nextVisitDate && ` • Next follow-up was set for: ${previousPrescription.nextVisitDate}`}
+                    . You can update diagnosis, medicines, and today&apos;s charged amount, or start fresh.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleStartNewPrescription}
+                className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border-2 border-slate-300 font-bold text-xs flex items-center gap-1.5 transition shadow-2xs self-start sm:self-auto cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4 text-emerald-600" />
+                <span>Add a New Prescription</span>
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-950">
+                      New Blank Prescription Mode
+                    </span>
+                    <span className="text-[11px] font-bold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md">
+                      Separate Rx
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-800 font-medium mt-0.5">
+                    Writing a fresh blank prescription for {patient.name}. You can revert back to rewrite the previous Rx anytime.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRevertToRewrite}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-2xs self-start sm:self-auto cursor-pointer whitespace-nowrap"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>← Revert to Rewrite Previous Rx ({previousPrescription.rxCode})</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* THE WHITE PAPER PRESCRIPTION CANVAS (WYSIWYG Dental Sheet)    */}
@@ -1334,16 +1486,16 @@ export function PrescriptionBuilder({
                 />
               </div>
 
-              {/* Chairside Billing Recommendation (For Front Desk / Checkout) */}
-              <div className="border-t-2 border-emerald-500/20 bg-emerald-50/40 p-4 rounded-2xl space-y-3">
+              {/* Amount to be charged (For Front Desk / Billing Collection) */}
+              <div className="border-t-2 border-emerald-500/30 bg-emerald-50/50 p-4 rounded-2xl space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <span className="text-xs font-black uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
                       <CreditCard className="w-4 h-4 text-emerald-700" />
-                      CHAIRSIDE BILLING INSTRUCTION (TODAY&apos;S SITTING COLLECTION)
+                      AMOUNT TO BE CHARGED (TODAY&apos;S VISIT / SITTING)
                     </span>
                     <p className="text-[11px] text-emerald-800">
-                      Amount to collect today towards the treatment package (e.g. ৳2,000 in sitting 1, ৳3,000 in sitting 2 of an ৳11,000 Root Canal). Front desk collects this towards the treatment due balance—not charged as an extra duplicate service.
+                      Doctor fills up the amount to be charged for today&apos;s visit/consultation. In the billing section, this exact amount will be shown to collect payment.
                     </p>
                   </div>
                   {sessionFeeBdt !== "" && (
@@ -1354,7 +1506,7 @@ export function PrescriptionBuilder({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {[0, 500, 1000, 2000, 3000, 5000].map((amt) => (
+                  {[0, 500, 1000, 1500, 2000, 3000, 5000].map((amt) => (
                     <button
                       key={amt}
                       type="button"
@@ -1365,7 +1517,7 @@ export function PrescriptionBuilder({
                           : "bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
                       }`}
                     >
-                      {amt === 0 ? "৳0 (Routine Sitting)" : `৳${amt.toLocaleString()}`}
+                      {amt === 0 ? "৳0 (Routine / Free Follow-up)" : `৳${amt.toLocaleString()}`}
                     </button>
                   ))}
 

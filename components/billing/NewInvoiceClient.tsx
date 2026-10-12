@@ -238,7 +238,6 @@ export default function NewInvoiceClient({
       updateLine(index, {
         serviceId: s.id,
         description: s.name,
-        unitPriceBdt: s.priceBdt,
       });
     }
   }
@@ -266,15 +265,17 @@ export default function NewInvoiceClient({
         }
 
         const rxTeeth = context.prescriptionInfo?.toothCodes || [];
+        const doctorFee = context.initialSessionFee ?? 0;
+
         if (context.bookedServices && context.bookedServices.length > 0) {
           const merged = context.bookedServices.map((bs: any) => ({
             ...bs,
             quantity: Math.max(1, bs.quantity || 1),
-            unitPriceBdt: Math.max(0, bs.unitPriceBdt || 0),
+            unitPriceBdt: Math.max(0, bs.unitPriceBdt ?? doctorFee),
             toothCodes: bs.toothCodes && bs.toothCodes.length > 0 ? bs.toothCodes : rxTeeth,
           }));
           setItems(merged);
-          toast.success(`Auto-populated ${merged.length} unbilled service(s) from appointment`);
+          toast.success(`Loaded consultation details for ${p.name}`);
         } else if (context.alreadyBilledInfo || context.prescriptionInfo?.isAlreadyBilled) {
           // Clear items to clean slate and notify
           setItems([
@@ -290,20 +291,27 @@ export default function NewInvoiceClient({
             `This visit is already billed (${context.alreadyBilledInfo?.invoiceCode || context.prescriptionInfo?.billedInvoiceCode})`
           );
         } else if (context.prescriptionInfo) {
-          const defaultService = services[0];
           setItems([
             {
               id: "line-1",
-              serviceId: defaultService?.id,
+              serviceId: undefined,
               description: context.prescriptionInfo.diagnosis
                 ? `Dental Treatment & Care (${context.prescriptionInfo.diagnosis})`
-                : (defaultService?.name || "Dental Consultation & Treatment"),
+                : "Dental Consultation & Treatment",
               toothCodes: rxTeeth,
               quantity: 1,
-              unitPriceBdt: defaultService?.priceBdt || 500,
+              unitPriceBdt: doctorFee,
             },
           ]);
         }
+
+        if (doctorFee > 0) {
+          setSettlementMode("full");
+          setCustomAdvance(doctorFee);
+        } else if (doctorFee === 0) {
+          setSettlementMode("due");
+        }
+
         if (context.patientDues) {
           setCurrentPatientDues(context.patientDues);
         }

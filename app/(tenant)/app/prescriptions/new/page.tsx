@@ -253,7 +253,37 @@ export default async function NewPrescriptionPage({
   }
 
   // Fetch patient clinical attachments (radiographs, scans, reports) for this patient only
-  const patientReports = (await getPatientAttachmentsAction(patient.id)).map((r) => ({
+  const [attachmentsData, [latestRx]] = await Promise.all([
+    getPatientAttachmentsAction(patient.id),
+    db
+      .select({
+        id: schema.prescriptions.id,
+        rxCode: schema.prescriptions.rxCode,
+        chiefComplaint: schema.prescriptions.chiefComplaint,
+        examination: schema.prescriptions.examination,
+        diagnosis: schema.prescriptions.diagnosis,
+        investigations: schema.prescriptions.investigations,
+        toothCodes: schema.prescriptions.toothCodes,
+        nextVisitDate: schema.prescriptions.nextVisitDate,
+        notes: schema.prescriptions.notes,
+        sessionNotes: schema.prescriptions.sessionNotes,
+        sessionFeeBdt: schema.prescriptions.sessionFeeBdt,
+        createdAt: schema.prescriptions.createdAt,
+        doctorName: schema.users.name,
+      })
+      .from(schema.prescriptions)
+      .leftJoin(schema.users, eq(schema.prescriptions.doctorId, schema.users.id))
+      .where(
+        and(
+          eq(schema.prescriptions.tenantId, tenant.id),
+          eq(schema.prescriptions.patientId, patient.id)
+        )
+      )
+      .orderBy(desc(schema.prescriptions.createdAt))
+      .limit(1),
+  ]);
+
+  const patientReports = attachmentsData.map((r) => ({
     id: r.id,
     title: r.title,
     kind: r.kind,
@@ -266,6 +296,85 @@ export default async function NewPrescriptionPage({
     uploadedByName: r.uploadedByName,
     url: r.url,
   }));
+
+  // Fetch items and advice for previous prescription if found
+  let previousPrescription: any = null;
+  if (latestRx) {
+    const [previousItems, previousAdvice] = await Promise.all([
+      db
+        .select({
+          medicineId: schema.prescriptionItems.medicineId,
+          medicineLineSnapshot: schema.prescriptionItems.medicineLineSnapshot,
+          dosagePatternId: schema.prescriptionItems.dosagePatternId,
+          dosageTextBn: schema.prescriptionItems.dosageTextBn,
+          mealTimingId: schema.prescriptionItems.mealTimingId,
+          mealTimingTextBn: schema.prescriptionItems.mealTimingTextBn,
+          durationOptionId: schema.prescriptionItems.durationOptionId,
+          durationTextBn: schema.prescriptionItems.durationTextBn,
+          customInstruction: schema.prescriptionItems.customInstruction,
+          brandName: schema.medicines.brandName,
+          genericName: schema.medicines.genericName,
+          strength: schema.medicines.strength,
+          form: schema.medicines.form,
+          drugClass: schema.medicines.drugClass,
+        })
+        .from(schema.prescriptionItems)
+        .innerJoin(schema.medicines, eq(schema.prescriptionItems.medicineId, schema.medicines.id))
+        .where(
+          and(
+            eq(schema.prescriptionItems.tenantId, tenant.id),
+            eq(schema.prescriptionItems.prescriptionId, latestRx.id)
+          )
+        )
+        .orderBy(schema.prescriptionItems.sortOrder),
+
+      db
+        .select({
+          textBn: schema.prescriptionAdvice.textBn,
+        })
+        .from(schema.prescriptionAdvice)
+        .where(
+          and(
+            eq(schema.prescriptionAdvice.tenantId, tenant.id),
+            eq(schema.prescriptionAdvice.prescriptionId, latestRx.id)
+          )
+        )
+        .orderBy(schema.prescriptionAdvice.sortOrder),
+    ]);
+
+    previousPrescription = {
+      id: latestRx.id,
+      rxCode: latestRx.rxCode,
+      chiefComplaint: latestRx.chiefComplaint,
+      examination: latestRx.examination,
+      diagnosis: latestRx.diagnosis,
+      investigations: latestRx.investigations,
+      toothCodes: latestRx.toothCodes || [],
+      nextVisitDate: latestRx.nextVisitDate,
+      notes: latestRx.notes,
+      sessionNotes: latestRx.sessionNotes,
+      sessionFeeBdt: latestRx.sessionFeeBdt,
+      createdAt: latestRx.createdAt.toISOString(),
+      doctorName: latestRx.doctorName,
+      items: previousItems.map((pi, idx) => ({
+        id: `prev-${pi.medicineId}-${idx}`,
+        medicineId: pi.medicineId,
+        brandName: pi.brandName,
+        genericName: pi.genericName,
+        strength: pi.strength,
+        form: pi.form,
+        drugClass: pi.drugClass,
+        dosagePatternId: pi.dosagePatternId || undefined,
+        dosageTextBn: pi.dosageTextBn || undefined,
+        mealTimingId: pi.mealTimingId || undefined,
+        mealTimingTextBn: pi.mealTimingTextBn || undefined,
+        durationOptionId: pi.durationOptionId || undefined,
+        durationTextBn: pi.durationTextBn || undefined,
+        customInstruction: pi.customInstruction || undefined,
+      })),
+      advice: previousAdvice.map((a) => a.textBn),
+    };
+  }
 
   return (
     <div className="space-y-6">
@@ -282,6 +391,7 @@ export default async function NewPrescriptionPage({
           phone: patient.phone || null,
         }}
         appointmentId={appointmentId}
+        previousPrescription={previousPrescription}
         initialReports={patientReports}
         catalogMedicines={catalog.catalogMedicines}
         dosagePatterns={catalog.dosagePatterns}

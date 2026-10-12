@@ -133,6 +133,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         id: schema.appointments.id,
         patientId: schema.appointments.patientId,
         doctorId: schema.appointments.doctorId,
+        doctorSessionFeeBdt: schema.appointments.doctorSessionFeeBdt,
       })
       .from(schema.appointments)
       .where(
@@ -151,36 +152,6 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       if (!cleanPatientId) cleanPatientId = apt.patientId;
     }
 
-    if (!alreadyBilledInfo) {
-      // Fetch booked services for this appointment
-      const bookedServices = await db
-        .select({
-          id: schema.appointmentServices.id,
-          serviceId: schema.appointmentServices.serviceId,
-          serviceNameSnapshot: schema.appointmentServices.serviceNameSnapshot,
-          priceBdtSnapshot: schema.appointmentServices.priceBdtSnapshot,
-          toothCodes: schema.appointmentServices.toothCodes,
-        })
-        .from(schema.appointmentServices)
-        .where(
-          and(
-            eq(schema.appointmentServices.tenantId, tenant.id),
-            eq(schema.appointmentServices.appointmentId, appointmentId)
-          )
-        );
-
-      if (bookedServices.length > 0) {
-        initialLineItems = bookedServices.map((bs, idx) => ({
-          id: `line-${idx + 1}`,
-          serviceId: bs.serviceId,
-          description: bs.serviceNameSnapshot,
-          toothCodes: bs.toothCodes || [],
-          quantity: 1,
-          unitPriceBdt: bs.priceBdtSnapshot,
-        }));
-      }
-    }
-
     // Check for prescription issued for this appointment
     const [rx] = await db
       .select({
@@ -189,6 +160,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         diagnosis: schema.prescriptions.diagnosis,
         toothCodes: schema.prescriptions.toothCodes,
         doctorId: schema.prescriptions.doctorId,
+        sessionFeeBdt: schema.prescriptions.sessionFeeBdt,
       })
       .from(schema.prescriptions)
       .where(
@@ -211,31 +183,27 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         isAlreadyBilled: !!alreadyBilledInfo,
         billedInvoiceCode: alreadyBilledInfo?.invoiceCode,
       };
+    }
 
-      // Copy prescription's tooth numbers into invoice line items (Issue 13)
-      if (rx.toothCodes && rx.toothCodes.length > 0) {
-        initialLineItems = initialLineItems.map((item) => ({
-          ...item,
-          toothCodes: item.toothCodes && item.toothCodes.length > 0 ? item.toothCodes : rx.toothCodes!,
-        }));
-      }
+    // Doctor's prescribed charge takes precedence over static catalog service prices
+    if (!alreadyBilledInfo) {
+      const doctorFee =
+        initialSessionFee !== undefined
+          ? initialSessionFee
+          : (rx?.sessionFeeBdt ?? apt?.doctorSessionFeeBdt ?? 0);
 
-      // If no explicit appointment services were booked, but doctor wrote prescription and visit is NOT already billed
-      if (!alreadyBilledInfo && initialLineItems.length === 0) {
-        const defaultService = services[0];
-        initialLineItems = [
-          {
-            id: "line-1",
-            serviceId: defaultService?.id,
-            description: rx.diagnosis
-              ? `Dental Treatment & Care (${rx.diagnosis})`
-              : (defaultService?.name || "Dental Consultation & Treatment"),
-            toothCodes: rx.toothCodes || [],
-            quantity: 1,
-            unitPriceBdt: defaultService?.priceBdt || 500,
-          },
-        ];
-      }
+      initialLineItems = [
+        {
+          id: "line-1",
+          serviceId: undefined,
+          description: rx?.diagnosis
+            ? `Dental Treatment & Care (${rx.diagnosis})`
+            : "Dental Consultation & Treatment",
+          toothCodes: rx?.toothCodes || [],
+          quantity: 1,
+          unitPriceBdt: doctorFee,
+        },
+      ];
     }
   }
 
@@ -369,41 +337,6 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         }
         continue;
       }
-
-      const bookedServices = await db
-        .select({
-          id: schema.appointmentServices.id,
-          serviceId: schema.appointmentServices.serviceId,
-          serviceNameSnapshot: schema.appointmentServices.serviceNameSnapshot,
-          priceBdtSnapshot: schema.appointmentServices.priceBdtSnapshot,
-          toothCodes: schema.appointmentServices.toothCodes,
-        })
-        .from(schema.appointmentServices)
-        .where(
-          and(
-            eq(schema.appointmentServices.tenantId, tenant.id),
-            eq(schema.appointmentServices.appointmentId, apt.id)
-          )
-        );
-
-      const unbilledServices = bookedServices.filter((s) => {
-        const isAlreadyOnInvoice = billedInvoiceItems.some(
-          (bi) => bi.serviceId === s.serviceId || bi.description === s.serviceNameSnapshot
-        );
-        return !isAlreadyOnInvoice;
-      });
-
-      if (unbilledServices.length > 0) {
-        initialLineItems = unbilledServices.map((bs, idx) => ({
-          id: `line-${idx + 1}`,
-          serviceId: bs.serviceId,
-          description: bs.serviceNameSnapshot,
-          toothCodes: bs.toothCodes || [],
-          quantity: 1,
-          unitPriceBdt: bs.priceBdtSnapshot,
-        }));
-        break;
-      }
     }
 
     if (!prescriptionInfo) {
@@ -414,6 +347,8 @@ export default async function NewInvoicePage({ searchParams }: Props) {
           diagnosis: schema.prescriptions.diagnosis,
           toothCodes: schema.prescriptions.toothCodes,
           appointmentId: schema.prescriptions.appointmentId,
+          sessionFeeBdt: schema.prescriptions.sessionFeeBdt,
+          doctorId: schema.prescriptions.doctorId,
           createdAt: schema.prescriptions.createdAt,
         })
         .from(schema.prescriptions)
@@ -427,6 +362,10 @@ export default async function NewInvoicePage({ searchParams }: Props) {
         .limit(1);
 
       if (latestRx) {
+        if (latestRx.doctorId && !resolvedDoctorId) {
+          resolvedDoctorId = latestRx.doctorId;
+        }
+
         const matchingInvoice = allPatientInvoices.find(
           (inv) =>
             inv.prescriptionId === latestRx.id ||
@@ -465,11 +404,24 @@ export default async function NewInvoicePage({ searchParams }: Props) {
             isAlreadyBilled: false,
           };
 
-          if (latestRx.toothCodes && latestRx.toothCodes.length > 0) {
-            initialLineItems = initialLineItems.map((item) => ({
-              ...item,
-              toothCodes: item.toothCodes && item.toothCodes.length > 0 ? item.toothCodes : latestRx.toothCodes!,
-            }));
+          if (!alreadyBilledInfo && initialLineItems.length === 0) {
+            const doctorFee =
+              initialSessionFee !== undefined
+                ? initialSessionFee
+                : (latestRx.sessionFeeBdt ?? 0);
+
+            initialLineItems = [
+              {
+                id: "line-1",
+                serviceId: undefined,
+                description: latestRx.diagnosis
+                  ? `Dental Treatment & Care (${latestRx.diagnosis})`
+                  : "Dental Consultation & Treatment",
+                toothCodes: latestRx.toothCodes || [],
+                quantity: 1,
+                unitPriceBdt: doctorFee,
+              },
+            ];
           }
         }
       }

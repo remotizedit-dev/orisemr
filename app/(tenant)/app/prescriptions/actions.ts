@@ -24,6 +24,7 @@ export interface PrescriptionItemInput {
 
 export interface SavePrescriptionInput {
   patientId: string;
+  rewritePrescriptionId?: string | null;
   appointmentId?: string | null;
   chiefComplaint?: string;
   examination?: string;
@@ -104,49 +105,133 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
 
   try {
     const result = await db.transaction(async (tx) => {
-      // 1. Increment RX counter
-      const [counter] = await tx
-        .insert(schema.tenantCounters)
-        .values({
-          tenantId: tenant.id,
-          key: "RX",
-          nextValue: 2,
-        })
-        .onConflictDoUpdate({
-          target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
-          set: {
-            nextValue: sql`${schema.tenantCounters.nextValue} + 1`,
-          },
-        })
-        .returning();
+      let prescription = { id: "" };
+      let rxCode = "";
+      let isRewrite = false;
 
-      const seq = counter.nextValue - 1;
-      const rxCode = generateRecordCode("RX", tenant.shortCode, seq);
+      // Check if we are rewriting on an existing prescription
+      if (input.rewritePrescriptionId) {
+        const [existing] = await tx
+          .select({
+            id: schema.prescriptions.id,
+            rxCode: schema.prescriptions.rxCode,
+            appointmentId: schema.prescriptions.appointmentId,
+          })
+          .from(schema.prescriptions)
+          .where(
+            and(
+              eq(schema.prescriptions.tenantId, tenant.id),
+              eq(schema.prescriptions.id, input.rewritePrescriptionId),
+              eq(schema.prescriptions.patientId, input.patientId)
+            )
+          )
+          .limit(1);
 
-      // 2. Insert Prescription
-      const [prescription] = await tx
-        .insert(schema.prescriptions)
-        .values({
-          tenantId: tenant.id,
-          rxCode,
-          patientId: input.patientId,
-          doctorId: user.id,
-          appointmentId: cleanAppointmentId,
-          chiefComplaint: input.chiefComplaint?.trim() || null,
-          examination: input.examination?.trim() || null,
-          diagnosis: input.diagnosis?.trim() || null,
-          investigations: input.investigations?.trim() || null,
-          toothCodes: Array.isArray(input.toothCodes) ? input.toothCodes : [],
-          nextVisitDate: cleanNextVisitDate,
-          notes: input.notes?.trim() || null,
-          sessionNotes: input.sessionNotes?.trim() || null,
-          sessionFeeBdt:
-            typeof input.sessionFeeBdt === "number" && !isNaN(input.sessionFeeBdt)
-              ? Math.max(0, input.sessionFeeBdt)
-              : null,
-          allergyOverride: Boolean(input.allergyOverride),
-        })
-        .returning();
+        if (existing) {
+          isRewrite = true;
+          rxCode = existing.rxCode;
+
+          const [updated] = await tx
+            .update(schema.prescriptions)
+            .set({
+              doctorId: user.id,
+              appointmentId: cleanAppointmentId ?? existing.appointmentId,
+              chiefComplaint: input.chiefComplaint?.trim() || null,
+              examination: input.examination?.trim() || null,
+              diagnosis: input.diagnosis?.trim() || null,
+              investigations: input.investigations?.trim() || null,
+              toothCodes: Array.isArray(input.toothCodes) ? input.toothCodes : [],
+              nextVisitDate: cleanNextVisitDate,
+              notes: input.notes?.trim() || null,
+              sessionNotes: input.sessionNotes?.trim() || null,
+              sessionFeeBdt:
+                typeof input.sessionFeeBdt === "number" && !isNaN(input.sessionFeeBdt)
+                  ? Math.max(0, input.sessionFeeBdt)
+                  : null,
+              allergyOverride: Boolean(input.allergyOverride),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(schema.prescriptions.tenantId, tenant.id),
+                eq(schema.prescriptions.id, existing.id)
+              )
+            )
+            .returning({ id: schema.prescriptions.id });
+
+          prescription = updated;
+
+          // Clear previous items and advice to rewrite cleanly
+          await tx
+            .delete(schema.prescriptionItems)
+            .where(
+              and(
+                eq(schema.prescriptionItems.tenantId, tenant.id),
+                eq(schema.prescriptionItems.prescriptionId, existing.id)
+              )
+            );
+
+          await tx
+            .delete(schema.prescriptionAdvice)
+            .where(
+              and(
+                eq(schema.prescriptionAdvice.tenantId, tenant.id),
+                eq(schema.prescriptionAdvice.prescriptionId, existing.id)
+              )
+            );
+        } else {
+          // If specified rewrite prescription not found, fall back to new
+          input.rewritePrescriptionId = undefined;
+        }
+      }
+
+      if (!isRewrite) {
+        // 1. Increment RX counter
+        const [counter] = await tx
+          .insert(schema.tenantCounters)
+          .values({
+            tenantId: tenant.id,
+            key: "RX",
+            nextValue: 2,
+          })
+          .onConflictDoUpdate({
+            target: [schema.tenantCounters.tenantId, schema.tenantCounters.key],
+            set: {
+              nextValue: sql`${schema.tenantCounters.nextValue} + 1`,
+            },
+          })
+          .returning();
+
+        const seq = counter.nextValue - 1;
+        rxCode = generateRecordCode("RX", tenant.shortCode, seq);
+
+        // 2. Insert Prescription
+        const [created] = await tx
+          .insert(schema.prescriptions)
+          .values({
+            tenantId: tenant.id,
+            rxCode,
+            patientId: input.patientId,
+            doctorId: user.id,
+            appointmentId: cleanAppointmentId,
+            chiefComplaint: input.chiefComplaint?.trim() || null,
+            examination: input.examination?.trim() || null,
+            diagnosis: input.diagnosis?.trim() || null,
+            investigations: input.investigations?.trim() || null,
+            toothCodes: Array.isArray(input.toothCodes) ? input.toothCodes : [],
+            nextVisitDate: cleanNextVisitDate,
+            notes: input.notes?.trim() || null,
+            sessionNotes: input.sessionNotes?.trim() || null,
+            sessionFeeBdt:
+              typeof input.sessionFeeBdt === "number" && !isNaN(input.sessionFeeBdt)
+                ? Math.max(0, input.sessionFeeBdt)
+                : null,
+            allergyOverride: Boolean(input.allergyOverride),
+          })
+          .returning({ id: schema.prescriptions.id });
+
+        prescription = created;
+      }
 
       // 3. Insert Prescription Items (Batch Insert)
       const validItems = (input.items || []).filter((item) => Boolean(item.medicineId));
@@ -216,14 +301,14 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
         );
       }
 
-      // 5. If patient was in chair in queue, advance them to billing and persist session billing/clinical details
-      if (cleanAppointmentId) {
-        const cleanFee =
-          typeof input.sessionFeeBdt === "number" && !isNaN(input.sessionFeeBdt)
-            ? Math.max(0, input.sessionFeeBdt)
-            : null;
-        const cleanSessionNotes = input.sessionNotes?.trim() || null;
+      // 5. If patient was in queue or appointment, advance them to billing and persist session billing/clinical details
+      const cleanFee =
+        typeof input.sessionFeeBdt === "number" && !isNaN(input.sessionFeeBdt)
+          ? Math.max(0, input.sessionFeeBdt)
+          : null;
+      const cleanSessionNotes = input.sessionNotes?.trim() || null;
 
+      if (cleanAppointmentId) {
         await tx
           .update(schema.queueEntries)
           .set({
@@ -254,13 +339,32 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
               eq(schema.appointments.id, cleanAppointmentId)
             )
           );
+      } else {
+        // Also check if there's an active in-chair or waiting queue entry for this patient today
+        await tx
+          .update(schema.queueEntries)
+          .set({
+            status: "billing",
+            billingAt: new Date(),
+            sessionFeeBdt: cleanFee,
+            sessionNotes: cleanSessionNotes,
+            updatedBy: user.id,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.queueEntries.tenantId, tenant.id),
+              eq(schema.queueEntries.patientId, input.patientId),
+              inArray(schema.queueEntries.status, ["in_chair", "waiting"])
+            )
+          );
       }
 
-      return { prescriptionId: prescription.id, rxCode };
+      return { prescriptionId: prescription.id, rxCode: rxCode!, isRewrite };
     });
 
     await logAudit({
-      action: "PRESCRIPTION_CREATED",
+      action: result.isRewrite ? "PRESCRIPTION_UPDATED" : "PRESCRIPTION_CREATED",
       entityType: "prescription",
       entityId: result.prescriptionId,
       actorId: user.id,
@@ -269,6 +373,7 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
         rxCode: result.rxCode,
         patientId: input.patientId,
         medicinesCount: (input.items || []).length,
+        isRewrite: result.isRewrite,
       },
     });
 

@@ -735,7 +735,7 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
   let targetAppointmentId: string | null = null;
   let bookedServices: {
     id: string;
-    serviceId: string;
+    serviceId?: string;
     description: string;
     toothCodes: string[];
     quantity: number;
@@ -822,6 +822,7 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     diagnosis: string | null;
     toothCodes: string[] | null;
     appointmentId: string | null;
+    sessionFeeBdt: number | null;
     createdAt: Date;
   } | null = null;
 
@@ -833,6 +834,7 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
         diagnosis: schema.prescriptions.diagnosis,
         toothCodes: schema.prescriptions.toothCodes,
         appointmentId: schema.prescriptions.appointmentId,
+        sessionFeeBdt: schema.prescriptions.sessionFeeBdt,
         createdAt: schema.prescriptions.createdAt,
       })
       .from(schema.prescriptions)
@@ -856,6 +858,7 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
         diagnosis: schema.prescriptions.diagnosis,
         toothCodes: schema.prescriptions.toothCodes,
         appointmentId: schema.prescriptions.appointmentId,
+        sessionFeeBdt: schema.prescriptions.sessionFeeBdt,
         createdAt: schema.prescriptions.createdAt,
       })
       .from(schema.prescriptions)
@@ -934,15 +937,22 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     }));
   }
 
-  // Resolve target doctor attribution
+  // Resolve target doctor attribution and session fee
   let targetDoctorId: string | null = null;
+  let targetAptFee: number | null = null;
   if (targetAppointmentId) {
     const [apt] = await db
-      .select({ doctorId: schema.appointments.doctorId })
+      .select({
+        doctorId: schema.appointments.doctorId,
+        doctorSessionFeeBdt: schema.appointments.doctorSessionFeeBdt,
+      })
       .from(schema.appointments)
       .where(eq(schema.appointments.id, targetAppointmentId))
       .limit(1);
     if (apt?.doctorId) targetDoctorId = apt.doctorId;
+    if (apt?.doctorSessionFeeBdt !== undefined && apt?.doctorSessionFeeBdt !== null) {
+      targetAptFee = apt.doctorSessionFeeBdt;
+    }
   }
   if (!targetDoctorId && targetRx) {
     const [rx] = await db
@@ -956,6 +966,23 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     targetDoctorId = patient.assignedDoctorId;
   }
 
+  // Doctor's prescribed consultation / procedure fee
+  const doctorFee = targetRx?.sessionFeeBdt ?? targetAptFee ?? undefined;
+  if (doctorFee !== undefined && !alreadyBilledInfo) {
+    bookedServices = [
+      {
+        id: "line-1",
+        serviceId: undefined,
+        description: targetRx?.diagnosis
+          ? `Dental Treatment & Care (${targetRx.diagnosis})`
+          : "Dental Consultation & Treatment",
+        toothCodes: targetRx?.toothCodes || [],
+        quantity: 1,
+        unitPriceBdt: doctorFee,
+      },
+    ];
+  }
+
   return {
     patient,
     appointmentId: targetAppointmentId,
@@ -963,6 +990,7 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     prescriptionInfo,
     alreadyBilledInfo,
     doctorId: targetDoctorId,
+    initialSessionFee: doctorFee,
     patientDues: {
       totalDueBdt: unpaid.reduce((sum, it) => sum + it.dueBdt, 0),
       unpaidInvoices: unpaid,

@@ -7,7 +7,7 @@ import { requireClinicStaff } from "@/lib/session";
 import { PatientHeaderActions } from "@/components/patients/PatientHeaderActions";
 import { PatientDocumentsTray } from "@/components/patients/PatientDocumentsTray";
 import { PatientPrescriptionsList } from "@/components/patients/PatientPrescriptionsList";
-import { PatientInvoicesList } from "@/components/patients/PatientInvoicesList";
+import { PatientPaymentLedger } from "@/components/patients/PatientPaymentLedger";
 import { formatBdPhone, formatBdt, formatDhakaDate, formatDoctorName } from "@/lib/utils";
 import { getFileUrl } from "@/lib/s3";
 import {
@@ -181,8 +181,8 @@ export default async function PatientProfilePage({
     )
     .orderBy(schema.users.name);
 
-  // Fetch patient clinical records, billing invoices, appointment history, and uploaded reports in parallel
-  const [prescriptions, invoices, appointments, attachments] = await Promise.all([
+  // Fetch patient clinical records, billing invoices, payments, appointment history, and uploaded reports in parallel
+  const [prescriptions, invoices, payments, appointments, attachments] = await Promise.all([
     // 2. Fetch Prescriptions
     db
       .select({
@@ -205,10 +205,21 @@ export default async function PatientProfilePage({
       )
       .orderBy(desc(schema.prescriptions.createdAt)),
 
-    // 3. Fetch Invoices
+    // 3. Fetch Invoices with Attending Doctor Name
     db
-      .select()
+      .select({
+        id: schema.invoices.id,
+        invoiceCode: schema.invoices.invoiceCode,
+        subtotalBdt: schema.invoices.subtotalBdt,
+        discountBdt: schema.invoices.discountBdt,
+        totalBdt: schema.invoices.totalBdt,
+        paidBdt: schema.invoices.paidBdt,
+        status: schema.invoices.status,
+        createdAt: schema.invoices.createdAt,
+        doctorName: schema.users.name,
+      })
       .from(schema.invoices)
+      .leftJoin(schema.users, eq(schema.invoices.doctorId, schema.users.id))
       .where(
         and(
           eq(schema.invoices.tenantId, tenant.id),
@@ -216,6 +227,37 @@ export default async function PatientProfilePage({
         )
       )
       .orderBy(desc(schema.invoices.createdAt)),
+
+    // 4. Fetch Payments received for this patient
+    db
+      .select({
+        id: schema.payments.id,
+        invoiceId: schema.payments.invoiceId,
+        invoiceCode: schema.invoices.invoiceCode,
+        amountBdt: schema.payments.amountBdt,
+        method: schema.payments.method,
+        transactionRef: schema.payments.transactionRef,
+        note: schema.payments.note,
+        paidAt: schema.payments.paidAt,
+        receivedByName: schema.users.name,
+      })
+      .from(schema.payments)
+      .innerJoin(
+        schema.invoices,
+        eq(schema.payments.invoiceId, schema.invoices.id)
+      )
+      .leftJoin(
+        schema.users,
+        eq(schema.payments.receivedBy, schema.users.id)
+      )
+      .where(
+        and(
+          eq(schema.payments.tenantId, tenant.id),
+          eq(schema.invoices.patientId, id),
+          isNull(schema.payments.deletedAt)
+        )
+      )
+      .orderBy(desc(schema.payments.paidAt)),
 
     // 4. Fetch Appointments
     db
@@ -268,10 +310,6 @@ export default async function PatientProfilePage({
     ...att,
     url: getFileUrl(att.s3Key),
   }));
-
-  const totalOutstanding = invoices
-    .filter((inv) => inv.status === "due" || inv.status === "partial")
-    .reduce((acc, inv) => acc + (inv.totalBdt - inv.paidBdt), 0);
 
   return (
     <div className="space-y-6">
@@ -545,58 +583,40 @@ export default async function PatientProfilePage({
             </div>
           </div>
 
-          {/* Clinical Reports, X-Rays & Uploaded Documents */}
+        </div>
+
+        {/* Right Column (1 col): Clinical Reports & Uploaded Documents */}
+        <div className="space-y-6">
           <PatientDocumentsTray
             patientId={patient.id}
             initialAttachments={enrichedAttachments}
           />
         </div>
-
-        {/* Right Column (1 col): Invoices & Outstanding Due Balance */}
-        <div className="space-y-6">
-          <div className="glass-panel p-5 rounded-2xl border border-[#E4E4E7] space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-[#1C1C1E] flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-[#2A5CAA]" />
-                <span>Billing Summary</span>
-              </h2>
-              <Link
-                href={`/app/billing/new?patientId=${patient.id}`}
-                prefetch={false}
-                className="inline-flex items-center gap-1 text-xs font-bold text-[#2A5CAA] bg-[#E8EEF7] hover:bg-[#2A5CAA] hover:text-white px-2.5 py-1 rounded-lg transition-colors"
-              >
-                + New Invoice
-              </Link>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[#FFF7EB] border border-[#FF9F0A]/30 flex items-center justify-between">
-              <div>
-                <span className="text-[11px] text-[#6B7280] uppercase tracking-wider font-semibold block">
-                  Total Outstanding Due:
-                </span>
-                <span className={`text-2xl font-black block mt-0.5 ${totalOutstanding > 0 ? "text-[#C0392B]" : "text-[#1C1C1E]"}`}>
-                  {formatBdt(totalOutstanding)}
-                </span>
-              </div>
-              {totalOutstanding > 0 && (
-                <Link
-                  href={`/app/billing/dues?search=${encodeURIComponent(patient.phone || patient.name)}`}
-                  prefetch={false}
-                  className="px-3 py-1.5 bg-[#C0392B] hover:bg-[#A93226] text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
-                >
-                  Settle Due →
-                </Link>
-              )}
-            </div>
-
-            <PatientInvoicesList
-              invoices={invoices}
-              patientName={patient.name}
-              isAdmin={isAdmin}
-            />
-          </div>
-        </div>
       </div>
+
+      {/* Patient Financial Payment Ledger */}
+      <section className="space-y-3 pt-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-[#2A5CAA]" />
+            <h2 className="text-base font-black text-[#1C1C1E] tracking-tight">
+              Patient Financial Ledger &amp; Billing History
+            </h2>
+          </div>
+          <span className="text-xs text-[#6B7280]">
+            Complete billing statement of fees charged, payment receipts, and dues
+          </span>
+        </div>
+
+        <PatientPaymentLedger
+          patientId={patient.id}
+          patientName={patient.name}
+          patientPhone={patient.phone}
+          invoices={invoices}
+          payments={payments}
+          isAdmin={isAdmin}
+        />
+      </section>
     </div>
   );
 }

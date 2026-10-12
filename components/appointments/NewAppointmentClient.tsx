@@ -151,11 +151,6 @@ export default function NewAppointmentClient({
     .filter((s) => selectedServices.includes(s.id))
     .reduce((acc, s) => acc + s.durationMinutes, 0);
 
-  // Total Estimated Price
-  const totalEstimatedPrice = services
-    .filter((s) => selectedServices.includes(s.id))
-    .reduce((acc, s) => acc + s.priceBdt, 0);
-
   const filteredServices = useMemo(() => {
     if (!procedureSearchQuery.trim()) return services;
     const q = procedureSearchQuery.toLowerCase().trim();
@@ -492,7 +487,7 @@ export default function NewAppointmentClient({
                           {s.name}
                         </span>
                         <span className="text-[10px] text-[#6B7280]">
-                          {s.durationMinutes} min • {formatBdt(s.priceBdt)}
+                          {s.durationMinutes} mins
                         </span>
                       </div>
                       {isSelected && (
@@ -727,9 +722,9 @@ export default function NewAppointmentClient({
                 </span>
               </div>
               <div className="flex justify-between text-[#6B7280]">
-                <span>Est. Service Cost:</span>
-                <span className="font-bold text-[#2A5CAA]">
-                  {formatBdt(totalEstimatedPrice)}
+                <span>Fee / Billing:</span>
+                <span className="font-semibold text-[#2A5CAA]">
+                  Set by Doctor in Prescription
                 </span>
               </div>
             </div>
