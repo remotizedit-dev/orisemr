@@ -280,7 +280,11 @@ export async function checkInPatientAction(appointmentId: string) {
 export async function advanceQueueStatusAction(
   queueEntryId: string,
   newStatus: (typeof schema.queueStatusEnum.enumValues)[number],
-  chairId?: string
+  chairId?: string,
+  sessionDetails?: {
+    sessionFeeBdt?: number;
+    sessionNotes?: string;
+  }
 ) {
   const { tenant, user } = await requireClinicStaff();
 
@@ -330,6 +334,15 @@ export async function advanceQueueStatusAction(
     }
   } else if (newStatus === "billing") {
     updateData.billingAt = now;
+    if (sessionDetails?.sessionFeeBdt !== undefined) {
+      updateData.sessionFeeBdt =
+        typeof sessionDetails.sessionFeeBdt === "number" && !isNaN(sessionDetails.sessionFeeBdt)
+          ? Math.max(0, sessionDetails.sessionFeeBdt)
+          : null;
+    }
+    if (sessionDetails?.sessionNotes !== undefined) {
+      updateData.sessionNotes = sessionDetails.sessionNotes?.trim() || null;
+    }
   } else if (newStatus === "done") {
     updateData.doneAt = now;
   }
@@ -343,6 +356,33 @@ export async function advanceQueueStatusAction(
         eq(schema.queueEntries.id, queueEntryId)
       )
     );
+
+  if (sessionDetails && (sessionDetails.sessionFeeBdt !== undefined || sessionDetails.sessionNotes !== undefined)) {
+    const [entry] = await db
+      .select({ appointmentId: schema.queueEntries.appointmentId })
+      .from(schema.queueEntries)
+      .where(eq(schema.queueEntries.id, queueEntryId))
+      .limit(1);
+
+    if (entry?.appointmentId) {
+      await db
+        .update(schema.appointments)
+        .set({
+          doctorSessionFeeBdt:
+            typeof sessionDetails.sessionFeeBdt === "number" && !isNaN(sessionDetails.sessionFeeBdt)
+              ? Math.max(0, sessionDetails.sessionFeeBdt)
+              : null,
+          doctorSessionNotes: sessionDetails.sessionNotes?.trim() || null,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.id, entry.appointmentId)
+          )
+        );
+    }
+  }
 
   if (newStatus === "done") {
     const [entry] = await db
@@ -793,6 +833,8 @@ export interface QueueItem {
   inChairAt?: string | null;
   estimatedDurationMinutes?: number;
   serviceNames?: string[];
+  sessionFeeBdt?: number | null;
+  sessionNotes?: string | null;
 }
 
 export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[]> {
@@ -880,6 +922,10 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
           startTime: schema.appointments.startTime,
           endTime: schema.appointments.endTime,
           inChairAt: schema.queueEntries.inChairAt,
+          sessionFeeBdt: schema.queueEntries.sessionFeeBdt,
+          sessionNotes: schema.queueEntries.sessionNotes,
+          doctorSessionFeeBdt: schema.appointments.doctorSessionFeeBdt,
+          doctorSessionNotes: schema.appointments.doctorSessionNotes,
         })
         .from(schema.queueEntries)
         .innerJoin(
@@ -1030,6 +1076,8 @@ export async function fetchTodayQueueItems(tenantId: string): Promise<QueueItem[
           inChairAt: e.inChairAt ? e.inChairAt.toISOString() : null,
           estimatedDurationMinutes: plannedDuration,
           serviceNames: itemServices.map((s) => s.serviceName),
+          sessionFeeBdt: e.sessionFeeBdt ?? e.doctorSessionFeeBdt ?? null,
+          sessionNotes: e.sessionNotes || e.doctorSessionNotes || null,
         };
       });
     },

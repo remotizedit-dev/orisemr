@@ -11,7 +11,10 @@ import { UploadReportModal } from "./UploadReportModal";
 import { BarcodeSvg } from "@/components/barcode/BarcodeSvg";
 import { checkMedicineAllergy, type AllergyCheckResult } from "@/lib/clinical-flags";
 import { getDhakaTodayStr, addDhakaDays, addDhakaMonths, formatDhakaDate } from "@/lib/utils";
-import { savePrescriptionAction } from "@/app/(tenant)/app/prescriptions/actions";
+import {
+  savePrescriptionAction,
+  getPatientClinicalHistoryAction,
+} from "@/app/(tenant)/app/prescriptions/actions";
 import { deletePatientAttachmentAction } from "@/app/(tenant)/app/patients/actions";
 import {
   AlertCircle,
@@ -173,6 +176,16 @@ export function PrescriptionBuilder({
   const [toothCodes, setToothCodes] = useState<string[]>([]);
   const [nextVisitDate, setNextVisitDate] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [sessionNotes, setSessionNotes] = useState("");
+  const [sessionFeeBdt, setSessionFeeBdt] = useState<number | string>("");
+
+  // Patient Clinical History State
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+  const [patientHistory, setPatientHistory] = useState<{
+    prescriptions: any[];
+    appointmentSessionLogs: any[];
+  } | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Tooth selector modal
   const [isToothModalOpen, setIsToothModalOpen] = useState(false);
@@ -297,9 +310,47 @@ export function PrescriptionBuilder({
     setCustomAdviceInput("");
   };
 
+  const loadPatientHistory = async () => {
+    if (patientHistory !== null) {
+      setIsHistoryDrawerOpen((prev) => !prev);
+      return;
+    }
+    setIsLoadingHistory(true);
+    setIsHistoryDrawerOpen(true);
+    try {
+      const hist = await getPatientClinicalHistoryAction(patient.id);
+      setPatientHistory(hist);
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not load clinical history");
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const copyMedicinesFromPastRx = (rx: any) => {
+    if (!rx.items || rx.items.length === 0) {
+      toast.info("No medicines recorded in this previous prescription");
+      return;
+    }
+    const newItems: SelectedMedicineItem[] = rx.items.map((it: any) => ({
+      id: Math.random().toString(36).substring(7),
+      medicineId: it.medicineId || "",
+      brandName: it.medicineLineSnapshot || "Medicine",
+      genericName: "",
+      dosageTextBn: it.dosageTextBn || "১+০+১",
+      mealTimingTextBn: it.mealTimingTextBn || "খাবার পরে",
+      durationTextBn: it.durationTextBn || "৫ দিন",
+      customInstruction: it.customInstruction || "",
+    }));
+
+    setSelectedItems((prev) => [...prev, ...newItems]);
+    toast.success(`Copied ${newItems.length} medicines from ${rx.rxCode}`);
+  };
+
   const handleSave = async () => {
-    if (selectedItems.length === 0 && !chiefComplaint && !diagnosis) {
-      toast.error("Please add at least one medication, chief complaint, or diagnosis");
+    if (selectedItems.length === 0 && !chiefComplaint && !diagnosis && !sessionNotes.trim()) {
+      toast.error("Please add at least one medication, chief complaint, diagnosis, or session procedure log");
       return;
     }
 
@@ -325,6 +376,11 @@ export function PrescriptionBuilder({
         sortOrder: idx + 1,
       }));
 
+      const cleanFee =
+        sessionFeeBdt !== "" && !isNaN(Number(sessionFeeBdt))
+          ? Number(sessionFeeBdt)
+          : undefined;
+
       const res = await savePrescriptionAction({
         patientId: patient.id,
         appointmentId,
@@ -335,6 +391,8 @@ export function PrescriptionBuilder({
         toothCodes,
         nextVisitDate: nextVisitDate || null,
         notes,
+        sessionNotes: sessionNotes?.trim() || undefined,
+        sessionFeeBdt: cleanFee,
         allergyOverride: selectedItems.some((i) => i.allergyNotice?.level === "block"),
         items: formattedItems,
         adviceLines: formattedAdvice,
@@ -422,6 +480,20 @@ export function PrescriptionBuilder({
                   {reports.length}
                 </span>
               )}
+            </button>
+
+            {/* Treatment History & Past Prescriptions Toggle */}
+            <button
+              type="button"
+              onClick={loadPatientHistory}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                isHistoryDrawerOpen
+                  ? "bg-emerald-500 text-black font-extrabold shadow-sm"
+                  : "bg-white/10 text-white hover:bg-white/20"
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Past Rx &amp; History</span>
             </button>
 
             {/* View Reports Drawer Toggle if reports exist */}
@@ -529,6 +601,177 @@ export function PrescriptionBuilder({
                 </div>
               ))}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Treatment History & Past Prescriptions Drawer (Collapsible) */}
+      <AnimatePresence>
+        {isHistoryDrawerOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="max-w-4xl mx-auto mb-6 bg-white p-4 sm:p-5 rounded-2xl border border-emerald-300 shadow-xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-emerald-700" />
+                <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                  Patient Clinical History &amp; Past Prescriptions
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryDrawerOpen(false)}
+                className="text-xs text-gray-500 hover:text-black font-bold p-1 rounded-md cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {isLoadingHistory ? (
+              <div className="py-8 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                <span>Loading clinical treatment history...</span>
+              </div>
+            ) : !patientHistory ||
+              (patientHistory.prescriptions.length === 0 &&
+                patientHistory.appointmentSessionLogs.length === 0) ? (
+              <div className="py-6 text-center text-xs text-gray-500 italic">
+                No past prescriptions or session notes recorded for this patient yet.
+              </div>
+            ) : (
+              <div className="space-y-4 pt-3 max-h-96 overflow-y-auto pr-1">
+                {patientHistory.prescriptions.map((rx) => (
+                  <div
+                    key={rx.id}
+                    className="border border-gray-200 rounded-xl p-3.5 bg-gray-50/60 hover:bg-white transition space-y-2 text-xs"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-[#2A5CAA] bg-[#EBF2FC] px-2 py-0.5 rounded-md text-[11px]">
+                          {rx.rxCode}
+                        </span>
+                        <span className="text-gray-600 font-medium text-[11px]">
+                          {formatDhakaDate(new Date(rx.createdAt), "d MMM yyyy, h:mm a")}
+                        </span>
+                        {rx.doctorName && (
+                          <span className="text-gray-500 text-[11px]">
+                            • Dr. {rx.doctorName}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {rx.items && rx.items.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => copyMedicinesFromPastRx(rx)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Copy Medicines ({rx.items.length})</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Clinical Details */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                      {rx.diagnosis && (
+                        <div>
+                          <span className="font-bold text-gray-700">Diagnosis: </span>
+                          <span className="text-gray-900 font-medium">{rx.diagnosis}</span>
+                          {!diagnosis && (
+                            <button
+                              type="button"
+                              onClick={() => setDiagnosis(rx.diagnosis)}
+                              className="ml-1 text-[10px] text-[#2A5CAA] hover:underline font-bold cursor-pointer"
+                            >
+                              (Use)
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {rx.toothCodes && rx.toothCodes.length > 0 && (
+                        <div>
+                          <span className="font-bold text-gray-700">Teeth: </span>
+                          <span className="font-mono font-bold text-gray-900">
+                            {rx.toothCodes.join(", ")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Procedure Log / Session Notes */}
+                    {rx.sessionNotes && (
+                      <div className="p-2.5 rounded-lg bg-amber-50/80 border border-amber-200/60 text-[11px]">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-bold text-amber-900 uppercase text-[10px]">
+                            Previous Procedure Log / Sitting Work
+                          </span>
+                          {!sessionNotes && (
+                            <button
+                              type="button"
+                              onClick={() => setSessionNotes(rx.sessionNotes)}
+                              className="text-[10px] text-amber-800 hover:underline font-bold cursor-pointer"
+                            >
+                              (Copy into Today&apos;s Log)
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-amber-950 font-medium whitespace-pre-line leading-relaxed">
+                          {rx.sessionNotes}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Medicines Preview */}
+                    {rx.items && rx.items.length > 0 && (
+                      <div className="pt-1">
+                        <span className="font-bold text-gray-700 text-[10px] uppercase block mb-1">
+                          Prescribed Regimen:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {rx.items.map((it: any, i: number) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 rounded-md bg-white border border-gray-200 font-medium text-gray-800 text-[10px]"
+                            >
+                              {it.medicineLineSnapshot || "Med"} ({it.dosageTextBn || "১+০+১"}, {it.durationTextBn || "৫ দিন"})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Additional Appointment Sitting Logs */}
+                {patientHistory.appointmentSessionLogs
+                  .filter((apt) => apt.doctorSessionNotes)
+                  .map((apt) => (
+                    <div
+                      key={apt.id}
+                      className="border border-amber-200 rounded-xl p-3 bg-amber-50/40 space-y-1 text-xs"
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-amber-900">
+                          Visit Sitting • {formatDhakaDate(new Date(apt.startTime), "d MMM yyyy")}
+                        </span>
+                        {apt.doctorSessionFeeBdt && (
+                          <span className="font-mono font-bold text-emerald-800">
+                            Sitting Fee: ৳{apt.doctorSessionFeeBdt.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-amber-950 text-[11px] whitespace-pre-line">
+                        {apt.doctorSessionNotes}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -710,6 +953,46 @@ export function PrescriptionBuilder({
                   suggestions={ixSuggestions}
                   rows={2}
                 />
+              </div>
+
+              {/* 6. TODAY'S PROCEDURE / SESSION PROGRESS LOG */}
+              <div className="pt-3 border-t border-gray-200">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-black uppercase tracking-wider text-[#1C1C1E]">
+                    SESSION PROCEDURE LOG
+                  </label>
+                  <span className="text-[10px] text-[#2A5CAA] font-bold">Today&apos;s Sitting</span>
+                </div>
+                <textarea
+                  value={sessionNotes}
+                  onChange={(e) => setSessionNotes(e.target.value)}
+                  placeholder="Record today's clinical procedure details (e.g., Tooth #16: Access opening done, WL 21mm, canal BMP with F2, Ca(OH)2 dressing placed, temporary Cavit seal)..."
+                  rows={3}
+                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-medium outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black transition resize-none leading-relaxed"
+                />
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {[
+                    "Access Opening & WL",
+                    "Canal BMP & Dressing",
+                    "Irrigation & Ca(OH)2",
+                    "Obturation (GP)",
+                    "Core Build-up",
+                    "Crown Prep & Impression",
+                    "Crown Delivery",
+                    "Composite Restoration",
+                    "Extraction Done",
+                    "Suture Removal",
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => appendChipText(sessionNotes, setSessionNotes, chip)}
+                      className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-[#EBF2FC] text-gray-700 hover:text-[#2A5CAA] text-[10px] font-bold border border-gray-200 transition cursor-pointer"
+                    >
+                      + {chip}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1057,6 +1340,57 @@ export function PrescriptionBuilder({
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs outline-none focus:bg-white focus:border-black"
                 />
               </div>
+
+              {/* Chairside Billing Recommendation (For Front Desk / Checkout) */}
+              <div className="border-t-2 border-emerald-500/20 bg-emerald-50/40 p-4 rounded-2xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-emerald-700" />
+                      CHAIRSIDE BILLING INSTRUCTION (TODAY&apos;S SITTING COLLECTION)
+                    </span>
+                    <p className="text-[11px] text-emerald-800">
+                      Set recommended collection amount for front desk billing today.
+                    </p>
+                  </div>
+                  {sessionFeeBdt !== "" && (
+                    <span className="font-mono font-black text-xs text-emerald-800 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs self-start sm:self-auto">
+                      Today: ৳{Number(sessionFeeBdt).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {[0, 500, 1000, 2000, 3000, 5000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setSessionFeeBdt(amt)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        sessionFeeBdt === amt
+                          ? "bg-emerald-700 text-white shadow-xs"
+                          : "bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                      }`}
+                    >
+                      {amt === 0 ? "৳0 (Routine Sitting)" : `৳${amt.toLocaleString()}`}
+                    </button>
+                  ))}
+
+                  <div className="flex items-center gap-1 bg-white border border-emerald-300 rounded-xl px-2.5 py-1 shadow-2xs">
+                    <span className="text-xs font-bold text-emerald-800">Custom ৳</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={sessionFeeBdt}
+                      onChange={(e) =>
+                        setSessionFeeBdt(e.target.value === "" ? "" : Number(e.target.value))
+                      }
+                      placeholder="e.g. 1500"
+                      className="w-24 text-xs font-bold font-mono outline-none text-emerald-950"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1111,11 +1445,21 @@ export function PrescriptionBuilder({
               <Link
                 href={`/app/billing/new?patientId=${patient.id}${
                   appointmentId ? `&appointmentId=${appointmentId}` : ""
+                }${
+                  sessionFeeBdt !== "" && !isNaN(Number(sessionFeeBdt))
+                    ? `&sessionFee=${sessionFeeBdt}`
+                    : ""
                 }`}
                 className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
               >
                 <CreditCard className="w-4.5 h-4.5" />
-                <span>Proceed to Billing &amp; Collect Payment →</span>
+                <span>
+                  Proceed to Billing &amp; Collect Payment
+                  {sessionFeeBdt !== "" && Number(sessionFeeBdt) > 0
+                    ? ` (৳${Number(sessionFeeBdt).toLocaleString()})`
+                    : ""}{" "}
+                  →
+                </span>
               </Link>
 
               <Link

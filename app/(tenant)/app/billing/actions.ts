@@ -15,6 +15,7 @@ export interface RecordPaymentInput {
   method: (typeof schema.paymentMethodEnum.enumValues)[number];
   transactionRef?: string;
   note?: string;
+  appointmentId?: string;
 }
 
 export async function recordPaymentAction(input: RecordPaymentInput) {
@@ -23,6 +24,14 @@ export async function recordPaymentAction(input: RecordPaymentInput) {
   if (input.amountBdt <= 0) {
     throw new Error("Payment amount must be greater than 0");
   }
+
+  const cleanAppointmentId =
+    input.appointmentId &&
+    input.appointmentId !== "undefined" &&
+    input.appointmentId !== "null" &&
+    /^[0-9a-fA-F-]{36}$/.test(input.appointmentId)
+      ? input.appointmentId
+      : null;
 
   await db.transaction(async (tx) => {
     // 1. Fetch current invoice
@@ -77,7 +86,38 @@ export async function recordPaymentAction(input: RecordPaymentInput) {
       })
       .where(eq(schema.invoices.id, invoice.id));
 
-    // 4. Send Payment Confirmation Email if patient has an email
+    // 4. If linked to an active queue visit/appointment, mark queue entry as done and appointment as completed
+    if (cleanAppointmentId) {
+      await tx
+        .update(schema.queueEntries)
+        .set({
+          status: "done",
+          doneAt: new Date(),
+          updatedBy: user.id,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.queueEntries.tenantId, tenant.id),
+            eq(schema.queueEntries.appointmentId, cleanAppointmentId)
+          )
+        );
+
+      await tx
+        .update(schema.appointments)
+        .set({
+          status: "completed",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.appointments.tenantId, tenant.id),
+            eq(schema.appointments.id, cleanAppointmentId)
+          )
+        );
+    }
+
+    // 5. Send Payment Confirmation Email if patient has an email
     const [patient] = await tx
       .select()
       .from(schema.patients)
@@ -130,6 +170,10 @@ export async function recordPaymentAction(input: RecordPaymentInput) {
 
   revalidatePath("/app/billing");
   revalidatePath("/app/billing/dues");
+  if (cleanAppointmentId) {
+    revalidatePath("/app/queue");
+    revalidatePath("/app/appointments");
+  }
 }
 
 export interface InvoiceItemInput {

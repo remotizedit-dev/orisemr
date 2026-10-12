@@ -89,6 +89,7 @@ interface Props {
   } | null;
   doctors?: { id: string; name: string }[];
   defaultDoctorId?: string;
+  initialSessionFee?: number;
 }
 
 export default function NewInvoiceClient({
@@ -101,6 +102,7 @@ export default function NewInvoiceClient({
   alreadyBilledInfo,
   doctors = [],
   defaultDoctorId,
+  initialSessionFee,
 }: Props) {
   const router = useRouter();
 
@@ -150,8 +152,15 @@ export default function NewInvoiceClient({
   const totalBdt = Math.max(0, subtotalBdt - (discountBdt || 0));
 
   // Settlement Options: "full" | "due" | "partial"
-  const [settlementMode, setSettlementMode] = useState<"full" | "due" | "partial">("full");
-  const [customAdvance, setCustomAdvance] = useState<number>(0);
+  const [settlementMode, setSettlementMode] = useState<"full" | "due" | "partial">(() => {
+    if (initialSessionFee === 0) return "due";
+    if (initialSessionFee !== undefined && initialSessionFee > 0) return "partial";
+    return "full";
+  });
+  const [customAdvance, setCustomAdvance] = useState<number>(() => {
+    if (initialSessionFee !== undefined && initialSessionFee > 0) return initialSessionFee;
+    return 0;
+  });
   const [advanceMethod, setAdvanceMethod] = useState<"cash" | "bkash" | "nagad" | "card">("cash");
   const [advanceRef, setAdvanceRef] = useState<string>("");
 
@@ -318,6 +327,7 @@ export default function NewInvoiceClient({
         amountBdt: duePayAmount,
         method: duePayMethod,
         transactionRef: duePayRef,
+        appointmentId: currentAppointmentId,
       });
 
       toast.success(`Recorded payment of ${formatBdt(duePayAmount)} for ${dueModalInvoice.invoiceCode}`);
@@ -672,11 +682,27 @@ export default function NewInvoiceClient({
                   <span className="font-mono font-black text-rose-600">
                     Due: {formatBdt(dueInv.dueBdt)}
                   </span>
+                  {initialSessionFee !== undefined && initialSessionFee > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDueModalInvoice(dueInv);
+                        setDuePayAmount(Math.min(initialSessionFee, dueInv.dueBdt));
+                      }}
+                      className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition cursor-pointer flex items-center gap-1"
+                    >
+                      <span>Collect Sitting ({formatBdt(Math.min(initialSessionFee, dueInv.dueBdt))})</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
                       setDueModalInvoice(dueInv);
-                      setDuePayAmount(dueInv.dueBdt);
+                      setDuePayAmount(
+                        initialSessionFee !== undefined && initialSessionFee > 0
+                          ? Math.min(initialSessionFee, dueInv.dueBdt)
+                          : dueInv.dueBdt
+                      );
                     }}
                     className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-2xs transition cursor-pointer"
                   >

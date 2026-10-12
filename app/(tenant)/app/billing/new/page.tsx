@@ -11,12 +11,19 @@ interface Props {
   searchParams: Promise<{
     patientId?: string;
     appointmentId?: string;
+    sessionFee?: string;
   }>;
 }
 
 export default async function NewInvoicePage({ searchParams }: Props) {
   const { tenant, user } = await requireClinicStaff();
   const params = await searchParams;
+
+  const rawSessionFee = params.sessionFee ? decodeURIComponent(params.sessionFee).trim() : undefined;
+  const initialSessionFee =
+    rawSessionFee !== undefined && !isNaN(Number(rawSessionFee))
+      ? Number(rawSessionFee)
+      : undefined;
 
   // Active doctors in tenant clinic
   const doctors = await db
@@ -531,6 +538,21 @@ export default async function NewInvoicePage({ searchParams }: Props) {
     };
   }
 
+  // Apply Doctor's Chairside Session Fee recommendation if provided
+  if (initialSessionFee !== undefined) {
+    if (initialSessionFee === 0 && initialLineItems.length > 0) {
+      initialLineItems = initialLineItems.map((item) => ({
+        ...item,
+        unitPriceBdt: 0,
+        description: item.description.includes("(Follow-up Sitting)")
+          ? item.description
+          : `${item.description} (Follow-up Sitting)`,
+      }));
+    } else if (initialSessionFee > 0 && initialLineItems.length === 1) {
+      initialLineItems[0].unitPriceBdt = initialSessionFee;
+    }
+  }
+
   const defaultDoctorId =
     resolvedDoctorId ||
     patientAssignedDocId ||
@@ -547,6 +569,7 @@ export default async function NewInvoicePage({ searchParams }: Props) {
       alreadyBilledInfo={alreadyBilledInfo}
       doctors={doctors}
       defaultDoctorId={defaultDoctorId}
+      initialSessionFee={initialSessionFee}
     />
   );
 }

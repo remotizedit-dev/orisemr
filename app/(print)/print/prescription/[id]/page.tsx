@@ -197,6 +197,15 @@ export default async function PrintPrescriptionPage({ params, searchParams }: Pr
               <p className="mt-0.5">{prescription.investigations}</p>
             </div>
           )}
+
+          {prescription.sessionNotes && (
+            <div>
+              <span className="font-bold uppercase tracking-wider block text-[10px] text-gray-500">
+                Procedure / Session Log
+              </span>
+              <p className="mt-0.5 whitespace-pre-line text-gray-900 font-medium">{prescription.sessionNotes}</p>
+            </div>
+          )}
         </div>
 
         {/* Right Column (8 cols): Prescribed Medicines & Instructions */}

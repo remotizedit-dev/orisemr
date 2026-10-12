@@ -56,6 +56,8 @@ export const appointments = pgTable(
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     reminder24hSentAt: timestamp("reminder_24h_sent_at", { withTimezone: true }),
     reminder2hSentAt: timestamp("reminder_2h_sent_at", { withTimezone: true }),
+    doctorSessionFeeBdt: integer("doctor_session_fee_bdt"),
+    doctorSessionNotes: text("doctor_session_notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -131,6 +133,8 @@ export const queueEntries = pgTable(
     inChairAt: timestamp("in_chair_at", { withTimezone: true }),
     billingAt: timestamp("billing_at", { withTimezone: true }),
     doneAt: timestamp("done_at", { withTimezone: true }),
+    sessionFeeBdt: integer("session_fee_bdt"),
+    sessionNotes: text("session_notes"),
     updatedBy: text("updated_by").references(() => users.id, {
       onDelete: "set null",
     }),

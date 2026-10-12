@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { requireClinicStaff } from "@/lib/session";
@@ -32,6 +32,8 @@ export interface SavePrescriptionInput {
   toothCodes: string[];
   nextVisitDate?: string | null;
   notes?: string;
+  sessionNotes?: string;
+  sessionFeeBdt?: number;
   allergyOverride: boolean;
   items: PrescriptionItemInput[];
   adviceLines: {
@@ -137,6 +139,11 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
           toothCodes: Array.isArray(input.toothCodes) ? input.toothCodes : [],
           nextVisitDate: cleanNextVisitDate,
           notes: input.notes?.trim() || null,
+          sessionNotes: input.sessionNotes?.trim() || null,
+          sessionFeeBdt:
+            typeof input.sessionFeeBdt === "number" && !isNaN(input.sessionFeeBdt)
+              ? Math.max(0, input.sessionFeeBdt)
+              : null,
           allergyOverride: Boolean(input.allergyOverride),
         })
         .returning();
@@ -209,21 +216,42 @@ export async function savePrescriptionAction(input: SavePrescriptionInput) {
         );
       }
 
-      // 5. If patient was in chair in queue, advance them to billing
+      // 5. If patient was in chair in queue, advance them to billing and persist session billing/clinical details
       if (cleanAppointmentId) {
+        const cleanFee =
+          typeof input.sessionFeeBdt === "number" && !isNaN(input.sessionFeeBdt)
+            ? Math.max(0, input.sessionFeeBdt)
+            : null;
+        const cleanSessionNotes = input.sessionNotes?.trim() || null;
+
         await tx
           .update(schema.queueEntries)
           .set({
             status: "billing",
             billingAt: new Date(),
+            sessionFeeBdt: cleanFee,
+            sessionNotes: cleanSessionNotes,
             updatedBy: user.id,
             updatedAt: new Date(),
           })
           .where(
             and(
               eq(schema.queueEntries.tenantId, tenant.id),
-              eq(schema.queueEntries.appointmentId, cleanAppointmentId),
-              eq(schema.queueEntries.status, "in_chair")
+              eq(schema.queueEntries.appointmentId, cleanAppointmentId)
+            )
+          );
+
+        await tx
+          .update(schema.appointments)
+          .set({
+            doctorSessionFeeBdt: cleanFee,
+            doctorSessionNotes: cleanSessionNotes,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.appointments.tenantId, tenant.id),
+              eq(schema.appointments.id, cleanAppointmentId)
             )
           );
       }
@@ -401,3 +429,137 @@ export async function updatePrescriptionDetailsAction(
 
   return updated;
 }
+
+export async function getPatientClinicalHistoryAction(patientId: string) {
+  const { tenant } = await requireClinicStaff();
+
+  const rxRows = await db
+    .select({
+      id: schema.prescriptions.id,
+      rxCode: schema.prescriptions.rxCode,
+      createdAt: schema.prescriptions.createdAt,
+      doctorId: schema.prescriptions.doctorId,
+      doctorName: schema.users.name,
+      chiefComplaint: schema.prescriptions.chiefComplaint,
+      diagnosis: schema.prescriptions.diagnosis,
+      examination: schema.prescriptions.examination,
+      toothCodes: schema.prescriptions.toothCodes,
+      notes: schema.prescriptions.notes,
+      sessionNotes: schema.prescriptions.sessionNotes,
+      sessionFeeBdt: schema.prescriptions.sessionFeeBdt,
+      nextVisitDate: schema.prescriptions.nextVisitDate,
+    })
+    .from(schema.prescriptions)
+    .leftJoin(schema.users, eq(schema.prescriptions.doctorId, schema.users.id))
+    .where(
+      and(
+        eq(schema.prescriptions.tenantId, tenant.id),
+        eq(schema.prescriptions.patientId, patientId)
+      )
+    )
+    .orderBy(desc(schema.prescriptions.createdAt))
+    .limit(10);
+
+  const rxIds = rxRows.map((r) => r.id);
+  const items =
+    rxIds.length > 0
+      ? await db
+          .select({
+            prescriptionId: schema.prescriptionItems.prescriptionId,
+            medicineLineSnapshot: schema.prescriptionItems.medicineLineSnapshot,
+            dosageTextBn: schema.prescriptionItems.dosageTextBn,
+            mealTimingTextBn: schema.prescriptionItems.mealTimingTextBn,
+            durationTextBn: schema.prescriptionItems.durationTextBn,
+            customInstruction: schema.prescriptionItems.customInstruction,
+            sortOrder: schema.prescriptionItems.sortOrder,
+          })
+          .from(schema.prescriptionItems)
+          .where(inArray(schema.prescriptionItems.prescriptionId, rxIds))
+          .orderBy(schema.prescriptionItems.sortOrder)
+      : [];
+
+  const appointmentSessionLogs = await db
+    .select({
+      id: schema.appointments.id,
+      startTime: schema.appointments.startTime,
+      doctorId: schema.appointments.doctorId,
+      doctorName: schema.users.name,
+      doctorSessionNotes: schema.appointments.doctorSessionNotes,
+      doctorSessionFeeBdt: schema.appointments.doctorSessionFeeBdt,
+    })
+    .from(schema.appointments)
+    .leftJoin(schema.users, eq(schema.appointments.doctorId, schema.users.id))
+    .where(
+      and(
+        eq(schema.appointments.tenantId, tenant.id),
+        eq(schema.appointments.patientId, patientId),
+        sql`(${schema.appointments.doctorSessionNotes} IS NOT NULL OR ${schema.appointments.doctorSessionFeeBdt} IS NOT NULL)`
+      )
+    )
+    .orderBy(desc(schema.appointments.startTime))
+    .limit(10);
+
+  return {
+    prescriptions: rxRows.map((r) => ({
+      ...r,
+      items: items.filter((it) => it.prescriptionId === r.id),
+    })),
+    appointmentSessionLogs,
+  };
+}
+
+export async function logSessionNotesAction(input: {
+  patientId: string;
+  appointmentId?: string;
+  queueEntryId?: string;
+  sessionNotes: string;
+  sessionFeeBdt?: number;
+}) {
+  const { tenant, user } = await requireClinicStaff();
+
+  const cleanNotes = input.sessionNotes.trim();
+  const cleanFee =
+    typeof input.sessionFeeBdt === "number" && !isNaN(input.sessionFeeBdt)
+      ? Math.max(0, input.sessionFeeBdt)
+      : null;
+
+  if (input.appointmentId) {
+    await db
+      .update(schema.appointments)
+      .set({
+        doctorSessionNotes: cleanNotes,
+        doctorSessionFeeBdt: cleanFee,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.appointments.tenantId, tenant.id),
+          eq(schema.appointments.id, input.appointmentId)
+        )
+      );
+  }
+
+  if (input.queueEntryId) {
+    await db
+      .update(schema.queueEntries)
+      .set({
+        sessionNotes: cleanNotes,
+        sessionFeeBdt: cleanFee,
+        updatedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.queueEntries.tenantId, tenant.id),
+          eq(schema.queueEntries.id, input.queueEntryId)
+        )
+      );
+  }
+
+  revalidatePath("/app/queue");
+  revalidatePath("/app/prescriptions");
+  revalidatePath(`/app/patients/${input.patientId}`);
+
+  return { success: true };
+}
+

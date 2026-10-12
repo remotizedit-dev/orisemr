@@ -46,6 +46,8 @@ export const prescriptions = pgTable(
     toothCodes: text("tooth_codes").array().default([]).notNull(),
     nextVisitDate: date("next_visit_date"),
     notes: text("notes"),
+    sessionNotes: text("session_notes"),
+    sessionFeeBdt: integer("session_fee_bdt"),
     allergyOverride: boolean("allergy_override").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
