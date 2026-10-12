@@ -660,6 +660,41 @@ export default function NewInvoiceClient({
             </Link>
           </div>
 
+          {initialSessionFee !== undefined && initialSessionFee > 0 && currentPatientDues.unpaidInvoices.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                  ৳
+                </div>
+                <div>
+                  <p className="text-xs font-black text-emerald-950">
+                    Doctor&apos;s Recommendation: Collect {formatBdt(initialSessionFee)} for Today&apos;s Sitting
+                  </p>
+                  <p className="text-[11px] text-emerald-800">
+                    Deducted directly from ongoing treatment package due ({currentPatientDues.unpaidInvoices[0]?.invoiceCode}) without creating a duplicate invoice.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetInv = currentPatientDues.unpaidInvoices[0];
+                  setDueModalInvoice(targetInv);
+                  setDuePayAmount(Math.min(initialSessionFee, targetInv.dueBdt));
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs shadow-md transition cursor-pointer shrink-0"
+              >
+                Collect Sitting ({formatBdt(initialSessionFee)}) →
+              </button>
+            </div>
+          )}
+
+          {initialSessionFee === 0 && (
+            <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 text-xs text-blue-900 font-medium flex items-center justify-between mt-2">
+              <span>Doctor noted: Routine Follow-up Sitting (৳0 charge today). Outstanding treatment balance remains intact.</span>
+            </div>
+          )}
+
           <div className="divide-y divide-amber-200/60 pt-1">
             {currentPatientDues.unpaidInvoices.slice(0, 3).map((dueInv) => (
               <div key={dueInv.id} className="py-2 flex items-center justify-between text-xs">
@@ -923,6 +958,14 @@ export default function NewInvoiceClient({
             <span>Add Custom Row</span>
           </button>
         </div>
+
+        {currentPatientDues && currentPatientDues.totalDueBdt > 0 && (
+          <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
+            <p>
+              <span className="font-bold">Multi-Sitting Treatment Note:</span> If today&apos;s visit is an ongoing sitting (e.g. Root Canal sitting 2/3) for the existing treatment package above, collect the sitting fee from the <strong>Collect Sitting</strong> banner above to deduct it from the treatment balance without double-charging the patient.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-3">
           {items.map((line, idx) => (

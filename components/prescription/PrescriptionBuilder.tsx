@@ -415,18 +415,39 @@ export function PrescriptionBuilder({
   const dxSuggestions = quickTexts.filter((q) => q.kind === "diagnosis");
   const ixSuggestions = quickTexts.filter((q) => q.kind === "investigation");
 
-  // Helper for quick chip appending to clinical notes
-  const appendChipText = (
-    current: string,
-    setFunc: (val: string) => void,
-    chipText: string
-  ) => {
-    if (!current.trim()) {
-      setFunc(chipText);
-    } else if (!current.toLowerCase().includes(chipText.toLowerCase())) {
-      setFunc(`${current.trim()}, ${chipText}`);
-    }
-  };
+  const defaultProcedureSuggestions = [
+    { id: "proc-1", text: "Access Opening & WL determination" },
+    { id: "proc-2", text: "Canal BMP (Biomechanical Preparation)" },
+    { id: "proc-3", text: "Intracanal Ca(OH)2 Dressing & Cavit seal" },
+    { id: "proc-4", text: "Irrigation & Disinfection (NaOCl & Saline)" },
+    { id: "proc-5", text: "Gutta-Percha (GP) Obturation completed" },
+    { id: "proc-6", text: "Post & Core Build-Up restoration" },
+    { id: "proc-7", text: "Crown Tooth Preparation & Margin finish" },
+    { id: "proc-8", text: "Crown Impression taken & Shade selection" },
+    { id: "proc-9", text: "Crown Delivery & Permanent Cementation" },
+    { id: "proc-10", text: "Composite Light Cure Restoration" },
+    { id: "proc-11", text: "Glass Ionomer Cement (GIC) Restoration" },
+    { id: "proc-12", text: "Ultrasonic Scaling & Polishing" },
+    { id: "proc-13", text: "Deep Subgingival Scaling & Root Planing" },
+    { id: "proc-14", text: "Tooth Extraction completed" },
+    { id: "proc-15", text: "Surgical Extraction of Impacted Molar" },
+    { id: "proc-16", text: "Suture Removal & Wound healing satisfactory" },
+    { id: "proc-17", text: "Operculectomy performed" },
+    { id: "proc-18", text: "Incision & Drainage (I&D)" },
+    { id: "proc-19", text: "Direct / Indirect Pulp Capping" },
+    { id: "proc-20", text: "Fluoride Varnish application" },
+    { id: "proc-21", text: "Pit & Fissure Sealant placed" },
+    { id: "proc-22", text: "Orthodontic Wire change & Activation" },
+    { id: "proc-23", text: "Dental Splinting completed" },
+    { id: "proc-24", text: "Routine Follow-up & Evaluation — asymptomatic" },
+  ];
+
+  const procSuggestions = [
+    ...defaultProcedureSuggestions,
+    ...quickTexts
+      .filter((q) => q.kind === "history" || q.kind === "procedure")
+      .map((q) => ({ id: q.id, text: q.text })),
+  ];
 
   return (
     <div className="bg-[#EAEAEA] min-h-screen py-6 px-3 sm:px-6 font-sans">
@@ -955,44 +976,16 @@ export function PrescriptionBuilder({
                 />
               </div>
 
-              {/* 6. TODAY'S PROCEDURE / SESSION PROGRESS LOG */}
-              <div className="pt-3 border-t border-gray-200">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-black uppercase tracking-wider text-[#1C1C1E]">
-                    SESSION PROCEDURE LOG
-                  </label>
-                  <span className="text-[10px] text-[#2A5CAA] font-bold">Today&apos;s Sitting</span>
-                </div>
-                <textarea
+              {/* 6. CLINICAL HISTORY & PROCEDURE LOG */}
+              <div>
+                <ClinicalAutocompleteInput
+                  label="CLINICAL HISTORY & PROCEDURE LOG"
                   value={sessionNotes}
-                  onChange={(e) => setSessionNotes(e.target.value)}
-                  placeholder="Record today's clinical procedure details (e.g., Tooth #16: Access opening done, WL 21mm, canal BMP with F2, Ca(OH)2 dressing placed, temporary Cavit seal)..."
+                  onChange={setSessionNotes}
+                  placeholder="Type or search clinical history / procedure details (e.g. Access Opening, Canal BMP, Obturation)..."
+                  suggestions={procSuggestions}
                   rows={3}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-medium outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black transition resize-none leading-relaxed"
                 />
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {[
-                    "Access Opening & WL",
-                    "Canal BMP & Dressing",
-                    "Irrigation & Ca(OH)2",
-                    "Obturation (GP)",
-                    "Core Build-up",
-                    "Crown Prep & Impression",
-                    "Crown Delivery",
-                    "Composite Restoration",
-                    "Extraction Done",
-                    "Suture Removal",
-                  ].map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() => appendChipText(sessionNotes, setSessionNotes, chip)}
-                      className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-[#EBF2FC] text-gray-700 hover:text-[#2A5CAA] text-[10px] font-bold border border-gray-200 transition cursor-pointer"
-                    >
-                      + {chip}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -1350,7 +1343,7 @@ export function PrescriptionBuilder({
                       CHAIRSIDE BILLING INSTRUCTION (TODAY&apos;S SITTING COLLECTION)
                     </span>
                     <p className="text-[11px] text-emerald-800">
-                      Set recommended collection amount for front desk billing today.
+                      Amount to collect today towards the treatment package (e.g. ৳2,000 in sitting 1, ৳3,000 in sitting 2 of an ৳11,000 Root Canal). Front desk collects this towards the treatment due balance—not charged as an extra duplicate service.
                     </p>
                   </div>
                   {sessionFeeBdt !== "" && (
