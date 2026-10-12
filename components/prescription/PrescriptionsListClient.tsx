@@ -15,8 +15,10 @@ import {
   Stethoscope,
   ChevronRight,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { PrescriptionViewModal } from "./PrescriptionViewModal";
+import { DeletePrescriptionModal } from "./DeletePrescriptionModal";
 import PaginationControls from "@/components/ui/PaginationControls";
 
 interface PrescriptionSummary {
@@ -42,15 +44,18 @@ interface PrescriptionSummary {
 interface Props {
   initialPrescriptions: PrescriptionSummary[];
   canPrescribe?: boolean;
+  isAdmin?: boolean;
 }
 
 export function PrescriptionsListClient({
   initialPrescriptions,
   canPrescribe = false,
+  isAdmin = false,
 }: Props) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewingRxId, setViewingRxId] = useState<string | null>(null);
+  const [deletingRx, setDeletingRx] = useState<PrescriptionSummary | null>(null);
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
@@ -246,6 +251,16 @@ export function PrescriptionsListClient({
                           <Printer className="w-3.5 h-3.5" />
                           <span>Print</span>
                         </Link>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => setDeletingRx(rx)}
+                            className="p-2 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 transition cursor-pointer"
+                            title="Delete Prescription (Admin Only)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -275,7 +290,23 @@ export function PrescriptionsListClient({
         onClose={() => setViewingRxId(null)}
         onUpdated={() => router.refresh()}
         canEdit={canPrescribe}
+        isAdmin={isAdmin}
       />
+
+      {/* Admin Delete Prescription Modal */}
+      {deletingRx && (
+        <DeletePrescriptionModal
+          isOpen={!!deletingRx}
+          onClose={() => setDeletingRx(null)}
+          prescriptionId={deletingRx.id}
+          rxCode={deletingRx.rxCode}
+          patientName={deletingRx.patientName}
+          onDeleted={() => {
+            setDeletingRx(null);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

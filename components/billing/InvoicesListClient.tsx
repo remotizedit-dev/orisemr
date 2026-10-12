@@ -13,11 +13,13 @@ import {
   CheckCircle2,
   AlertCircle,
   User,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBdt } from "@/lib/utils";
 import PaginationControls from "@/components/ui/PaginationControls";
 import { recordPaymentAction } from "@/app/(tenant)/app/billing/actions";
+import { DeleteInvoiceModal } from "./DeleteInvoiceModal";
 
 export interface InvoiceRow {
   id: string;
@@ -38,6 +40,7 @@ interface InvoicesListClientProps {
   doctors?: { id: string; name: string }[];
   currentUserId?: string;
   isDoctor?: boolean;
+  isAdmin?: boolean;
 }
 
 export default function InvoicesListClient({
@@ -45,6 +48,7 @@ export default function InvoicesListClient({
   doctors = [],
   currentUserId,
   isDoctor = false,
+  isAdmin = false,
 }: InvoicesListClientProps) {
   const router = useRouter();
 
@@ -53,6 +57,8 @@ export default function InvoicesListClient({
   const [doctorFilter, setDoctorFilter] = useState<string>("all");
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
+
+  const [deletingInvoice, setDeletingInvoice] = useState<InvoiceRow | null>(null);
 
   // Take Payment Modal state
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRow | null>(null);
@@ -368,6 +374,17 @@ export default function InvoicesListClient({
                             <Printer className="w-3.5 h-3.5" />
                             <span>Print</span>
                           </Link>
+
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => setDeletingInvoice(inv)}
+                              className="p-1.5 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 transition cursor-pointer"
+                              title="Delete Invoice (Admin Only)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -551,6 +568,22 @@ export default function InvoicesListClient({
             </form>
           </div>
         </div>
+      )}
+
+      {deletingInvoice && (
+        <DeleteInvoiceModal
+          isOpen={!!deletingInvoice}
+          onClose={() => setDeletingInvoice(null)}
+          invoiceId={deletingInvoice.id}
+          invoiceCode={deletingInvoice.code || "DRAFT"}
+          patientName={deletingInvoice.patientName}
+          totalBdt={deletingInvoice.totalBdt}
+          paidBdt={deletingInvoice.paidBdt}
+          onDeleted={() => {
+            setDeletingInvoice(null);
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, Printer } from "lucide-react";
+import { Eye, Printer, Trash2 } from "lucide-react";
 import { formatDhakaDate } from "@/lib/utils";
 import { PrescriptionViewModal } from "@/components/prescription/PrescriptionViewModal";
+import { DeletePrescriptionModal } from "@/components/prescription/DeletePrescriptionModal";
 
 interface PrescriptionItem {
   id: string;
@@ -17,15 +18,20 @@ interface PrescriptionItem {
 
 interface PatientPrescriptionsListProps {
   prescriptions: PrescriptionItem[];
+  patientName?: string;
   canEdit?: boolean;
+  isAdmin?: boolean;
 }
 
 export function PatientPrescriptionsList({
   prescriptions,
+  patientName = "Patient",
   canEdit = false,
+  isAdmin = false,
 }: PatientPrescriptionsListProps) {
   const router = useRouter();
   const [viewingRxId, setViewingRxId] = useState<string | null>(null);
+  const [deletingRx, setDeletingRx] = useState<PrescriptionItem | null>(null);
 
   if (prescriptions.length === 0) {
     return (
@@ -79,6 +85,17 @@ export function PatientPrescriptionsList({
                 <Printer className="w-3.5 h-3.5" />
                 <span>Print</span>
               </Link>
+
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setDeletingRx(rx)}
+                  className="p-1.5 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition cursor-pointer"
+                  title="Delete prescription (Admin only)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -91,7 +108,23 @@ export function PatientPrescriptionsList({
         onClose={() => setViewingRxId(null)}
         onUpdated={() => router.refresh()}
         canEdit={canEdit}
+        isAdmin={isAdmin}
       />
+
+      {deletingRx && (
+        <DeletePrescriptionModal
+          isOpen={!!deletingRx}
+          onClose={() => setDeletingRx(null)}
+          prescriptionId={deletingRx.id}
+          rxCode={deletingRx.rxCode}
+          patientName={patientName}
+          doctorName={deletingRx.doctorName}
+          onDeleted={() => {
+            setDeletingRx(null);
+            router.refresh();
+          }}
+        />
+      )}
     </>
   );
 }

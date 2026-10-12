@@ -17,6 +17,7 @@ import {
   Loader2,
   ExternalLink,
   Share2,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDhakaDate } from "@/lib/utils";
@@ -25,6 +26,7 @@ import {
   updatePrescriptionDetailsAction,
 } from "@/app/(tenant)/app/prescriptions/actions";
 import { getSignedPrintUrlAction } from "@/app/(print)/actions";
+import { DeletePrescriptionModal } from "./DeletePrescriptionModal";
 
 interface PrescriptionViewModalProps {
   prescriptionId: string | null;
@@ -32,6 +34,7 @@ interface PrescriptionViewModalProps {
   onClose: () => void;
   onUpdated?: () => void;
   canEdit?: boolean;
+  isAdmin?: boolean;
 }
 
 export function PrescriptionViewModal({
@@ -40,10 +43,12 @@ export function PrescriptionViewModal({
   onClose,
   onUpdated,
   canEdit = false,
+  isAdmin = false,
 }: PrescriptionViewModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [data, setData] = useState<{
     prescription: any;
     items: any[];
@@ -262,6 +267,18 @@ export function PrescriptionViewModal({
                     <Printer className="w-3.5 h-3.5" />
                     <span>Print</span>
                   </Link>
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-600 hover:text-white text-red-600 border border-red-200 hover:border-red-600 font-bold text-xs flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                      title="Delete Prescription (Admin Only)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -586,6 +603,22 @@ export function PrescriptionViewModal({
           )}
         </motion.div>
       </div>
+
+      {showDeleteModal && data?.prescription && (
+        <DeletePrescriptionModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          prescriptionId={data.prescription.id}
+          rxCode={data.prescription.rxCode}
+          patientName={data.prescription.patientName || "Patient"}
+          doctorName={data.prescription.doctorName}
+          onDeleted={() => {
+            setShowDeleteModal(false);
+            onClose();
+            if (onUpdated) onUpdated();
+          }}
+        />
+      )}
     </AnimatePresence>
   );
 }

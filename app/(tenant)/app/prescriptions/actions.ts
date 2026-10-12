@@ -563,3 +563,112 @@ export async function logSessionNotesAction(input: {
   return { success: true };
 }
 
+export async function deletePrescriptionAction(prescriptionId: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  // ONLY for admin accounts of a tenant
+  if (user.role !== "TENANT_ADMIN" && user.role !== "SUPER_ADMIN") {
+    throw new Error(
+      "Access Denied: Only clinic administrators (Admin) are authorized to delete prescriptions."
+    );
+  }
+
+  const result = await db.transaction(async (tx) => {
+    // 1. Fetch prescription ensuring it belongs to current tenant
+    const [rx] = await tx
+      .select({
+        id: schema.prescriptions.id,
+        rxCode: schema.prescriptions.rxCode,
+        patientId: schema.prescriptions.patientId,
+        doctorId: schema.prescriptions.doctorId,
+      })
+      .from(schema.prescriptions)
+      .where(
+        and(
+          eq(schema.prescriptions.tenantId, tenant.id),
+          eq(schema.prescriptions.id, prescriptionId)
+        )
+      )
+      .limit(1);
+
+    if (!rx) {
+      throw new Error("Prescription not found or already deleted");
+    }
+
+    // 2. Unlink any attachments linked to this prescription
+    await tx
+      .update(schema.attachments)
+      .set({ prescriptionId: null })
+      .where(
+        and(
+          eq(schema.attachments.tenantId, tenant.id),
+          eq(schema.attachments.prescriptionId, rx.id)
+        )
+      );
+
+    // 3. Unlink any invoices referencing this prescription
+    await tx
+      .update(schema.invoices)
+      .set({ prescriptionId: null })
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          eq(schema.invoices.prescriptionId, rx.id)
+        )
+      );
+
+    // 4. Delete prescription items & advice
+    await tx
+      .delete(schema.prescriptionItems)
+      .where(
+        and(
+          eq(schema.prescriptionItems.tenantId, tenant.id),
+          eq(schema.prescriptionItems.prescriptionId, rx.id)
+        )
+      );
+
+    await tx
+      .delete(schema.prescriptionAdvice)
+      .where(
+        and(
+          eq(schema.prescriptionAdvice.tenantId, tenant.id),
+          eq(schema.prescriptionAdvice.prescriptionId, rx.id)
+        )
+      );
+
+    // 5. Delete the prescription record
+    await tx
+      .delete(schema.prescriptions)
+      .where(
+        and(
+          eq(schema.prescriptions.tenantId, tenant.id),
+          eq(schema.prescriptions.id, rx.id)
+        )
+      );
+
+    return rx;
+  });
+
+  // 6. Audit log
+  await logAudit({
+    action: "delete",
+    entityType: "prescription",
+    entityId: result.id,
+    actorId: user.id,
+    tenantId: tenant.id,
+    before: {
+      rxCode: result.rxCode,
+      patientId: result.patientId,
+      doctorId: result.doctorId,
+    },
+  });
+
+  // 7. Revalidate cache
+  revalidatePath("/app/prescriptions");
+  revalidatePath("/app/patients");
+  revalidatePath(`/app/patients/${result.patientId}`);
+
+  return { success: true, rxCode: result.rxCode };
+}
+
+

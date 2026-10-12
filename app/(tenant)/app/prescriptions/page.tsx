@@ -88,7 +88,11 @@ export default async function PrescriptionsPage() {
       </div>
 
       {/* Interactive Prescription Table Client */}
-      <PrescriptionsListClient initialPrescriptions={rxList} canPrescribe={canPrescribe} />
+      <PrescriptionsListClient
+        initialPrescriptions={rxList}
+        canPrescribe={canPrescribe}
+        isAdmin={user.role === "TENANT_ADMIN" || user.role === "SUPER_ADMIN"}
+      />
     </div>
   );
 }

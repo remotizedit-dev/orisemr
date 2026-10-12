@@ -969,3 +969,94 @@ export async function getPatientBillingContextAction(patientIdOrCard: string) {
     },
   };
 }
+
+export async function deleteInvoiceAction(invoiceId: string) {
+  const { tenant, user } = await requireClinicStaff();
+
+  // ONLY for admin accounts of a tenant
+  if (user.role !== "TENANT_ADMIN" && user.role !== "SUPER_ADMIN") {
+    throw new Error(
+      "Access Denied: Only clinic administrators (Admin) are authorized to delete invoices."
+    );
+  }
+
+  const result = await db.transaction(async (tx) => {
+    // 1. Fetch invoice ensuring it belongs to current tenant
+    const [invoice] = await tx
+      .select({
+        id: schema.invoices.id,
+        invoiceCode: schema.invoices.invoiceCode,
+        patientId: schema.invoices.patientId,
+        totalBdt: schema.invoices.totalBdt,
+        paidBdt: schema.invoices.paidBdt,
+      })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          eq(schema.invoices.id, invoiceId)
+        )
+      )
+      .limit(1);
+
+    if (!invoice) {
+      throw new Error("Invoice not found or already deleted");
+    }
+
+    // 2. Delete all related payments for this invoice
+    await tx
+      .delete(schema.payments)
+      .where(
+        and(
+          eq(schema.payments.tenantId, tenant.id),
+          eq(schema.payments.invoiceId, invoice.id)
+        )
+      );
+
+    // 3. Delete all invoice items
+    await tx
+      .delete(schema.invoiceItems)
+      .where(
+        and(
+          eq(schema.invoiceItems.tenantId, tenant.id),
+          eq(schema.invoiceItems.invoiceId, invoice.id)
+        )
+      );
+
+    // 4. Delete the invoice itself
+    await tx
+      .delete(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.tenantId, tenant.id),
+          eq(schema.invoices.id, invoice.id)
+        )
+      );
+
+    return invoice;
+  });
+
+  // 5. Audit log
+  await logAudit({
+    action: "delete",
+    entityType: "invoice",
+    entityId: result.id,
+    actorId: user.id,
+    tenantId: tenant.id,
+    before: {
+      invoiceCode: result.invoiceCode,
+      patientId: result.patientId,
+      totalBdt: result.totalBdt,
+      paidBdt: result.paidBdt,
+    },
+  });
+
+  // 6. Revalidate cache
+  revalidatePath("/app/billing");
+  revalidatePath("/app/billing/dues");
+  revalidatePath("/app/patients");
+  revalidatePath(`/app/patients/${result.patientId}`);
+
+  return { success: true, invoiceCode: result.invoiceCode };
+}
+
