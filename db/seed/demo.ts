@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
+import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -14,7 +15,12 @@ async function runDemoSeed() {
     process.exit(1);
   }
 
+  const demoPassword =
+    process.env.SEED_DEMO_PASSWORD ||
+    crypto.randomBytes(8).toString("hex") + "!Aa1";
+
   console.log("🚀 Starting Demo Dental Care (DDC) seeder...");
+  console.log(`🔑 Demo credentials generated for staff users. (Password: ${demoPassword})`);
 
   // Check if Demo Dental Care already exists
   const [existingTenant] = await db
@@ -39,7 +45,7 @@ async function runDemoSeed() {
       patientIdMode: "PRE_PRINTED",
       adminName: "Dr. Anisur Rahman",
       adminEmail: "admin@demo.test",
-      adminPassword: "Demo@12345",
+      adminPassword: demoPassword,
       adminIsDoctor: true,
       adminDoctorTitle: "Dr.",
       adminDoctorSpecialty: "Orthodontics & Dental Surgery",
@@ -82,7 +88,7 @@ async function runDemoSeed() {
       body: {
         name: "Dr. Farhana Yasmin",
         email: "doctor@demo.test",
-        password: "Demo@12345",
+        password: demoPassword,
       },
     });
     if (docRes?.user) {
@@ -110,7 +116,7 @@ async function runDemoSeed() {
       body: {
         name: "Nusrat Jahan",
         email: "reception@demo.test",
-        password: "Demo@12345",
+        password: demoPassword,
       },
     });
     if (recRes?.user) {

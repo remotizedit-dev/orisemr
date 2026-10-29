@@ -14,8 +14,16 @@ import {
   ArrowRight,
   Clock,
 } from "lucide-react";
+import { getSystemSetting } from "@/lib/settings";
+import LandingVideoSettingsCard from "@/components/platform/LandingVideoSettingsCard";
 
 export default async function PlatformDashboardPage() {
+  // 0. Fetch landing video configuration
+  const landingVideoUrl = await getSystemSetting(
+    "landing_youtube_url",
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  );
+
   // 1. Fetch clinic counts
   const allTenants = await db.select().from(schema.tenants);
   const activeTenants = allTenants.filter((t) => t.status === "active");
@@ -232,6 +240,9 @@ export default async function PlatformDashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Landing Page Video Settings */}
+      <LandingVideoSettingsCard initialVideoUrl={landingVideoUrl} />
     </div>
   );
 }

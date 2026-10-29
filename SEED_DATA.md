@@ -338,7 +338,16 @@ These are **app constants** (in `lib/clinical-flags.ts`), not catalog tables. Cl
 
 ## 9. Super Admin bootstrap
 
-`pnpm db:seed` creates the first Super Admin if no `SUPER_ADMIN` user exists, from `SEED_SUPER_ADMIN_NAME`, `SEED_SUPER_ADMIN_EMAIL` and `SEED_SUPER_ADMIN_PASSWORD` (`role = SUPER_ADMIN`, `tenant_id = null`, `email_verified = true`). The password must be changed after first login. If a Super Admin already exists, this step does nothing.
+`pnpm db:seed` creates the first Super Admin if no `SUPER_ADMIN` user exists, using `SEED_SUPER_ADMIN_NAME`, `SEED_SUPER_ADMIN_EMAIL` and `SEED_SUPER_ADMIN_PASSWORD` (or a secure crypto-random password if unset). 
+
+To change or update the Super Admin credentials at any time, run in your terminal:
+```bash
+npm run superadmin:update
+```
+Or with CLI arguments:
+```bash
+npm run superadmin:update -- --email=admin@yourdomain.com --password=YourNewSecurePassword123!
+```
 
 ---
 
@@ -356,7 +365,7 @@ These are **app constants** (in `lib/clinical-flags.ts`), not catalog tables. Cl
 
 `pnpm db:seed:demo` refuses to run when `NODE_ENV=production`. It creates:
 - Clinic "Demo Dental Care" — slug `demo`, short code `DDC`, mode `PRE_PRINTED`, card length 10–16, hours Saturday–Thursday 17:00–23:00, Friday closed, all features on, service prices filled with sample values.
-- Users (password `Demo@12345`): `admin@demo.test` (TENANT_ADMIN, `is_doctor`), `doctor@demo.test` (DOCTOR), `reception@demo.test` (RECEPTIONIST).
+- Users: `admin@demo.test` (TENANT_ADMIN, `is_doctor`), `doctor@demo.test` (DOCTOR), `reception@demo.test` (RECEPTIONIST). Uses `SEED_DEMO_PASSWORD` from `.env.local` or generates a secure random password printed to the terminal on execution.
 - 20 patients with 10-digit card numbers `1000000001`–`1000000020` (a few with allergy flags and conditions; two sharing a phone number).
 - Today: 8 appointments across both dentists, with queue entries in different columns; last week: completed visits with prescriptions, invoices (paid, partial and due) and payments.
 - One pending online booking from a new patient.

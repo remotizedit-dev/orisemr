@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
+import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
@@ -225,7 +226,10 @@ async function runSeed() {
   // 9. Bootstrap Super Admin Account
   const superAdminEmail = process.env.SEED_SUPER_ADMIN_EMAIL || "admin@orisemr.com";
   const superAdminName = process.env.SEED_SUPER_ADMIN_NAME || "Super Admin";
-  const superAdminPassword = process.env.SEED_SUPER_ADMIN_PASSWORD || "SuperAdmin123!";
+  const wasPasswordProvided = Boolean(process.env.SEED_SUPER_ADMIN_PASSWORD);
+  const superAdminPassword =
+    process.env.SEED_SUPER_ADMIN_PASSWORD ||
+    crypto.randomBytes(9).toString("base64url") + "!A9";
 
   console.log(`Checking Super Admin bootstrap for ${superAdminEmail}...`);
   const [existingSuperAdmin] = await db
@@ -255,7 +259,19 @@ async function runSeed() {
             emailVerified: true,
           })
           .where(eq(schema.users.id, result.user.id));
-        console.log("✅ Super Admin created successfully.");
+
+        console.log("\n==============================================================");
+        console.log("✅ Super Admin Account Created Successfully!");
+        console.log(`   Email:    ${superAdminEmail}`);
+        if (!wasPasswordProvided) {
+          console.log(`   Password: ${superAdminPassword}`);
+          console.log("   ⚠️  Store this password immediately! Generated dynamically.");
+          console.log("   To update this password at any time, run in your terminal:");
+          console.log("     npm run superadmin:update");
+        } else {
+          console.log("   Password: [Configured via SEED_SUPER_ADMIN_PASSWORD]");
+        }
+        console.log("==============================================================\n");
       }
     } catch (err) {
       console.warn("Notice during Super Admin bootstrap:", err);

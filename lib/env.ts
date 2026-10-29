@@ -62,7 +62,8 @@ const envSchema = z.object({
   // Super Admin Initial Seed
   SEED_SUPER_ADMIN_NAME: z.string().default("Super Admin"),
   SEED_SUPER_ADMIN_EMAIL: z.string().email().default("admin@orisemr.com"),
-  SEED_SUPER_ADMIN_PASSWORD: z.string().default("SuperAdmin123!"),
+  SEED_SUPER_ADMIN_PASSWORD: z.string().min(8).optional(),
+  SEED_DEMO_PASSWORD: z.string().min(8).optional(),
 });
 
 export const env = envSchema.parse({

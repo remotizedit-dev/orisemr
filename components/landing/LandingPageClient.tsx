@@ -31,7 +31,50 @@ import {
   Check,
   ChevronRight,
   Lock,
+  Phone,
+  Mail,
+  MessageSquare,
+  Scale,
+  X,
+  Star,
 } from "lucide-react";
+
+function YoutubeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
+      <polygon points="10 15 15 12 10 9 10 15" fill="currentColor" />
+    </svg>
+  );
+}
+
+function parseYouTubeEmbed(url: string | undefined): string {
+  if (!url) return "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ";
+  try {
+    const trimmed = url.trim();
+    if (trimmed.includes("youtu.be/")) {
+      const id = trimmed.split("youtu.be/")[1]?.split(/[?#]/)[0];
+      if (id) return `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+    }
+    if (trimmed.includes("youtube.com/watch")) {
+      const parsed = new URL(trimmed);
+      const v = parsed.searchParams.get("v");
+      if (v) return `https://www.youtube-nocookie.com/embed/${v}?rel=0`;
+    }
+    if (trimmed.includes("youtube.com/embed/")) {
+      return trimmed.includes("?") ? `${trimmed}&rel=0` : `${trimmed}?rel=0`;
+    }
+  } catch {}
+  return url;
+}
 
 /**
  * Robust Logo component that loads custom SVG logo (/logo.svg or /logo.png)
@@ -95,7 +138,11 @@ function BrandLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   );
 }
 
-export default function LandingPageClient() {
+export default function LandingPageClient({
+  initialVideoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+}: {
+  initialVideoUrl?: string;
+}) {
   const [activeTab, setActiveTab] = useState<"rx" | "slots" | "queue" | "billing">("rx");
   const [selectedTooth, setSelectedTooth] = useState<string>("16");
 
@@ -106,7 +153,7 @@ export default function LandingPageClient() {
   const featuresGridRef = useRef<HTMLDivElement>(null);
   const workflowTrackRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
-  const creatorKitRef = useRef<HTMLDivElement>(null);
+  const brochureSectionRef = useRef<HTMLDivElement>(null);
 
   // Initialize Lenis Smooth Scrolling and GSAP ScrollTrigger
   useEffect(() => {
@@ -233,18 +280,18 @@ export default function LandingPageClient() {
         );
       }
 
-      // Animation E: Creator Kit Showcase Zoom Reveal
-      if (creatorKitRef.current) {
+      // Animation E: Brochure Showcase Zoom Reveal
+      if (brochureSectionRef.current) {
         gsap.fromTo(
-          creatorKitRef.current,
+          brochureSectionRef.current,
           {
-            scale: 0.95,
+            scale: 0.96,
             opacity: 0.7,
-            y: 40,
+            y: 35,
           },
           {
             scrollTrigger: {
-              trigger: creatorKitRef.current,
+              trigger: brochureSectionRef.current,
               start: "top 80%",
               end: "top 45%",
               scrub: 1,
@@ -272,19 +319,29 @@ export default function LandingPageClient() {
       className="min-h-screen bg-[#F8FAFC] text-[#1C1C1E] selection:bg-[#2A5CAA] selection:text-white flex flex-col justify-between overflow-x-hidden"
     >
       {/* Top Floating Announcement Bar */}
-      <div className="bg-[#1C1C1E] text-white py-2 px-4 text-center text-xs font-medium border-b border-white/10 flex items-center justify-center gap-2 flex-wrap">
-        <motion.span
-          animate={{ scale: [1, 1.3, 1] }}
-          transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-          className="inline-block w-2 h-2 rounded-full bg-[#30D158]"
-        />
-        <span>Official Client Product Brochure (PDF) &amp; Creator Video Script are now live</span>
+      <div className="bg-[#0F172A] text-white py-2 px-4 text-center text-xs font-medium border-b border-white/10 flex items-center justify-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <motion.span
+            animate={{ scale: [1, 1.3, 1] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+            className="inline-block w-2 h-2 rounded-full bg-[#30D158]"
+          />
+          <span className="font-semibold text-white/90">Official Doctor &amp; Clinic Brochure (PDF) is now available</span>
+        </div>
         <a
-          href="/ORIS_EMR_Client_Product_Guide.pdf"
-          download="ORIS_EMR_Client_Product_Guide.pdf"
-          className="ml-2 underline text-[#60A5FA] hover:text-[#93C5FD] font-semibold inline-flex items-center gap-1 transition"
+          href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
+          download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
+          className="underline text-[#60A5FA] hover:text-[#93C5FD] font-bold inline-flex items-center gap-1 transition"
         >
-          Download Client Brochure (PDF) <Download className="w-3 h-3" />
+          Download Doctor Brochure (PDF) <Download className="w-3 h-3" />
+        </a>
+        <span className="hidden md:inline text-white/30">&bull;</span>
+        <a
+          href="tel:+8801920709034"
+          className="hidden md:inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold transition"
+        >
+          <Phone className="w-3 h-3" />
+          <span>+8801920709034</span>
         </a>
       </div>
 
@@ -296,19 +353,26 @@ export default function LandingPageClient() {
           </Link>
 
           {/* Desktop Nav Links */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-[#4B5563]">
+          <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-[#4B5563]">
             <a href="#features" className="hover:text-[#2A5CAA] transition">
-              Key Features
+              Features
             </a>
-            <a href="#preview" className="hover:text-[#2A5CAA] transition">
-              Chamber Demo
+            <a href="#video" className="hover:text-[#2A5CAA] transition flex items-center gap-1.5">
+              <YoutubeIcon className="w-4 h-4 text-red-500" />
+              <span>Video Demo</span>
+            </a>
+            <a href="#comparison" className="hover:text-[#2A5CAA] transition flex items-center gap-1.5">
+              <Scale className="w-4 h-4 text-[#2A5CAA]" />
+              <span>Why Oris EMR</span>
             </a>
             <a href="#workflow" className="hover:text-[#2A5CAA] transition">
               5-Phase Workflow
             </a>
-            <a href="#creator-kit" className="hover:text-[#2A5CAA] transition flex items-center gap-1.5 text-[#2A5CAA]">
-              <Video className="w-4 h-4 text-[#2A5CAA]" />
-              Creator Script &amp; PDF
+            <a href="#brochure" className="hover:text-[#2A5CAA] transition">
+              Brochure
+            </a>
+            <a href="#contact" className="hover:text-[#2A5CAA] transition">
+              Contact &amp; Sales
             </a>
           </nav>
 
@@ -317,24 +381,13 @@ export default function LandingPageClient() {
             <motion.a
               whileHover={{ scale: 1.03, y: -1 }}
               whileTap={{ scale: 0.97 }}
-              href="/ORIS_EMR_Client_Product_Guide.pdf"
-              download="ORIS_EMR_Client_Product_Guide.pdf"
+              href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
+              download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
               className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] hover:bg-[#F4F4F5] transition shadow-xs cursor-pointer"
-              title="Download Buyer's Guide & Client Evaluation PDF"
+              title="Download Official Doctor & Clinic Brochure (PDF)"
             >
               <FileText className="w-3.5 h-3.5 text-[#2A5CAA]" />
-              Client Brochure
-            </motion.a>
-            <motion.a
-              whileHover={{ scale: 1.03, y: -1 }}
-              whileTap={{ scale: 0.97 }}
-              href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
-              download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
-              className="hidden lg:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#F8FAFC] border border-[#E4E4E7] text-xs font-bold text-[#4B5563] hover:text-[#1C1C1E] transition shadow-xs cursor-pointer"
-              title="Download Full Workflow Guide & Video Script"
-            >
-              <Download className="w-3.5 h-3.5 text-[#2A5CAA]" />
-              Workflow Kit
+              <span>Doctor Brochure</span>
             </motion.a>
             <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
               <Link
@@ -391,7 +444,7 @@ export default function LandingPageClient() {
           >
             Engineered exclusively for Bangladesh dental chambers. Eliminate waiting room chaos with
             barcode patient card check-ins, automated chair buffer scheduling, interactive 2-digit FDI tooth
-            charting, and multi-channel bKash / Cash settlements.
+            charting, 1-click follow-up rewrite, chairside visit fee presets, and whole-BDT bKash / Cash settlements.
           </motion.p>
 
           {/* Interactive CTAs */}
@@ -414,23 +467,22 @@ export default function LandingPageClient() {
             <motion.a
               whileHover={{ scale: 1.03, y: -2 }}
               whileTap={{ scale: 0.97 }}
-              href="/ORIS_EMR_Client_Product_Guide.pdf"
-              download="ORIS_EMR_Client_Product_Guide.pdf"
+              href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
+              download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
               className="px-7 py-4 rounded-xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F8FAFC] hover:border-[#CBD5E1] font-bold text-base shadow-sm hover:shadow transition-all duration-150 flex items-center gap-2 cursor-pointer"
             >
               <FileText className="w-5 h-5 text-[#2A5CAA]" />
-              <span>Client Product Brochure (PDF)</span>
+              <span>Download Doctor Brochure (PDF)</span>
             </motion.a>
 
             <motion.a
               whileHover={{ scale: 1.03, y: -2 }}
               whileTap={{ scale: 0.97 }}
-              href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
-              download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
+              href="#video"
               className="px-6 py-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[#334155] hover:text-[#0F172A] hover:bg-[#E2E8F0] font-semibold text-sm transition-all duration-150 flex items-center gap-2 cursor-pointer"
             >
-              <Download className="w-4 h-4 text-[#2A5CAA]" />
-              <span>Workflow &amp; Creator Kit</span>
+              <YoutubeIcon className="w-4 h-4 text-red-500" />
+              <span>Watch Live Demo</span>
             </motion.a>
           </motion.div>
 
@@ -958,166 +1010,578 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      {/* CORE 6 FEATURES GRID (GSAP ScrollTrigger Staggered Reveal) */}
+      {/* YOUTUBE VIDEO PLAYER SECTION (Admin-Configured Demo Tour) */}
+      <section id="video" className="py-20 bg-gradient-to-b from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white relative overflow-hidden">
+        {/* Parallax Ambient Backlight */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[360px] bg-red-600/10 blur-[150px] rounded-full pointer-events-none" />
+
+        <div className="max-w-5xl mx-auto px-6 relative z-10 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold mb-4 shadow-xs"
+          >
+            <YoutubeIcon className="w-4 h-4 text-red-400" />
+            <span>Interactive Video Tour &amp; Live Walkthrough</span>
+          </motion.div>
+
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
+            See Oris EMR In Real-World Clinic Action
+          </h2>
+
+          <p className="mt-4 text-base sm:text-lg text-white/70 max-w-2xl mx-auto leading-relaxed">
+            Watch our complete clinical workflow demonstration. Experience barcode check-in, 30-second prescription authoring, chairside visit fee presets, live waiting lounge TV calling, and transparent patient financial ledgers.
+          </p>
+
+          {/* Video Player Cinema Frame */}
+          <div className="mt-10 rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 bg-white/5 border border-white/15 shadow-2xl backdrop-blur-md">
+            <div className="relative aspect-video w-full rounded-xl sm:rounded-2xl overflow-hidden bg-black shadow-inner">
+              <iframe
+                src={parseYouTubeEmbed(initialVideoUrl)}
+                title="Oris EMR Dental Chamber Software Walkthrough"
+                className="w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+
+            {/* Video Highlights Footer */}
+            <div className="mt-4 px-2 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-4 text-xs text-white/70 border-t border-white/10 pt-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="font-semibold text-white">Full Feature Walkthrough</span>
+              </div>
+              <div className="flex items-center gap-4 flex-wrap text-white/60">
+                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Sub-60s Prescription</span>
+                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> FDI Odontogram</span>
+                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> 1-Click Rx Clone</span>
+                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Chairside Visit Fee</span>
+                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Lounge TV Call System</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-white/40">
+            Note: Platform administrators can update this walkthrough video anytime via the Super Admin Dashboard.
+          </p>
+        </div>
+      </section>
+
+      {/* COMPREHENSIVE FEATURES GRID (GSAP ScrollTrigger Staggered Reveal) */}
       <section id="features" className="py-20 bg-[#F8FAFC]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <span className="px-3.5 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
-              Architecture &amp; Capability
+              Clinical Architecture &amp; Capabilities
             </span>
             <h2 className="mt-3 text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#1C1C1E] tracking-tight">
-              Built Specifically for the Realities of Dental Practice
+              Engineered Specifically for Modern Dental Clinics
             </h2>
             <p className="mt-4 text-base sm:text-lg text-[#6B7280]">
-              Every module is designed to eliminate front-desk delays, enhance doctor diagnostic precision,
-              and maintain an unyielding financial ledger.
+              Every module is crafted to eliminate front-desk delays, accelerate doctor diagnostic prescribing,
+              and maintain a transparent financial ledger with zero paisa errors.
             </p>
           </div>
 
-          <div ref={featuresGridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
+          <div ref={featuresGridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Feature 1: Sub-60s Prescription */}
             <motion.div
               whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
               transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
             >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#E8EEF7] text-[#2A5CAA] flex items-center justify-center mb-5">
-                  <QrCode className="w-6 h-6" />
+                  <FileText className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-bold text-[#1C1C1E] mb-2">
-                  Barcode Smart Cards &amp; Instant ID
+                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
+                  30-Second Prescription Builder
                 </h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">
-                  Support for both instant auto-generated IDs and pre-printed CR80 plastic card batches.
-                  Scan with any physical 1D USB barcode gun to open the patient profile in 0.2 seconds.
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                  Pre-loaded dental drug catalog, one-click Bangla dosage instructions (১+০+১ খাওয়ার পর), duration shortcuts, and active allergy safety warnings.
                 </p>
               </div>
-              <div className="mt-6 pt-4 border-t border-[#F4F4F5] flex items-center gap-2 text-xs font-bold text-[#2A5CAA]">
-                <span>1D Barcode standard</span>
-                <ChevronRight className="w-4 h-4" />
+              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#2A5CAA]">
+                <span>Bangla dosage native</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </motion.div>
 
-            {/* Feature 2 */}
+            {/* Feature 2: Interactive FDI Tooth Chart */}
             <motion.div
               whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
               transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-[#F3E8FF] text-[#9333EA] flex items-center justify-center mb-5">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
+                  Interactive FDI Dental Odontogram
+                </h3>
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                  Adult (11–48) and pediatric (51–85) interactive 2-digit FDI tooth chart with 15+ dental conditions (Caries, Missing, RCT, Crown, Fracture, Impacted).
+                </p>
+              </div>
+              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#9333EA]">
+                <span>FDI 2-digit standard</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </motion.div>
+
+            {/* Feature 3: 1-Click Follow-up Rewrite */}
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-[#ECFDF5] text-[#059669] flex items-center justify-center mb-5">
+                  <Zap className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
+                  1-Click Follow-up Rx Rewrite
+                </h3>
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                  Instantly duplicate and rewrite previous prescriptions without retyping, preserving complete longitudinal clinical records and patient history.
+                </p>
+              </div>
+              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#059669]">
+                <span>Zero hand fatigue</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </motion.div>
+
+            {/* Feature 4: Chairside Visit Fee Presets */}
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-[#FFF7EB] text-[#FF9F0A] flex items-center justify-center mb-5">
+                  <CreditCard className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
+                  Chairside Visit Fee Presets
+                </h3>
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                  Doctor taps consultation fee directly during Rx authoring (৳500, ৳800, ৳1,000, ৳1,500) which flows seamlessly to the receptionist's billing desk.
+                </p>
+              </div>
+              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#FF9F0A]">
+                <span>Direct billing sync</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </motion.div>
+
+            {/* Feature 5: Anti-Collision Slots */}
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
             >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#E8F8EE] text-[#30D158] flex items-center justify-center mb-5">
                   <Calendar className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-bold text-[#1C1C1E] mb-2">
-                  Anti-Collision Slot Engine
+                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
+                  Anti-Collision Chair Scheduling
                 </h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">
-                  Calculates real availability factoring in split operational shifts (e.g. 10AM-2PM &amp; 5PM-9PM),
-                  past-time pruning, chair buffer spacing, and PostgreSQL GIST exclusion locks.
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                  Configurable procedure chair durations (15/30/45/60 min) with PostgreSQL GIST database exclusion locks that mathematically prevent double bookings.
                 </p>
               </div>
-              <div className="mt-6 pt-4 border-t border-[#F4F4F5] flex items-center gap-2 text-xs font-bold text-[#30D158]">
+              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#30D158]">
                 <span>Zero double bookings</span>
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </motion.div>
 
-            {/* Feature 3 */}
+            {/* Feature 6: Queue & TV Lounge */}
             <motion.div
               whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
               transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#F3E8FF] text-[#9333EA] flex items-center justify-center mb-5">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-bold text-[#1C1C1E] mb-2">
-                  Sub-60s Prescription &amp; FDI Chart
-                </h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">
-                  Dual-quadrant adult (32) and pediatric (20) teeth selector with 15+ dental conditions.
-                  Rapid Bangla dosage picker (১+০+১, খাবার আগে/পরে) and active drug allergy safeguards.
-                </p>
-              </div>
-              <div className="mt-6 pt-4 border-t border-[#F4F4F5] flex items-center gap-2 text-xs font-bold text-[#9333EA]">
-                <span>FDI 2-digit standard</span>
-                <ChevronRight className="w-4 h-4" />
-              </div>
-            </motion.div>
-
-            {/* Feature 4 */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#FFF7EB] text-[#FF9F0A] flex items-center justify-center mb-5">
-                  <Eye className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-bold text-[#1C1C1E] mb-2">
-                  Private Clinical Notes &amp; Lightbox
-                </h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">
-                  Doctor-only private observation logs protected from patient prints. Built-in high-res
-                  radiograph and intraoral photo lightbox with full zoom and rotation for diagnostic clarity.
-                </p>
-              </div>
-              <div className="mt-6 pt-4 border-t border-[#F4F4F5] flex items-center gap-2 text-xs font-bold text-[#FF9F0A]">
-                <span>Doctor privacy guaranteed</span>
-                <ChevronRight className="w-4 h-4" />
-              </div>
-            </motion.div>
-
-            {/* Feature 5 */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
             >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center mb-5">
                   <Tv className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-bold text-[#1C1C1E] mb-2">
-                  Live Patient Queue &amp; TV Lounge Mode
+                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
+                  Live Queue &amp; TV Lounge Calling
                 </h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">
-                  Drag-and-drop Kanban queue (Waiting, In-Chair, Billed, Done). Dedicated full-screen TV lounge
-                  display that announces patient tokens with pleasant audio chimes.
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                  Drag-and-drop reception queue management with dedicated full-screen waiting lounge TV display that rings pleasant audio chimes to call patients into chairs.
                 </p>
               </div>
-              <div className="mt-6 pt-4 border-t border-[#F4F4F5] flex items-center gap-2 text-xs font-bold text-[#3B82F6]">
-                <span>Live token callout</span>
-                <ChevronRight className="w-4 h-4" />
+              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#3B82F6]">
+                <span>Pleasant audio chime</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </motion.div>
 
-            {/* Feature 6 */}
+            {/* Feature 7: Patient Financial Ledger */}
             <motion.div
               whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
               transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-7 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
             >
               <div>
-                <div className="w-12 h-12 rounded-xl bg-[#ECFDF5] text-[#059669] flex items-center justify-center mb-5">
-                  <CreditCard className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-xl bg-[#FEF3C7] text-[#D97706] flex items-center justify-center mb-5">
+                  <Scale className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-bold text-[#1C1C1E] mb-2">
-                  Whole-BDT Billing &amp; bKash Ledger
+                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
+                  Patient Financial Ledger &amp; Invoices
                 </h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">
-                  Strict Bangladeshi Taka integer ledger that prevents fractional paisa round-off issues.
-                  Supports split payments across Cash, bKash, and Nagad with printed money receipts.
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                  Transparent per-patient ledger showing past invoice history, amounts billed, payments collected via Cash/bKash/Nagad, and 1-click itemized receipts.
                 </p>
               </div>
-              <div className="mt-6 pt-4 border-t border-[#F4F4F5] flex items-center gap-2 text-xs font-bold text-[#059669]">
-                <span>Bangladeshi Taka native</span>
-                <ChevronRight className="w-4 h-4" />
+              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#D97706]">
+                <span>Whole-BDT ledger</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </motion.div>
+
+            {/* Feature 8: Doctor Chamber Privacy */}
+            <motion.div
+              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.25 }}
+              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-[#FCE7F3] text-[#DB2777] flex items-center justify-center mb-5">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
+                  Doctor Privacy &amp; Data Security
+                </h3>
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                  Doctor-only private clinical notes hidden from patient prints, strict doctor patient visibility isolation, and encrypted multi-tenant cloud storage.
+                </p>
+              </div>
+              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#DB2777]">
+                <span>Doctor privacy isolated</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* WHY ORIS EMR IS BEST - HEAD-TO-HEAD COMPARISON MATRIX */}
+      <section id="comparison" className="py-20 bg-white border-t border-[#E4E4E7]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="px-3.5 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
+              Head-to-Head Comparison
+            </span>
+            <h2 className="mt-3 text-3xl sm:text-4xl md:text-5xl font-black text-[#1C1C1E] tracking-tight">
+              Why Oris EMR is the Best Choice for Dental Chambers
+            </h2>
+            <p className="mt-4 text-base sm:text-lg text-[#6B7280]">
+              See how Oris EMR replaces error-prone paper khata and clunky general hospital software with a purpose-built operating system.
+            </p>
+          </div>
+
+          {/* Comparison Table Container */}
+          <div className="rounded-3xl border border-[#E4E4E7] shadow-lg overflow-hidden bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-[#E4E4E7] bg-[#F8FAFC]">
+                    <th className="p-4 sm:p-5 font-bold text-[#1C1C1E] w-1/4">Feature &amp; Workflow</th>
+                    <th className="p-4 sm:p-5 font-bold text-[#6B7280] w-1/4 bg-gray-50/70">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-red-400" />
+                        <span>Paper Records &amp; Khata</span>
+                      </div>
+                    </th>
+                    <th className="p-4 sm:p-5 font-bold text-[#6B7280] w-1/4 bg-amber-50/40">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-400" />
+                        <span>Generic Hospital Software</span>
+                      </div>
+                    </th>
+                    <th className="p-4 sm:p-5 font-bold text-[#2A5CAA] w-1/4 bg-[#E8EEF7]/50 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-[#2A5CAA]" />
+                        <span className="font-extrabold text-[#2A5CAA]">Oris Dental EMR</span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E4E4E7]">
+                  {/* Row 1: FDI Odontogram */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      Dental Odontogram (FDI Charting)
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Hand-drawn pencil sketches; easily misplaced</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Missing or clunky generic body anatomical chart</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Interactive Adult (32) &amp; Pedo (20) 2-digit FDI selector with 15+ conditions</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 2: Rx Speed */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      Prescription Authoring Speed
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>3-5 minutes handwriting, causing doctor hand fatigue</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>2-4 minutes searching through 10,000+ generic drugs</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>&lt; 60 seconds with pre-loaded dental catalog &amp; 1-click Bangla dosages (১+০+১)</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 3: Followup Rewrite */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      1-Click Follow-up Rx Rewrite
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Must rewrite entire medication schedule from scratch</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Opens empty prescription form each visit</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>1-click clone &amp; rewrite previous Rx while preserving complete clinical history</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 4: Visit Fee Presets */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      Chairside Visit Fee Presets
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Verbal instruction to receptionist (frequent fee disputes)</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Receptionist searches multi-level hospital price lists</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Doctor taps fee button (৳500 / ৳1,000 / Custom) directly on Rx screen</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 5: Anti-Collision Slots */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      Chair Scheduling &amp; Conflict Prevention
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Paper appointment diary prone to overlapping double bookings</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Basic calendar without physical chair buffer constraints</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>PostgreSQL GIST exclusion locks mathematically eliminate chair collision</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 6: Waiting TV */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      Waiting Lounge TV Calling Display
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Receptionist shouting patient names into crowded room</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Requires expensive third-party token hardware displays</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Native browser TV display with audio chime; runs on any smart TV</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 7: Patient Financial Ledger */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      Patient Financial Payment Ledger
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Scattered carbon paper receipts and manual balance checks</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Complex multi-department invoices with confusing tax codes</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Transparent per-patient ledger: all visits, dues, and 1-click printable receipts</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 8: Barcode Cards */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      CR80 Plastic Card &amp; Barcode Gun
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Manual search through paper folders taking 5-10 minutes</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Typing name manually; prone to duplicate patient records</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>0.2s instant patient profile retrieval via physical 1D USB barcode scanner</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 9: Doctor Privacy */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      Doctor Chamber Privacy &amp; Isolation
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Physical paper charts accessible to anyone entering room</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>All doctors often see each other's full patient registers</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Strict doctor isolation mode ensures doctors only see their assigned patients</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Row 10: Whole-BDT */}
+                  <tr className="hover:bg-blue-50/20 transition">
+                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
+                      Bangladeshi Whole-BDT Billing
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Manual cash counting with unrecorded change discrepancies</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
+                      <div className="flex items-center gap-2">
+                        <X className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Foreign software decimal cents causing paisa round-off errors</span>
+                      </div>
+                    </td>
+                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Integer Whole-BDT with instant multi-tender split across Cash, bKash &amp; Nagad</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Comparison Callout Footer */}
+            <div className="p-6 bg-gradient-to-r from-[#2A5CAA] to-[#1C3E75] text-white flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h4 className="font-extrabold text-base sm:text-lg">Experience the specialized dental difference today</h4>
+                <p className="text-xs sm:text-sm text-white/80">Zero training required. Onboard your clinic in less than 15 minutes.</p>
+              </div>
+              <Link
+                href="/login"
+                className="px-6 py-3 rounded-xl bg-white text-[#2A5CAA] font-bold text-xs sm:text-sm shadow-md hover:bg-[#F8FAFC] transition shrink-0"
+              >
+                Access Chamber Portal
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -1172,7 +1636,7 @@ export default function LandingPageClient() {
                 </span>
                 <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Queue &amp; Lounge Token</h4>
                 <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Patient enters waiting room. TV screen displays active token number and designated chair.
+                  Patient enters waiting room. TV screen displays active token number and designated chair with audio chime.
                 </p>
               </motion.div>
 
@@ -1186,7 +1650,7 @@ export default function LandingPageClient() {
                 </span>
                 <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">FDI Exam &amp; Bangla Rx</h4>
                 <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Dentist marks tooth conditions, adds Bangla dosages, attaches X-rays, and logs private notes.
+                  Dentist marks tooth conditions on FDI chart, taps Bangla dosages, logs visit fee, and prints Rx.
                 </p>
               </motion.div>
 
@@ -1200,7 +1664,7 @@ export default function LandingPageClient() {
                 </span>
                 <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Whole-BDT Billing</h4>
                 <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Services auto-populate on invoice. Front desk collects payment via bKash/Cash and prints receipt.
+                  Doctor fee auto-populates on invoice. Front desk collects via bKash/Cash and prints receipt.
                 </p>
               </motion.div>
 
@@ -1214,7 +1678,7 @@ export default function LandingPageClient() {
                 </span>
                 <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Follow-up &amp; Retention</h4>
                 <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Next visit auto-scheduled. Patient receives appointment reminder emails with chamber details.
+                  Recall date auto-scheduled. Next visit enables 1-click Rx rewrite with complete history preserved.
                 </p>
               </motion.div>
             </div>
@@ -1222,11 +1686,11 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      {/* CONTENT CREATOR VIDEO PRODUCTION KIT SECTION (GSAP Reveal) */}
-      <section id="creator-kit" className="py-20 bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white">
+      {/* OFFICIAL DOCTOR & CLINIC BROCHURE SHOWCASE SECTION (GSAP Reveal) */}
+      <section id="brochure" className="py-20 bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white">
         <div className="max-w-6xl mx-auto px-6">
           <div
-            ref={creatorKitRef}
+            ref={brochureSectionRef}
             className="rounded-3xl border border-white/10 bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-purple-900/40 p-8 sm:p-12 relative overflow-hidden will-change-transform"
           >
             {/* Ambient Graphic */}
@@ -1234,33 +1698,31 @@ export default function LandingPageClient() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               <div className="lg:col-span-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold mb-4">
-                  <Video className="w-3.5 h-3.5" />
-                  <span>Content Creator &amp; Reviewer Kit</span>
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold mb-4">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Official Clinic Evaluation Guide</span>
                 </div>
 
                 <h3 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
-                  Everything Creators Need to Produce an Outstanding Video
+                  Handover-Ready Doctor &amp; Clinic Brochure (PDF)
                 </h3>
 
                 <p className="mt-4 text-sm sm:text-base text-white/70 max-w-2xl leading-relaxed">
-                  We have prepared an end-to-end <strong>Features &amp; Workflow Production Guide</strong>.
-                  It includes a ready-to-record 6-minute YouTube/Facebook script with timestamps, visual
-                  B-roll cues, voiceover narration, key marketing talking points, and technical callouts.
+                  Download our complete 6-page A4 clinical and operational brochure. Written in clean, non-technical language tailored specifically for busy dentists, clinic directors, and front-desk managers. Includes real screenshots of each module and a transparent financial comparison.
                 </p>
 
-                <div className="mt-6 flex flex-wrap gap-4 text-xs text-white/80">
+                <div className="mt-6 flex flex-wrap gap-3.5 text-xs text-white/80">
                   <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Complete 6-Minute Script
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> 6-Page High-Res A4 Format
                   </span>
                   <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> B-Roll Video Storyboard
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Real Module Screenshots
                   </span>
                   <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> High-Res Vector Diagrams
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Sub-60s Prescription Flow
                   </span>
                   <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Multi-Tenant Role Matrix
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Patient Financial Ledger
                   </span>
                 </div>
 
@@ -1268,53 +1730,37 @@ export default function LandingPageClient() {
                   <motion.a
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.96 }}
-                    href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
-                    download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
+                    href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
+                    download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
                     className="px-6 py-3.5 rounded-xl bg-white text-[#0F172A] hover:bg-[#F1F5F9] font-bold text-sm transition-all shadow-lg hover:shadow-xl flex items-center gap-2 cursor-pointer"
                   >
                     <Download className="w-4 h-4 text-[#2A5CAA]" />
-                    <span>Download Production PDF (1.3 MB)</span>
-                  </motion.a>
-
-                  <motion.a
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    href="/ORIS_EMR_Client_Product_Guide.pdf"
-                    download="ORIS_EMR_Client_Product_Guide.pdf"
-                    className="px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-all shadow-lg flex items-center gap-2 cursor-pointer"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>Download Client Brochure (PDF)</span>
+                    <span>Download Official Brochure (PDF - 2.9 MB)</span>
                   </motion.a>
 
                   <a
-                    href="/oris-features-guide.html"
+                    href="/oris-doctor-brochure.html"
                     target="_blank"
                     rel="noreferrer"
                     className="px-5 py-3.5 rounded-xl bg-white/10 border border-white/20 hover:bg-white/15 text-white font-semibold text-sm transition-all flex items-center gap-2"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    <span>View Interactive HTML</span>
+                    <span>View Interactive Web Edition</span>
                   </a>
                 </div>
               </div>
 
               {/* Graphic Showcase */}
               <div className="lg:col-span-4 bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
-                <motion.div
-                  whileHover={{ rotate: 10, scale: 1.08 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                  className="w-16 h-16 rounded-2xl bg-[#2A5CAA] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20 cursor-pointer"
-                >
-                  <Play className="w-8 h-8 ml-1" />
-                </motion.div>
-                <h4 className="text-base font-bold text-white">6-Minute Video Script</h4>
+                <div className="w-16 h-16 rounded-2xl bg-[#2A5CAA] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
+                  <FileText className="w-8 h-8" />
+                </div>
+                <h4 className="text-base font-bold text-white">Official Handover Brochure</h4>
                 <p className="text-xs text-white/60 mt-1">
-                  Introduction &bull; Smart Cards &bull; FDI Tooth Chart &bull; Anti-Collision Slots &bull;
-                  Whole-BDT Billing &bull; Clinic Impact
+                  Ready to print or share via WhatsApp &bull; Executive Summary &bull; 4 Core Modules &bull; ROI &bull; Chamber Security
                 </p>
                 <div className="mt-4 pt-4 border-t border-white/10 text-[11px] text-white/50">
-                  Ready to print or prompt teleprompter
+                  Engineered exclusively for Bangladesh Dental Practices
                 </div>
               </div>
             </div>
@@ -1322,31 +1768,81 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      {/* BRAND LOGO PLACEMENT GUIDANCE NOTE */}
-      <section className="py-12 bg-[#F1F5F9] border-t border-[#E2E8F0]">
+      {/* CONTACT SALES & CLINIC ONBOARDING SECTION */}
+      <section id="contact" className="py-16 bg-[#F8FAFC] border-t border-[#E2E8F0]">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="bg-white rounded-2xl p-6 border border-[#E4E4E7] flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-[#E8EEF7] text-[#2A5CAA] flex items-center justify-center shrink-0">
-                <Printer className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-[#1C1C1E]">
-                  Looking to Upload Your Chamber or Platform Logo?
-                </h4>
-                <p className="text-xs text-[#6B7280] mt-0.5">
-                  Keep app logos in <code className="bg-[#F4F4F5] px-1.5 py-0.5 rounded text-[#2A5CAA] font-mono">public/logo.png</code> or <code className="bg-[#F4F4F5] px-1.5 py-0.5 rounded text-[#2A5CAA] font-mono">public/logo.svg</code>. Clinic letterheads can be uploaded directly via Chamber Settings.
+          <div className="bg-white rounded-3xl p-8 sm:p-12 border border-[#E4E4E7] shadow-xl">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="lg:col-span-7">
+                <span className="px-3.5 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
+                  Chamber Onboarding &amp; Support
+                </span>
+                <h3 className="mt-3 text-2xl sm:text-3xl md:text-4xl font-black text-[#1C1C1E] tracking-tight">
+                  Ready to Modernize Your Dental Practice?
+                </h3>
+                <p className="mt-3 text-sm sm:text-base text-[#6B7280] leading-relaxed">
+                  Our specialized clinical onboarding team sets up your clinic slug, doctor credentials, and custom drug catalog in minutes. Contact our direct sales desk for live chamber demonstrations, CR80 card samples, or custom clinic requirements.
                 </p>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-3 shrink-0">
-              <Link
-                href="/login"
-                className="px-4 py-2 rounded-lg bg-[#2A5CAA] text-white text-xs font-semibold hover:bg-[#224b8c] transition"
-              >
-                Go to Settings
-              </Link>
+                <div className="mt-6 flex flex-col sm:flex-row gap-4">
+                  <a
+                    href="tel:+8801920709034"
+                    className="flex items-center gap-3 p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#2A5CAA] bg-[#F8FAFC] hover:bg-[#E8EEF7]/40 transition group"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#E8EEF7] text-[#2A5CAA] flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                      <Phone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold text-[#6B7280]">Direct Call / Phone</div>
+                      <div className="text-sm font-bold text-[#1C1C1E]">+8801920709034</div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="mailto:sales@orisemr.com"
+                    className="flex items-center gap-3 p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#2A5CAA] bg-[#F8FAFC] hover:bg-[#E8EEF7]/40 transition group"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#E8F8EE] text-[#30D158] flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                      <Mail className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold text-[#6B7280]">Official Sales Email</div>
+                      <div className="text-sm font-bold text-[#1C1C1E]">sales@orisemr.com</div>
+                    </div>
+                  </a>
+                </div>
+              </div>
+
+              <div className="lg:col-span-5 bg-gradient-to-br from-[#2A5CAA] to-[#1C3E75] text-white p-6 sm:p-8 rounded-2xl shadow-lg flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wider text-blue-200">
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Fast-Track Chamber Setup</span>
+                  </div>
+                  <h4 className="text-xl font-extrabold text-white">Get Live In 15 Minutes</h4>
+                  <p className="mt-2 text-xs text-white/80 leading-relaxed">
+                    Our team provides hands-on staff orientation, reception barcode gun setup, and sample pre-printed patient cards across Bangladesh.
+                  </p>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-white/15 flex flex-col sm:flex-row gap-3">
+                  <a
+                    href="https://wa.me/8801920709034"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm text-center shadow-md transition flex items-center justify-center gap-2"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>WhatsApp: +8801920709034</span>
+                  </a>
+                  <Link
+                    href="/login"
+                    className="px-5 py-3 rounded-xl bg-white text-[#2A5CAA] hover:bg-[#F8FAFC] font-bold text-xs sm:text-sm text-center shadow-md transition"
+                  >
+                    Access Portal
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1357,26 +1853,31 @@ export default function LandingPageClient() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <BrandLogo size="sm" />
 
-          <div className="flex items-center gap-6 text-xs text-[#6B7280] flex-wrap">
+          <div className="flex items-center gap-6 text-xs text-[#6B7280] flex-wrap justify-center">
             <a href="#features" className="hover:text-[#1C1C1E] transition">
               Features
+            </a>
+            <a href="#video" className="hover:text-[#1C1C1E] transition">
+              Video Demo
+            </a>
+            <a href="#comparison" className="hover:text-[#1C1C1E] transition">
+              Why Oris EMR
             </a>
             <a href="#workflow" className="hover:text-[#1C1C1E] transition">
               Workflow
             </a>
             <a
-              href="/ORIS_EMR_Client_Product_Guide.pdf"
-              download="ORIS_EMR_Client_Product_Guide.pdf"
-              className="hover:text-[#2A5CAA] font-bold transition"
+              href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
+              download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
+              className="hover:text-[#2A5CAA] font-bold transition text-[#2A5CAA]"
             >
-              Client Brochure (PDF)
+              Doctor Brochure (PDF)
             </a>
-            <a
-              href="/ORIS_EMR_Features_and_Workflow_Guide.pdf"
-              download="ORIS_EMR_Features_and_Workflow_Guide.pdf"
-              className="hover:text-[#2A5CAA] font-medium transition"
-            >
-              Creator &amp; Workflow Kit
+            <a href="tel:+8801920709034" className="hover:text-[#1C1C1E] font-medium transition">
+              +8801920709034
+            </a>
+            <a href="mailto:sales@orisemr.com" className="hover:text-[#1C1C1E] font-medium transition">
+              sales@orisemr.com
             </a>
             <Link href="/login" className="hover:text-[#1C1C1E] transition">
               Staff Login

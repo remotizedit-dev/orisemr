@@ -98,3 +98,12 @@ export const auditLogs = pgTable(
     index("audit_entity_idx").on(table.entityType, table.entityId),
   ]
 );
+
+export const systemSettings = pgTable("system_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
