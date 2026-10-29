@@ -39,6 +39,8 @@ import {
   Star,
 } from "lucide-react";
 
+import { formatYouTubeEmbedUrl } from "@/lib/youtube";
+
 function YoutubeIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -54,26 +56,6 @@ function YoutubeIcon(props: React.SVGProps<SVGSVGElement>) {
       <polygon points="10 15 15 12 10 9 10 15" fill="currentColor" />
     </svg>
   );
-}
-
-function parseYouTubeEmbed(url: string | undefined): string {
-  if (!url) return "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ";
-  try {
-    const trimmed = url.trim();
-    if (trimmed.includes("youtu.be/")) {
-      const id = trimmed.split("youtu.be/")[1]?.split(/[?#]/)[0];
-      if (id) return `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
-    }
-    if (trimmed.includes("youtube.com/watch")) {
-      const parsed = new URL(trimmed);
-      const v = parsed.searchParams.get("v");
-      if (v) return `https://www.youtube-nocookie.com/embed/${v}?rel=0`;
-    }
-    if (trimmed.includes("youtube.com/embed/")) {
-      return trimmed.includes("?") ? `${trimmed}&rel=0` : `${trimmed}?rel=0`;
-    }
-  } catch {}
-  return url;
 }
 
 /**
@@ -1039,10 +1021,11 @@ export default function LandingPageClient({
           <div className="mt-10 rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 bg-white/5 border border-white/15 shadow-2xl backdrop-blur-md">
             <div className="relative aspect-video w-full rounded-xl sm:rounded-2xl overflow-hidden bg-black shadow-inner">
               <iframe
-                src={parseYouTubeEmbed(initialVideoUrl)}
+                src={formatYouTubeEmbedUrl(initialVideoUrl)}
                 title="Oris EMR Dental Chamber Software Walkthrough"
                 className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
                 allowFullScreen
               />
             </div>

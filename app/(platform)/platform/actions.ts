@@ -3,14 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/session";
 import { setSystemSetting, getSystemSetting } from "@/lib/settings";
+import { extractYouTubeVideoId } from "@/lib/youtube";
 
 export async function updateLandingVideoUrl(videoUrl: string) {
   await requireSuperAdmin();
-  const trimmed = videoUrl.trim();
-  await setSystemSetting("landing_youtube_url", trimmed);
+  const videoId = extractYouTubeVideoId(videoUrl);
+  if (!videoId) {
+    throw new Error("Invalid YouTube video URL or ID");
+  }
+  const normalizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  await setSystemSetting("landing_youtube_url", normalizedUrl);
   revalidatePath("/");
   revalidatePath("/platform");
-  return { success: true, videoUrl: trimmed };
+  return { success: true, videoUrl: normalizedUrl };
 }
 
 export async function fetchLandingVideoUrl() {

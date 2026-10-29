@@ -48,6 +48,8 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: blob: https:",
               "font-src 'self' data: https:",
               "connect-src 'self' https: wss:",
+              "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+              "child-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
               "frame-ancestors 'self'",
             ].join("; "),
           },

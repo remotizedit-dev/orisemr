@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, ExternalLink, Loader2, Video } from "lucide-react";
+import { Check, ExternalLink, Loader2, Video, AlertCircle } from "lucide-react";
 import { updateLandingVideoUrl } from "@/app/(platform)/platform/actions";
+import { extractYouTubeVideoId, formatYouTubeEmbedUrl } from "@/lib/youtube";
 
 function YoutubeIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -25,31 +26,20 @@ interface Props {
   initialVideoUrl: string;
 }
 
-function getYouTubeEmbedUrl(url: string): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname.includes("youtube.com")) {
-      const v = parsed.searchParams.get("v");
-      if (v) return `https://www.youtube-nocookie.com/embed/${v}`;
-      if (parsed.pathname.startsWith("/embed/")) return url;
-    } else if (parsed.hostname.includes("youtu.be")) {
-      const id = parsed.pathname.slice(1);
-      if (id) return `https://www.youtube-nocookie.com/embed/${id}`;
-    }
-  } catch {}
-  return null;
-}
-
 export default function LandingVideoSettingsCard({ initialVideoUrl }: Props) {
   const [videoUrl, setVideoUrl] = useState(initialVideoUrl);
   const [savedUrl, setSavedUrl] = useState(initialVideoUrl);
   const [isPending, startTransition] = useTransition();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const embedUrl = getYouTubeEmbedUrl(videoUrl);
+  const videoId = extractYouTubeVideoId(videoUrl);
+  const embedUrl = videoId ? formatYouTubeEmbedUrl(videoId) : null;
 
   const handleSave = () => {
+    if (!videoId) {
+      setStatusMessage("❌ Please enter a valid YouTube video URL or ID.");
+      return;
+    }
     startTransition(async () => {
       try {
         const res = await updateLandingVideoUrl(videoUrl);
@@ -58,7 +48,7 @@ export default function LandingVideoSettingsCard({ initialVideoUrl }: Props) {
           setStatusMessage("✅ Landing page YouTube video updated successfully!");
           setTimeout(() => setStatusMessage(null), 4000);
         }
-      } catch (err) {
+      } catch {
         setStatusMessage("❌ Failed to update video. Check permissions.");
       }
     });
@@ -75,7 +65,7 @@ export default function LandingVideoSettingsCard({ initialVideoUrl }: Props) {
             Landing Page Demo Video
           </h2>
           <p className="text-xs text-[#6B7280]">
-            Paste your YouTube video link to showcase your chamber walkthrough on the landing page.
+            Paste your YouTube video link, shorts, or share URL to showcase your chamber walkthrough.
           </p>
         </div>
       </div>
@@ -83,16 +73,16 @@ export default function LandingVideoSettingsCard({ initialVideoUrl }: Props) {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <input
-            type="url"
+            type="text"
             value={videoUrl}
             onChange={(e) => setVideoUrl(e.target.value)}
-            placeholder="https://www.youtube.com/watch?v=..."
+            placeholder="e.g. https://www.youtube.com/watch?v=... or https://youtu.be/..."
             className="flex-1 px-4 py-2.5 rounded-xl border border-[#CBD5E1] text-sm text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#2A5CAA] focus:border-transparent"
           />
           <button
             type="button"
             onClick={handleSave}
-            disabled={isPending || videoUrl === savedUrl}
+            disabled={isPending || videoUrl === savedUrl || !videoId}
             className="px-5 py-2.5 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] disabled:opacity-50 text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition shrink-0 cursor-pointer"
           >
             {isPending ? (
@@ -109,8 +99,23 @@ export default function LandingVideoSettingsCard({ initialVideoUrl }: Props) {
           </button>
         </div>
 
+        {videoUrl && !videoId && (
+          <p className="text-xs font-semibold text-red-500 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>Could not detect a valid YouTube video ID from this link. Please check the URL.</span>
+          </p>
+        )}
+
+        {videoId && (
+          <p className="text-[11px] text-[#6B7280] font-mono">
+            Detected YouTube Video ID: <span className="text-[#2A5CAA] font-bold">{videoId}</span>
+          </p>
+        )}
+
         {statusMessage && (
-          <p className="text-xs font-semibold text-[#059669]">{statusMessage}</p>
+          <p className={`text-xs font-semibold ${statusMessage.startsWith("✅") ? "text-[#059669]" : "text-red-500"}`}>
+            {statusMessage}
+          </p>
         )}
 
         {embedUrl && (
@@ -118,7 +123,7 @@ export default function LandingVideoSettingsCard({ initialVideoUrl }: Props) {
             <p className="text-xs font-medium text-[#6B7280] mb-2 flex items-center justify-between">
               <span>Live Video Preview</span>
               <a
-                href={videoUrl}
+                href={`https://www.youtube.com/watch?v=${videoId}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-[#2A5CAA] hover:underline inline-flex items-center gap-1"
@@ -131,7 +136,8 @@ export default function LandingVideoSettingsCard({ initialVideoUrl }: Props) {
                 src={embedUrl}
                 title="Preview"
                 className="w-full h-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
                 allowFullScreen
               />
             </div>
