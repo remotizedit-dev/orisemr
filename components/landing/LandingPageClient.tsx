@@ -1,67 +1,62 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import Lenis from "lenis";
 import {
   Stethoscope,
-  Calendar,
   Clock,
-  CreditCard,
-  FileText,
   ShieldCheck,
-  Users,
   Zap,
   CheckCircle2,
   ArrowRight,
-  Download,
-  ExternalLink,
-  Eye,
-  Activity,
-  Sparkles,
-  Layers,
-  Tv,
-  QrCode,
-  Printer,
-  Video,
-  Play,
-  Check,
-  ChevronRight,
-  Lock,
   Phone,
   Mail,
-  MessageSquare,
-  Scale,
+  MessageCircle,
+  Play,
+  Check,
   X,
-  Star,
+  ChevronRight,
+  ChevronDown,
+  Sparkles,
+  Users,
+  Tv,
+  Calendar,
+  CreditCard,
+  QrCode,
+  Printer,
+  Lock,
+  Download,
+  AlertCircle,
+  Building,
 } from "lucide-react";
 
 import { formatYouTubeEmbedUrl } from "@/lib/youtube";
+import { submitDemoLead } from "@/app/actions/lead";
 
-function YoutubeIcon(props: React.SVGProps<SVGSVGElement>) {
+declare global {
+  interface Window {
+    fbq?: (action: string, eventName: string, params?: Record<string, unknown>) => void;
+  }
+}
+
+function WhatsAppIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.06 7.41C8.84 7.41 8.47 7.49 8.18 7.81C7.88 8.13 7.06 8.91 7.06 10.49C7.06 12.07 8.21 13.6 8.37 13.82C8.53 14.04 10.63 17.29 13.85 18.68C14.62 19.01 15.22 19.21 15.69 19.36C16.46 19.6 17.16 19.57 17.72 19.48C18.34 19.39 19.63 18.7 19.9 17.94C20.17 17.18 20.17 16.52 20.09 16.39C20.01 16.26 19.79 16.18 19.46 16.02C19.13 15.86 17.5 15.05 17.2 14.94C16.9 14.83 16.68 14.78 16.46 15.11C16.24 15.44 15.61 16.18 15.42 16.39C15.23 16.61 15.04 16.64 14.71 16.48C14.38 16.32 13.32 15.97 12.06 14.85C11.08 13.98 10.42 12.9 10.23 12.57C10.04 12.24 10.21 12.06 10.37 11.9C10.52 11.76 10.7 11.52 10.87 11.33C11.04 11.14 11.1 11 11.21 10.78C11.32 10.56 11.27 10.37 11.19 10.21C11.11 10.05 10.45 8.42 10.17 7.76C9.9 7.12 9.63 7.21 9.42 7.2C9.23 7.2 9.01 7.2 8.79 7.2L9.06 7.41Z" />
+    </svg>
+  );
+}
+
+function YoutubePlayIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
       <polygon points="10 15 15 12 10 9 10 15" fill="currentColor" />
     </svg>
   );
 }
 
-/**
- * Robust Logo component that loads custom SVG logo (/logo.svg or /logo.png)
- * and falls back gracefully to the signature Oris EMR dental stethoscope emblem.
- */
 function BrandLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const [imgError, setImgError] = useState(false);
 
@@ -78,13 +73,13 @@ function BrandLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2.5 sm:gap-3">
       {!imgError ? (
         <div className={`relative overflow-hidden bg-white flex items-center justify-center ${sizeClasses[size]}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.svg"
-            alt="ORIS EMR"
+            alt="Oris EMR"
             className="w-full h-full object-contain"
             onError={(e) => {
               const target = e.currentTarget;
@@ -105,15 +100,15 @@ function BrandLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
       )}
       <div>
         <div className="flex items-center gap-1.5">
-          <span className="text-xl font-extrabold tracking-tight text-[#1C1C1E]">
+          <span className="text-lg sm:text-xl font-extrabold tracking-tight text-[#1C1C1E]">
             Oris <span className="text-[#2A5CAA]">EMR</span>
           </span>
           <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#E8EEF7] text-[#2A5CAA] border border-[#2A5CAA]/20">
             PRO
           </span>
         </div>
-        <span className="block text-[11px] font-medium text-[#6B7280] tracking-tight">
-          Dental Chamber Operating System
+        <span className="block text-[10px] sm:text-[11px] font-medium text-[#6B7280] tracking-tight">
+          Dental Chamber Software
         </span>
       </div>
     </div>
@@ -125,901 +120,643 @@ export default function LandingPageClient({
 }: {
   initialVideoUrl?: string;
 }) {
-  const [activeTab, setActiveTab] = useState<"rx" | "slots" | "queue" | "billing">("rx");
-  const [selectedTooth, setSelectedTooth] = useState<string>("16");
+  // Language toggle state: Bangla (default) or English
+  const [lang, setLang] = useState<"bn" | "en">("bn");
 
-  // DOM Refs for GSAP Scroll Animations
-  const containerRef = useRef<HTMLDivElement>(null);
-  const heroGlowRef = useRef<HTMLDivElement>(null);
-  const previewScreenRef = useRef<HTMLDivElement>(null);
-  const featuresGridRef = useRef<HTMLDivElement>(null);
-  const workflowTrackRef = useRef<HTMLDivElement>(null);
-  const progressBarRef = useRef<HTMLDivElement>(null);
-  const brochureSectionRef = useRef<HTMLDivElement>(null);
+  // Lead capture form state
+  const [leadName, setLeadName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadArea, setLeadArea] = useState("");
+  const [formSubmitted, setFormSubmitted] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [isPending, startTransition] = useTransition();
 
-  // Initialize Lenis Smooth Scrolling and GSAP ScrollTrigger
+  // Marketing UTM tracking
+  const [utmParams, setUtmParams] = useState<{
+    source?: string;
+    campaign?: string;
+    medium?: string;
+  }>({});
+
+  // FAQ accordion state
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+
   useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger);
-
-    // 1. Initialize Lenis for smooth momentum scrolling
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true,
-      touchMultiplier: 1.5,
-    });
-
-    // 2. Synchronize Lenis with GSAP ScrollTrigger
-    lenis.on("scroll", ScrollTrigger.update);
-
-    const updateLenis = (time: number) => {
-      lenis.raf(time * 1000);
-    };
-
-    gsap.ticker.add(updateLenis);
-    gsap.ticker.lagSmoothing(0);
-
-    const ctx = gsap.context(() => {
-      // Animation A: Hero Parallax Ambient Glow
-      if (heroGlowRef.current) {
-        gsap.to(heroGlowRef.current, {
-          scrollTrigger: {
-            trigger: heroGlowRef.current,
-            start: "top top",
-            end: "bottom top",
-            scrub: true,
-          },
-          y: 180,
-          scale: 1.2,
-          opacity: 0.15,
-          ease: "none",
-        });
-      }
-
-      // Animation B: Chamber Demo 3D Perspective Tilt on Scroll
-      if (previewScreenRef.current) {
-        gsap.fromTo(
-          previewScreenRef.current,
-          {
-            rotateX: 14,
-            scale: 0.92,
-            opacity: 0.8,
-            transformPerspective: 1000,
-          },
-          {
-            scrollTrigger: {
-              trigger: previewScreenRef.current,
-              start: "top 80%",
-              end: "top 35%",
-              scrub: 1,
-            },
-            rotateX: 0,
-            scale: 1,
-            opacity: 1,
-            ease: "power2.out",
-          }
-        );
-      }
-
-      // Animation C: 6 Features Grid Staggered Reveal
-      if (featuresGridRef.current) {
-        const cards = featuresGridRef.current.querySelectorAll(".feature-card-item");
-        gsap.fromTo(
-          cards,
-          {
-            y: 50,
-            opacity: 0,
-          },
-          {
-            scrollTrigger: {
-              trigger: featuresGridRef.current,
-              start: "top 75%",
-              once: true,
-            },
-            y: 0,
-            opacity: 1,
-            duration: 0.8,
-            stagger: 0.12,
-            ease: "power3.out",
-          }
-        );
-      }
-
-      // Animation D: 5-Phase Workflow Scrubbed Progress Bar
-      if (workflowTrackRef.current && progressBarRef.current) {
-        gsap.fromTo(
-          progressBarRef.current,
-          { scaleX: 0 },
-          {
-            scrollTrigger: {
-              trigger: workflowTrackRef.current,
-              start: "top 75%",
-              end: "bottom 60%",
-              scrub: 0.5,
-            },
-            scaleX: 1,
-            transformOrigin: "left center",
-            ease: "none",
-          }
-        );
-
-        const workflowCards = workflowTrackRef.current.querySelectorAll(".workflow-step-card");
-        gsap.fromTo(
-          workflowCards,
-          { y: 30, opacity: 0 },
-          {
-            scrollTrigger: {
-              trigger: workflowTrackRef.current,
-              start: "top 70%",
-              once: true,
-            },
-            y: 0,
-            opacity: 1,
-            duration: 0.6,
-            stagger: 0.15,
-            ease: "power2.out",
-          }
-        );
-      }
-
-      // Animation E: Brochure Showcase Zoom Reveal
-      if (brochureSectionRef.current) {
-        gsap.fromTo(
-          brochureSectionRef.current,
-          {
-            scale: 0.96,
-            opacity: 0.7,
-            y: 35,
-          },
-          {
-            scrollTrigger: {
-              trigger: brochureSectionRef.current,
-              start: "top 80%",
-              end: "top 45%",
-              scrub: 1,
-            },
-            scale: 1,
-            opacity: 1,
-            y: 0,
-            ease: "power2.out",
-          }
-        );
-      }
-    }, containerRef);
-
-    return () => {
-      ctx.revert();
-      gsap.ticker.remove(updateLenis);
-      lenis.destroy();
-      ScrollTrigger.getAll().forEach((t) => t.kill());
-    };
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const source = searchParams.get("utm_source") || undefined;
+      const campaign = searchParams.get("utm_campaign") || undefined;
+      const medium = searchParams.get("utm_medium") || undefined;
+      setUtmParams({ source, campaign, medium });
+    }
   }, []);
 
-  return (
-    <div
-      ref={containerRef}
-      className="min-h-screen bg-[#F8FAFC] text-[#1C1C1E] selection:bg-[#2A5CAA] selection:text-white flex flex-col justify-between overflow-x-hidden"
-    >
-      {/* Top Floating Announcement Bar */}
-      <div className="bg-[#0F172A] text-white py-2 px-4 text-center text-xs font-medium border-b border-white/10 flex items-center justify-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <motion.span
-            animate={{ scale: [1, 1.3, 1] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-            className="inline-block w-2 h-2 rounded-full bg-[#30D158]"
-          />
-          <span className="font-semibold text-white/90">Official Doctor &amp; Clinic Brochure (PDF) is now available</span>
-        </div>
-        <a
-          href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-          download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-          className="underline text-[#60A5FA] hover:text-[#93C5FD] font-bold inline-flex items-center gap-1 transition"
-        >
-          Download Doctor Brochure (PDF) <Download className="w-3 h-3" />
-        </a>
-        <span className="hidden md:inline text-white/30">&bull;</span>
-        <a
-          href="tel:+8801920709034"
-          className="hidden md:inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold transition"
-        >
-          <Phone className="w-3 h-3" />
-          <span>+8801920709034</span>
-        </a>
-      </div>
+  const handleWhatsAppClick = (locationTag = "hero_cta") => {
+    // Fire Meta Pixel Contact conversion if present
+    if (typeof window !== "undefined" && typeof window.fbq === "function") {
+      try {
+        window.fbq("track", "Contact", {
+          content_name: "Oris EMR WhatsApp Demo Request",
+          content_category: "Lead",
+          location: locationTag,
+        });
+      } catch {
+        // Safe ignore
+      }
+    }
 
-      {/* Main Navbar */}
-      <header className="sticky top-0 z-50 glass-floating border-b border-[#E4E4E7]/80 px-6 py-3.5 transition-all">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/" className="transition hover:opacity-90">
-            <BrandLogo size="md" />
+    const baseMsg = "Oris EMR ডেমো দেখতে চাই।";
+    const utmTag = utmParams.source ? ` (Source: ${utmParams.source})` : "";
+    const fullMsg = encodeURIComponent(`${baseMsg}${utmTag}`);
+    window.open(`https://wa.me/8801920709034?text=${fullMsg}`, "_blank");
+  };
+
+  const handleLeadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError("");
+
+    if (!leadPhone.trim() || leadPhone.trim().length < 8) {
+      setFormError(lang === "bn" ? "অনুগ্রহ করে আপনার সঠিক মোবাইল নম্বরটি লিখুন।" : "Please enter a valid phone number.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await submitDemoLead({
+        name: leadName,
+        phone: leadPhone,
+        chamberArea: leadArea,
+        source: "landing_callback_form",
+        utmSource: utmParams.source,
+        utmCampaign: utmParams.campaign,
+        utmMedium: utmParams.medium,
+      });
+
+      if (res.success) {
+        setFormSubmitted(true);
+        if (typeof window !== "undefined" && typeof window.fbq === "function") {
+          try {
+            window.fbq("track", "Lead", {
+              content_name: "Oris EMR Demo Callback",
+            });
+          } catch {
+            // Safe ignore
+          }
+        }
+      } else {
+        setFormError(res.message);
+      }
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-[#1C1C1E] selection:bg-[#2A5CAA] selection:text-white flex flex-col justify-between overflow-x-hidden font-sans">
+      {/* 1. STICKY TOP BAR (Mobile-First, One Clear WhatsApp CTA, No PDF Banner) */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#E4E4E7] px-4 sm:px-6 py-2.5 sm:py-3 transition-all">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+          <Link href="/" className="transition hover:opacity-95">
+            <BrandLogo size="sm" />
           </Link>
 
-          {/* Desktop Nav Links */}
-          <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-[#4B5563]">
-            <a href="#features" className="hover:text-[#2A5CAA] transition">
-              Features
-            </a>
-            <a href="#video" className="hover:text-[#2A5CAA] transition flex items-center gap-1.5">
-              <YoutubeIcon className="w-4 h-4 text-red-500" />
-              <span>Video Demo</span>
-            </a>
-            <a href="#comparison" className="hover:text-[#2A5CAA] transition flex items-center gap-1.5">
-              <Scale className="w-4 h-4 text-[#2A5CAA]" />
-              <span>Why Oris EMR</span>
-            </a>
-            <a href="#workflow" className="hover:text-[#2A5CAA] transition">
-              5-Phase Workflow
-            </a>
-            <a href="#brochure" className="hover:text-[#2A5CAA] transition">
-              Brochure
-            </a>
-            <a href="#contact" className="hover:text-[#2A5CAA] transition">
-              Contact &amp; Sales
-            </a>
-          </nav>
-
-          {/* Action CTAs */}
-          <div className="flex items-center gap-2.5">
-            <motion.a
-              whileHover={{ scale: 1.03, y: -1 }}
-              whileTap={{ scale: 0.97 }}
-              href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-              download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-[#E4E4E7] text-xs font-bold text-[#1C1C1E] hover:bg-[#F4F4F5] transition shadow-xs cursor-pointer"
-              title="Download Official Doctor & Clinic Brochure (PDF)"
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Language Switcher */}
+            <button
+              type="button"
+              onClick={() => setLang(lang === "bn" ? "en" : "bn")}
+              className="px-2.5 py-1 rounded-lg border border-[#E2E8F0] text-xs font-bold text-[#4B5563] hover:bg-[#F1F5F9] transition flex items-center gap-1 cursor-pointer"
+              title="Toggle Bangla / English"
             >
-              <FileText className="w-3.5 h-3.5 text-[#2A5CAA]" />
-              <span>Doctor Brochure</span>
-            </motion.a>
-            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-semibold text-xs sm:text-sm transition-all duration-150 shadow-md shadow-[#2A5CAA]/25 hover:shadow-lg hover:shadow-[#2A5CAA]/35 cursor-pointer"
-              >
-                <span>Access Chamber</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </motion.div>
+              <span>{lang === "bn" ? "ENG" : "বাংলা"}</span>
+            </button>
+
+            {/* Direct Phone Call on Desktop */}
+            <a
+              href="tel:+8801920709034"
+              className="hidden md:inline-flex items-center gap-1.5 text-xs font-bold text-[#2A5CAA] hover:text-[#1C3E75] px-2.5 py-1.5 rounded-lg bg-[#E8EEF7] transition"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>+8801920709034</span>
+            </a>
+
+            {/* Top Bar Single Action Button */}
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => handleWhatsAppClick("top_bar")}
+              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#25D366]/25 hover:shadow-lg transition cursor-pointer"
+            >
+              <WhatsAppIcon className="w-4 h-4 fill-white" />
+              <span>{lang === "bn" ? "ফ্রি ডেমো (WhatsApp)" : "Free Demo (WhatsApp)"}</span>
+            </motion.button>
           </div>
         </div>
       </header>
 
-      {/* HERO SECTION */}
-      <section className="relative pt-16 pb-20 md:pt-24 md:pb-28 overflow-hidden bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9]">
-        {/* Parallax Ambient Glow */}
-        <div
-          ref={heroGlowRef}
-          className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[360px] bg-gradient-to-r from-[#2A5CAA]/20 via-[#38BDF8]/15 to-[#34D399]/20 blur-[130px] rounded-full pointer-events-none -z-10"
-        />
+      {/* 2. HERO SECTION (Pain/Outcome Hook, Single Primary WhatsApp CTA, Looping Rx Visual) */}
+      <section className="relative pt-10 pb-14 sm:pt-16 sm:pb-20 overflow-hidden bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9]">
+        {/* Ambient Dental Blue Glow */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] sm:w-[680px] h-[300px] bg-gradient-to-r from-[#2A5CAA]/15 via-[#38BDF8]/10 to-[#34D399]/15 blur-[100px] rounded-full pointer-events-none -z-10" />
 
-        <div className="max-w-6xl mx-auto px-6 text-center">
-          {/* Badge with Framer Motion entry */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
+          {/* Mobile-Friendly Eyebrow Badge */}
           <motion.div
-            initial={{ opacity: 0, y: -12 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#E8EEF7] border border-[#2A5CAA]/20 text-[#2A5CAA] text-xs font-bold mb-8 shadow-xs"
+            transition={{ duration: 0.4 }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#E8EEF7] border border-[#2A5CAA]/20 text-[#2A5CAA] text-xs font-bold mb-5 shadow-xs"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#2A5CAA]" />
-            <span>Multi-Tenant Clinical Dental Chamber Operating System</span>
+            <span>{lang === "bn" ? "বাংলাদেশী ডেন্টাল চেম্বার সফটওয়্যার" : "Dental Chamber SaaS for Bangladesh"}</span>
           </motion.div>
 
-          {/* Headline */}
+          {/* Headline: Pain or Outcome Hook */}
           <motion.h1
-            initial={{ opacity: 0, y: 18 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
-            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-[#1C1C1E] tracking-tight leading-[1.12]"
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-[#1C1C1E] tracking-tight leading-[1.18] sm:leading-[1.15]"
           >
-            Sub-60s Bangla Rx, Anti-Collision Slots &amp;{" "}
-            <span className="bg-gradient-to-r from-[#2A5CAA] via-[#3B82F6] to-[#0D9488] bg-clip-text text-transparent">
-              Whole-BDT Billing.
-            </span>
+            {lang === "bn" ? (
+              <>
+                রোগী বসে আছে, আর আপনি{" "}
+                <span className="bg-gradient-to-r from-[#2A5CAA] via-[#1D4ED8] to-[#0D9488] bg-clip-text text-transparent">
+                  প্রেসক্রিপশন লিখছেন?
+                </span>
+              </>
+            ) : (
+              <>
+                Patients are waiting, and you&apos;re still{" "}
+                <span className="bg-gradient-to-r from-[#2A5CAA] via-[#1D4ED8] to-[#0D9488] bg-clip-text text-transparent">
+                  writing prescriptions by hand?
+                </span>
+              </>
+            )}
           </motion.h1>
 
-          {/* Subtitle */}
+          {/* Subline: Single Benefit Sentence */}
           <motion.p
-            initial={{ opacity: 0, y: 18 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
-            className="mt-6 text-lg sm:text-xl text-[#4B5563] max-w-3xl mx-auto leading-relaxed font-normal"
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="mt-4 sm:mt-5 text-base sm:text-lg md:text-xl text-[#4B5563] max-w-2xl mx-auto leading-relaxed font-normal"
           >
-            Engineered exclusively for Bangladesh dental chambers. Eliminate waiting room chaos with
-            barcode patient card check-ins, automated chair buffer scheduling, interactive 2-digit FDI tooth
-            charting, 1-click follow-up rewrite, chairside visit fee presets, and whole-BDT bKash / Cash settlements.
+            {lang === "bn"
+              ? "চেম্বারের প্রেসক্রিপশন, অ্যাপয়েন্টমেন্ট আর হিসাব এক জায়গায়। ১৫ মিনিটে চালু।"
+              : "Prescriptions, appointments, and billing in one place. Live in 15 minutes."}
           </motion.p>
 
-          {/* Interactive CTAs */}
+          {/* Hero CTAs: One Dominant WhatsApp Button + One Small Video Link */}
           <motion.div
-            initial={{ opacity: 0, y: 22 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
-            className="mt-10 flex flex-wrap items-center justify-center gap-4"
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="mt-7 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5 sm:gap-4"
           >
-            <motion.div whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}>
-              <Link
-                href="/login"
-                className="px-8 py-4 rounded-xl bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-base shadow-xl shadow-[#2A5CAA]/30 hover:shadow-2xl transition-all duration-200 flex items-center gap-2.5 cursor-pointer"
-              >
-                <span>Access Chamber Portal</span>
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-            </motion.div>
-
-            <motion.a
+            <motion.button
               whileHover={{ scale: 1.03, y: -2 }}
               whileTap={{ scale: 0.97 }}
-              href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-              download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-              className="px-7 py-4 rounded-xl bg-white border border-[#E4E4E7] text-[#1C1C1E] hover:bg-[#F8FAFC] hover:border-[#CBD5E1] font-bold text-base shadow-sm hover:shadow transition-all duration-150 flex items-center gap-2 cursor-pointer"
+              onClick={() => handleWhatsAppClick("hero_primary")}
+              className="w-full sm:w-auto px-7 py-3.5 sm:py-4 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-base shadow-lg shadow-[#25D366]/30 hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer"
             >
-              <FileText className="w-5 h-5 text-[#2A5CAA]" />
-              <span>Download Doctor Brochure (PDF)</span>
-            </motion.a>
+              <WhatsAppIcon className="w-5 h-5 fill-white shrink-0" />
+              <span>{lang === "bn" ? "ফ্রি ডেমো দেখুন (WhatsApp)" : "Request Free Demo (WhatsApp)"}</span>
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </motion.button>
 
-            <motion.a
-              whileHover={{ scale: 1.03, y: -2 }}
-              whileTap={{ scale: 0.97 }}
+            <a
               href="#video"
-              className="px-6 py-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[#334155] hover:text-[#0F172A] hover:bg-[#E2E8F0] font-semibold text-sm transition-all duration-150 flex items-center gap-2 cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#4B5563] hover:text-[#2A5CAA] px-4 py-2.5 rounded-lg hover:bg-white/80 transition"
             >
-              <YoutubeIcon className="w-4 h-4 text-red-500" />
-              <span>Watch Live Demo</span>
-            </motion.a>
+              <YoutubePlayIcon className="w-4 h-4 text-red-500" />
+              <span>{lang === "bn" ? "ভিডিও ডেমো দেখুন" : "Watch Demo Video"}</span>
+            </a>
           </motion.div>
 
-          {/* Trust Highlights */}
+          {/* 3. OFFER STRIP (Directly Under Hero, Completely Transparent) */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.45 }}
-            className="mt-14 pt-8 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto text-left"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+            className="mt-8 sm:mt-10 max-w-xl mx-auto rounded-2xl bg-gradient-to-r from-[#FEF3C7] via-[#FFFBEB] to-[#FEF3C7] border border-amber-300/80 p-3.5 sm:p-4 text-amber-950 shadow-sm"
           >
-            <motion.div
-              whileHover={{ y: -3 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-start gap-3 p-2 rounded-xl transition"
-            >
-              <div className="p-2 rounded-lg bg-[#E8EEF7] text-[#2A5CAA] shrink-0">
+            <div className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-800 mb-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <span>{lang === "bn" ? "চলতি মাসের স্পেশাল অফার" : "Special Limited Offer"}</span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-amber-950">
+              {lang === "bn"
+                ? "৩ মাস সম্পূর্ণ ফ্রি! মাত্র ২,০০০ টাকায় ৪ মাস (দৈনিক মাত্র ~১৬.৬৭ টাকা)।"
+                : "3 Months Free! Get 4 Months for BDT 2,000 (only ~BDT 16.67/day)."}
+            </div>
+            <div className="mt-1 text-xs text-amber-800/90 font-medium">
+              {lang === "bn"
+                ? "৪ মাস পর মাসিক ২,০০০ টাকা (দৈনিক ~৬৭ টাকা) — কোনো লুকানো শর্ত নেই, যেকোনো সময় বাতিলযোগ্য।"
+                : "After month 4, the price is BDT 2,000/month (~BDT 67/day). No hidden contracts, cancel anytime."}
+            </div>
+          </motion.div>
+
+          {/* REALISTIC SCREENSHOT / INTERACTIVE BANGLA RX PREVIEW */}
+          <div className="mt-10 sm:mt-12 rounded-2xl sm:rounded-3xl border border-[#CBD5E1] bg-white shadow-xl p-3 sm:p-5 text-left overflow-hidden">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                <span className="font-semibold text-gray-700 ml-2">
+                  {lang === "bn" ? "ডাক্তারের প্রেসক্রিপশন স্ক্রিন" : "Doctor Rx Consultation Screen"}
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                {lang === "bn" ? "১ মিনিটে প্রেসক্রিপশন" : "1-Minute Prescription"}
+              </span>
+            </div>
+
+            {/* Mockup Consultation Interface */}
+            <div className="pt-4 grid grid-cols-1 md:grid-cols-12 gap-4">
+              {/* Patient & Tooth Info */}
+              <div className="md:col-span-5 bg-[#F8FAFC] rounded-xl p-3.5 border border-gray-200 text-xs space-y-2.5">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 block">
+                    {lang === "bn" ? "রোগীর বিবরণ" : "Patient Info"}
+                  </span>
+                  <div className="font-bold text-sm text-[#1C1C1E]">
+                    {lang === "bn" ? "মোঃ রফিকুল ইসলাম (বয়স: ৪২ বছর, পুরুষ)" : "Md. Rafiqul Islam (Age: 42, Male)"}
+                  </div>
+                  <span className="text-[11px] text-gray-500">ID: ORIS-2026-048 • Phone: 01712-XXXXXX</span>
+                </div>
+
+                <div className="pt-2 border-t border-gray-200">
+                  <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                    {lang === "bn" ? "আক্রান্ত দাঁত (FDI Chart)" : "Affected Tooth (FDI)"}
+                  </span>
+                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-red-50 text-red-700 border border-red-200 font-bold">
+                    <span>Tooth 16 (Upper Right First Molar)</span>
+                  </div>
+                  <span className="block text-[11px] text-red-600 mt-1">
+                    {lang === "bn" ? "ডায়াগনোসিস: পাল্পাইটিস • রুট ক্যানেল থেরাপি" : "Diagnosis: Pulpitis • Root Canal Therapy"}
+                  </span>
+                </div>
+
+                <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
+                  <span className="text-gray-600">{lang === "bn" ? "চেয়ারসাইড ভিজিট ফি:" : "Chairside Visit Fee:"}</span>
+                  <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">৳ ১,০০০</span>
+                </div>
+              </div>
+
+              {/* Bangla Dosage Presets */}
+              <div className="md:col-span-7 bg-[#F8FAFC] rounded-xl p-3.5 border border-gray-200 text-xs flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 block mb-2">
+                    {lang === "bn" ? "প্রেসক্রিপশন ওষুধ ও বাংলা ডোজ প্রিসেট" : "Prescribed Drugs & Bangla Dosage"}
+                  </span>
+
+                  <div className="space-y-2">
+                    <div className="p-2.5 rounded-lg bg-white border border-gray-200 flex justify-between items-start">
+                      <div>
+                        <div className="font-bold text-gray-900">1. Tab. Moxaclav 625mg</div>
+                        <span className="text-[11px] text-gray-500">
+                          {lang === "bn" ? "অ্যান্টিবায়োটিক • ৫ দিন ভরা পেটে" : "Antibiotic • 5 days after food"}
+                        </span>
+                      </div>
+                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 text-xs">
+                        ১ + ০ + ১ (খাওয়ার পর)
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white border border-gray-200 flex justify-between items-start">
+                      <div>
+                        <div className="font-bold text-gray-900">2. Tab. Naproxen 500mg</div>
+                        <span className="text-[11px] text-gray-500">
+                          {lang === "bn" ? "ব্যথানাশক • ৩ দিন ব্যথা থাকলে" : "Pain Relief • 3 days if pain persists"}
+                        </span>
+                      </div>
+                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 text-xs">
+                        ১ + ০ + ১ (খাওয়ার পর)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-gray-200 flex items-center justify-between text-[11px] text-gray-500">
+                  <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> {lang === "bn" ? "অ্যালার্জি চেক: নিরাপদ" : "Allergy check: Safe"}
+                  </span>
+                  <span className="font-semibold text-[#2A5CAA]">
+                    {lang === "bn" ? "১ ক্লিকে প্রিন্ট ও ফলো-আপ তারিখ" : "1-Click Print & Follow-up Recall"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. PAIN STRIP (3 Items, Icons, in Bangla, High Empathy) */}
+      <section className="py-10 bg-white border-y border-[#E4E4E7]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-xl mx-auto mb-6">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-red-600">
+              {lang === "bn" ? "চেম্বারের পরিচিত সমস্যা" : "Common Daily Struggles"}
+            </h2>
+            <p className="text-xl sm:text-2xl font-black text-[#1C1C1E] mt-1">
+              {lang === "bn" ? "এই ঝামেলাগুলো কি আপনার চেম্বারেও হয়?" : "Does your chamber still deal with these?"}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-red-50/50 border border-red-200 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-[#1C1C1E]">
+                  {lang === "bn" ? "সিরিয়ালে রোগীর দীর্ঘ অপেক্ষা" : "Long Waiting Queue Chaos"}
+                </h3>
+                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                  {lang === "bn"
+                    ? "ওয়েটিং রুমে রোগীদের ভিড় ও অস্থিরতা। নাম ধরে ডাকাডাকিতে চেম্বারের পরিবেশ নষ্ট হয়।"
+                    : "Crowded waiting lounge, patient restlessness, and shouting names creates unnecessary chaos."}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                 <Clock className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-[#1C1C1E]">&lt; 60s Prescription</h4>
-                <p className="text-xs text-[#6B7280]">FDI chart &amp; Bangla dosages</p>
+                <h3 className="font-bold text-sm text-[#1C1C1E]">
+                  {lang === "bn" ? "বারবার হাতে প্রেসক্রিপশন লেখা" : "Rewriting Same Rx by Hand"}
+                </h3>
+                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                  {lang === "bn"
+                    ? "ফলো-আপে আগের প্রেসক্রিপশন খুঁজে বের করা এবং একই ওষুধ আবার হাতে লিখতে গিয়ে সময় নষ্ট।"
+                    : "Searching old files and repeatedly writing out the same dosage instructions causes doctor fatigue."}
+                </p>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div
-              whileHover={{ y: -3 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-start gap-3 p-2 rounded-xl transition"
-            >
-              <div className="p-2 rounded-lg bg-[#E8F8EE] text-[#30D158] shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-[#1C1C1E]">0 Overbooking</h4>
-                <p className="text-xs text-[#6B7280]">GIST exclusion database locks</p>
-              </div>
-            </motion.div>
-
-            <motion.div
-              whileHover={{ y: -3 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-start gap-3 p-2 rounded-xl transition"
-            >
-              <div className="p-2 rounded-lg bg-[#FFF7EB] text-[#FF9F0A] shrink-0">
+            <div className="p-4 rounded-xl bg-orange-50/50 border border-orange-200 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center shrink-0">
                 <CreditCard className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-[#1C1C1E]">Whole-BDT Ledger</h4>
-                <p className="text-xs text-[#6B7280]">Zero fractional paisa errors</p>
+                <h3 className="font-bold text-sm text-[#1C1C1E]">
+                  {lang === "bn" ? "খাতা বা ডায়েরিতে হিসাব হারানো" : "Lost Accounts & Khata Dues"}
+                </h3>
+                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                  {lang === "bn"
+                    ? "দিনশেষে ক্যাশ ও বিকাশের কালেকশন মেলাতে গিয়ে ভুল, রোগীর বাকি মনে না থাকা ও আর্থিক ক্ষতি।"
+                    : "Paper khata ledger mismatches between Cash and bKash, uncollected dues, and daily revenue loss."}
+                </p>
               </div>
-            </motion.div>
-
-            <motion.div
-              whileHover={{ y: -3 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-start gap-3 p-2 rounded-xl transition"
-            >
-              <div className="p-2 rounded-lg bg-[#F3E8FF] text-[#9333EA] shrink-0">
-                <QrCode className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-[#1C1C1E]">CR80 Card Scan</h4>
-                <p className="text-xs text-[#6B7280]">1D Barcode instant recognition</p>
-              </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* INTERACTIVE CHAMBER SHOWCASE / DEMO PREVIEW (GSAP 3D Scroll Perspective) */}
-      <section id="preview" className="py-16 md:py-24 bg-white border-y border-[#E4E4E7]">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="text-xs uppercase tracking-widest font-extrabold text-[#2A5CAA] bg-[#E8EEF7] px-3 py-1 rounded-full border border-[#2A5CAA]/20 inline-block mb-2">
-              Live Software Experience
+      {/* 5. THREE HERO FEATURES (Big Visual Cards, What Dentists Care Most About) */}
+      <section id="features" className="py-14 sm:py-20 bg-[#F8FAFC]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="px-3 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
+              {lang === "bn" ? "প্রধান ফিচারসমূহ" : "Core Capabilities"}
             </span>
-            <p className="mt-2 text-3xl sm:text-4xl font-black text-[#1C1C1E] tracking-tight">
-              A Complete Chamber in Four Powerful Modules
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-[#1C1C1E] mt-2 tracking-tight">
+              {lang === "bn" ? "ডাক্তারদের সবচেয়ে পছন্দের ৩টি সুবিধা" : "The 3 Features Dentists Love Most"}
+            </h2>
+            <p className="mt-2 text-sm sm:text-base text-gray-600">
+              {lang === "bn"
+                ? "কোনো জটিল টেকনিক্যাল ট্রেনিং ছাড়াই যেকোনো ডাক্তার বা সহকারী প্রথম দিন থেকেই ব্যবহার করতে পারেন।"
+                : "Zero complex training required. Any doctor or receptionist can master it on day one."}
             </p>
-            <p className="mt-3 text-base text-[#6B7280]">
-              Click through the modules to see how ORIS EMR operates during real patient consultations.
-            </p>
+          </div>
 
-            {/* Interactive Tab Switcher with Framer Motion indicator */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-2 p-1.5 bg-[#F4F4F5] rounded-2xl max-w-xl mx-auto border border-[#E4E4E7]">
-              {(
-                [
-                  { id: "rx", label: "1. Clinical Rx & FDI" },
-                  { id: "slots", label: "2. Anti-Collision Slots" },
-                  { id: "queue", label: "3. Cards & TV Queue" },
-                  { id: "billing", label: "4. Whole-BDT Billing" },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
-                    activeTab === tab.id
-                      ? "bg-white text-[#2A5CAA] shadow-sm border border-[#E4E4E7]"
-                      : "text-[#6B7280] hover:text-[#1C1C1E]"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+          <div className="space-y-8">
+            {/* Hero Feature 1: Bangla Rx with Dosage Presets */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-8 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              <div className="md:col-span-6">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-[#2A5CAA] text-xs font-bold mb-3 border border-blue-200">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{lang === "bn" ? "ফিচার ০১" : "Feature 01"}</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-[#1C1C1E]">
+                  {lang === "bn" ? "বাংলায় প্রেসক্রিপশন ও ওষুধের ডোজ প্রিসেট" : "Bangla Rx & Dosage Presets"}
+                </h3>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                  {lang === "bn"
+                    ? "হাতে লেখার দিন শেষ! ড্রপডাউন থেকে ওষুধ বাছাই করলেই স্বয়ংক্রিয়ভাবে '১+০+১ ভরা পেটে ৫ দিন' বসে যায়। সাথে ড্রাগ অ্যালার্জি ওয়ার্নিং ও প্রিন্ট রেডি ফরম্যাট।"
+                    : "Select dental drugs with pre-configured Bangla dosage shortcuts (১+০+১ খাওয়ার পর). Includes automatic allergy warning and instant print layout."}
+                </p>
+                <div className="mt-4 space-y-2 text-xs font-semibold text-gray-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "১ মিনিটে নির্ভুল ডিজিটাল প্রেসক্রিপশন" : "Complete prescription in 1 minute"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "বাংলা ও ইংরেজি উভয় ভাষায় নির্দেশনা" : "Bangla instructions for patient clarity"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "পেনিসিলিন বা ড্রাগ অ্যালার্জি সেফটি চেক" : "Drug allergy safety auto-check"}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="md:col-span-6 rounded-xl overflow-hidden border border-gray-200 shadow-md bg-gray-50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brochure-assets/4-prescription-builder.png"
+                  alt="Bangla Prescription Builder"
+                  className="w-full h-auto object-cover"
+                />
+              </div>
+            </div>
+
+            {/* Hero Feature 2: 1-Click Follow-Up Rx */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-8 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              <div className="md:col-span-6 md:order-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold mb-3 border border-emerald-200">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{lang === "bn" ? "ফিচার ০২" : "Feature 02"}</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-[#1C1C1E]">
+                  {lang === "bn" ? "১-ক্লিকে রি-ভিজিট ফলো-আপ প্রেসক্রিপশন" : "1-Click Follow-up Rx Rewrite"}
+                </h3>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                  {lang === "bn"
+                    ? "রোগী ২য় বা ৩য় বার ফলো-আপে আসলে পুরোনো ফাইল খোঁজার প্রয়োজন নেই। ১ ক্লিকেই আগের প্রেসক্রিপশন ও দাঁতের তথ্য লোড হয়ে যায়। ডাক্তার শুধু নতুন নোট বা ওষুধ যোগ করবেন।"
+                    : "When a patient returns for recall, 1-click loads their previous prescription and tooth records. Doctor simply reviews and updates in seconds."}
+                </p>
+                <div className="mt-4 space-y-2 text-xs font-semibold text-gray-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "পুরোনো প্রেসক্রিপশন খোঁজার ঝামেলা চিরতরে শেষ" : "Zero time wasted searching paper archives"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "রোগীর সম্পূর্ণ ট্রিটমেন্ট হিস্ট্রি সংরক্ষিত" : "Full clinical history preserved chronologically"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "ডাক্তার ও রোগী উভয়ের সময় বাঁচে ৯০%" : "Saves 90% doctor consultation rewrite time"}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="md:col-span-6 md:order-1 rounded-xl overflow-hidden border border-gray-200 shadow-md bg-gray-50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brochure-assets/5-printable-rx.png"
+                  alt="Printable Prescription Flow"
+                  className="w-full h-auto object-cover"
+                />
+              </div>
+            </div>
+
+            {/* Hero Feature 3: TV Queue Calling */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-8 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              <div className="md:col-span-6">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-purple-50 text-purple-700 text-xs font-bold mb-3 border border-purple-200">
+                  <Tv className="w-3.5 h-3.5" />
+                  <span>{lang === "bn" ? "ফিচার ০৩" : "Feature 03"}</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-[#1C1C1E]">
+                  {lang === "bn" ? "ওয়েটিং রুম লাইভ টিভি কলিং" : "Waiting Lounge TV Calling"}
+                </h3>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                  {lang === "bn"
+                    ? "চেম্বারের যেকোনো সাধারণ স্মার্ট টিভি বা মনিটরে টোকেন ও ডক্টর রুম নম্বর কল হয় অডিও সংকেত সহ। রিসেপশনে নাম ধরে চিৎকার শেষ, চেম্বার থাকে শান্ত ও পরিপাটি।"
+                    : "Display live patient tokens and assigned chairs on any smart TV with audio chimes. Eliminates reception shouting and maintains clinic decorum."}
+                </p>
+                <div className="mt-4 space-y-2 text-xs font-semibold text-gray-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "যেকোনো স্মার্ট টিভিতে ব্রাউজার দিয়েই চলবে" : "Runs on any smart TV or browser"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "কোনো ব্যয়বহুল টোকেন মেশিনের দরকার নেই" : "No expensive dedicated token hardware required"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{lang === "bn" ? "রোগীরা সিরিয়াল দেখে নিশ্চিন্তে অপেক্ষা করতে পারে" : "Patients relax seeing their turn on screen"}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="md:col-span-6 rounded-xl overflow-hidden border border-gray-200 shadow-md bg-gray-50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brochure-assets/3-live-queue.png"
+                  alt="Waiting Lounge Live Queue"
+                  className="w-full h-auto object-cover"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Interactive Screen Preview Container with GSAP 3D Perspective Tilt on Scroll */}
-          <div
-            ref={previewScreenRef}
-            className="rounded-3xl border border-[#CBD5E1] bg-[#1E293B] shadow-2xl p-3 sm:p-5 overflow-hidden transition-transform will-change-transform"
-          >
-            {/* Window Chrome Header */}
-            <div className="flex items-center justify-between pb-4 px-2 border-b border-white/10 text-xs text-white/60">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-[#EF4444]" />
-                <span className="w-3 h-3 rounded-full bg-[#F59E0B]" />
-                <span className="w-3 h-3 rounded-full bg-[#10B981]" />
-                <span className="ml-3 font-mono text-[11px] text-white/80">
-                  oris-emr.cloud/app/prescriptions/new
-                </span>
+          {/* COMPACT "WHAT ELSE YOU GET" GRID */}
+          <div className="mt-12 bg-white rounded-2xl border border-gray-200 p-6 sm:p-8">
+            <h3 className="text-base sm:text-lg font-black text-[#1C1C1E] text-center mb-6">
+              {lang === "bn" ? "আরও যা যা পাচ্ছেন Oris EMR-এ" : "Everything Else Included in Oris EMR"}
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 hover:border-[#2A5CAA] transition">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#2A5CAA] flex items-center justify-center mx-auto mb-2">
+                  <Stethoscope className="w-4 h-4" />
+                </div>
+                <h4 className="text-xs font-bold text-gray-900">
+                  {lang === "bn" ? "FDI দাঁতের চার্ট" : "FDI Tooth Chart"}
+                </h4>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {lang === "bn" ? "৩২ দাঁতের চার্ট" : "Adult 32-tooth"}
+                </p>
               </div>
-              <div className="hidden sm:flex items-center gap-3 font-mono text-[11px]">
-                <span className="text-[#30D158] flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#30D158] animate-ping" /> Neon Postgres Active
-                </span>
-                <span>Tenant: Dhanmondi Dental Care</span>
+
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 hover:border-[#2A5CAA] transition">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <h4 className="text-xs font-bold text-gray-900">
+                  {lang === "bn" ? "চেয়ার শিডিউলিং" : "Chair Buffer"}
+                </h4>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {lang === "bn" ? "ডাবল বুকিং মুক্ত" : "Zero overlap slots"}
+                </p>
               </div>
-            </div>
 
-            {/* Dynamic Interactive Body with AnimatePresence */}
-            <div className="pt-5 pb-2 text-white">
-              <AnimatePresence mode="wait">
-                {activeTab === "rx" && (
-                  <motion.div
-                    key="rx"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.35, ease: "easeOut" }}
-                    className="grid grid-cols-1 lg:grid-cols-12 gap-6"
-                  >
-                    {/* Left Column: Interactive FDI Tooth Chart */}
-                    <div className="lg:col-span-7 bg-[#0F172A] rounded-2xl p-5 border border-white/10">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <Stethoscope className="w-4 h-4 text-[#60A5FA]" />
-                          <h4 className="text-sm font-bold text-white">
-                            Interactive 2-Digit FDI Tooth Chart (Click Any Tooth)
-                          </h4>
-                        </div>
-                        <span className="text-[11px] font-mono bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">
-                          Adult (32 Teeth)
-                        </span>
-                      </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 hover:border-[#2A5CAA] transition">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-2">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <h4 className="text-xs font-bold text-gray-900">
+                  {lang === "bn" ? "বিকাশ/নগদ হিসাব" : "bKash & Cash"}
+                </h4>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {lang === "bn" ? "পূর্ণ টাকা লেজার" : "Whole-BDT ledger"}
+                </p>
+              </div>
 
-                      {/* Upper Quadrant Grid */}
-                      <div className="grid grid-cols-8 gap-1.5 text-center text-xs font-mono mb-3">
-                        {["18", "17", "16", "15", "14", "13", "12", "11"].map((tooth) => (
-                          <motion.button
-                            key={tooth}
-                            whileHover={{ scale: 1.12 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setSelectedTooth(tooth)}
-                            className={`p-2 rounded border transition cursor-pointer ${
-                              selectedTooth === tooth
-                                ? "bg-red-500/30 border-red-500 text-red-200 font-bold ring-2 ring-red-400"
-                                : tooth === "16"
-                                ? "bg-red-500/20 border-red-500/50 text-red-300"
-                                : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
-                            }`}
-                          >
-                            {tooth}
-                          </motion.button>
-                        ))}
-                      </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 hover:border-[#2A5CAA] transition">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center mx-auto mb-2">
+                  <QrCode className="w-4 h-4" />
+                </div>
+                <h4 className="text-xs font-bold text-gray-900">
+                  {lang === "bn" ? "বারকোড কার্ড" : "CR80 Cards"}
+                </h4>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {lang === "bn" ? "১ সেকেন্ডে চেক-ইন" : "1-sec barcode scan"}
+                </p>
+              </div>
 
-                      {/* Lower Quadrant Grid */}
-                      <div className="grid grid-cols-8 gap-1.5 text-center text-xs font-mono mb-4">
-                        {["21", "22", "23", "24", "25", "26", "27", "28"].map((tooth) => (
-                          <motion.button
-                            key={tooth}
-                            whileHover={{ scale: 1.12 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setSelectedTooth(tooth)}
-                            className={`p-2 rounded border transition cursor-pointer ${
-                              selectedTooth === tooth
-                                ? "bg-amber-500/30 border-amber-500 text-amber-200 font-bold ring-2 ring-amber-400"
-                                : tooth === "26"
-                                ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-                                : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
-                            }`}
-                          >
-                            {tooth}
-                          </motion.button>
-                        ))}
-                      </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 hover:border-[#2A5CAA] transition">
+                <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center mx-auto mb-2">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <h4 className="text-xs font-bold text-gray-900">
+                  {lang === "bn" ? "ডাক্তার প্রাইভেসি" : "Doctor Privacy"}
+                </h4>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {lang === "bn" ? "নিজস্ব রোগী তালিকা" : "Isolated register"}
+                </p>
+              </div>
 
-                      {/* Dynamic Clinical Condition Legend based on Selected Tooth */}
-                      <div className="flex flex-wrap gap-2 text-[11px] pt-3 border-t border-white/10">
-                        <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
-                          Selected Tooth: {selectedTooth}
-                        </span>
-                        {selectedTooth === "16" ? (
-                          <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
-                            Deep Caries &bull; Root Canal Therapy Indicated
-                          </span>
-                        ) : selectedTooth === "26" ? (
-                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            Class II Mesial-Occlusal Composite Restoration
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            Healthy Sound Tooth Structure
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right Column: Bangla Prescriptions & Safety */}
-                    <div className="lg:col-span-5 bg-[#0F172A] rounded-2xl p-5 border border-white/10 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                            <FileText className="w-4 h-4 text-[#30D158]" />
-                            Sub-60s Prescription Items
-                          </h4>
-                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
-                            Bangla Format
-                          </span>
-                        </div>
-
-                        {/* Item Row 1 */}
-                        <div className="p-3 rounded-xl bg-white/5 border border-white/10 mb-2.5">
-                          <div className="flex justify-between items-start">
-                            <span className="text-xs font-bold text-white">
-                              Tab. Moxaclav 625mg
-                            </span>
-                            <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                              ১ + ০ + ১ (খাবারের পর)
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-white/50 block mt-1">
-                            ৫ দিন • ভরা পেটে খাবেন
-                          </span>
-                        </div>
-
-                        {/* Item Row 2 */}
-                        <div className="p-3 rounded-xl bg-white/5 border border-white/10 mb-3">
-                          <div className="flex justify-between items-start">
-                            <span className="text-xs font-bold text-white">
-                              Tab. Naproxen 500mg
-                            </span>
-                            <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                              ১ + ০ + ১ (খাবারের পর)
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-white/50 block mt-1">
-                            ৩ দিন • ব্যথা থাকলে খাবেন
-                          </span>
-                        </div>
-
-                        {/* Private Doctor Note Box */}
-                        <div className="p-3 rounded-xl bg-purple-900/30 border border-purple-500/40 text-purple-200 text-xs">
-                          <div className="flex items-center gap-1.5 font-bold mb-1">
-                            <Lock className="w-3.5 h-3.5 text-purple-400" />
-                            <span>Private Clinical Note (Doctor Only)</span>
-                          </div>
-                          <p className="text-[11px] text-purple-300/80">
-                            Pulp exposure visible in mesial wall. If pain persists after 48h, initiate
-                            endodontic access opening immediately. (Hidden on patient print).
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-white/60">
-                        <span>Penicillin Allergy Guard: Active</span>
-                        <span className="text-emerald-400 font-bold">Audit Logged</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === "slots" && (
-                  <motion.div
-                    key="slots"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.35, ease: "easeOut" }}
-                    className="p-6 bg-[#0F172A] rounded-2xl border border-white/10"
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                      <div>
-                        <h4 className="text-base font-bold text-white flex items-center gap-2">
-                          <Calendar className="w-5 h-5 text-[#60A5FA]" />
-                          Anti-Collision Scheduling &amp; Split Operational Shifts
-                        </h4>
-                        <p className="text-xs text-white/60 mt-1">
-                          Calculates real open slots based on clinic shift intervals, past system time,
-                          service duration (e.g., 30m Biopsy), and chair physical capacity.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs bg-blue-500/20 text-blue-300 px-3 py-1 rounded-lg border border-blue-500/30">
-                          Shift 1: 10:00 AM - 02:00 PM
-                        </span>
-                        <span className="text-xs bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-lg border border-indigo-500/30">
-                          Shift 2: 05:00 PM - 09:00 PM
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Slots Demo Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center opacity-40">
-                        <span className="text-xs font-mono block line-through">10:00 AM</span>
-                        <span className="text-[10px] text-white/50">Past Time Filtered</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center opacity-40">
-                        <span className="text-xs font-mono block line-through">10:30 AM</span>
-                        <span className="text-[10px] text-white/50">Past Time Filtered</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-red-500/20 border border-red-500/40 text-center">
-                        <span className="text-xs font-mono text-red-300 font-bold block">11:00 AM</span>
-                        <span className="text-[10px] text-red-200">Booked (Dr. Karim)</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center opacity-40">
-                        <span className="text-xs font-mono block">11:20 AM</span>
-                        <span className="text-[10px] text-white/50">Overlaps 30m slot</span>
-                      </div>
-                      <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-center hover:bg-emerald-500/30 cursor-pointer"
-                      >
-                        <span className="text-xs font-mono text-emerald-300 font-bold block">11:40 AM</span>
-                        <span className="text-[10px] text-emerald-200">Open (Chair 1 &amp; 2)</span>
-                      </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-center hover:bg-emerald-500/30 cursor-pointer"
-                      >
-                        <span className="text-xs font-mono text-emerald-300 font-bold block">12:10 PM</span>
-                        <span className="text-[10px] text-emerald-200">Open (Chair 1)</span>
-                      </motion.div>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-white/70">
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-[#30D158]" />
-                        GIST Database Exclusion Constraint (`tstzrange` no-overlap) Active
-                      </span>
-                      <span className="font-mono text-[11px] text-white/50">
-                        Chair Buffer Spacing: 10 mins
-                      </span>
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === "queue" && (
-                  <motion.div
-                    key="queue"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.35, ease: "easeOut" }}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5 bg-[#0F172A] rounded-2xl border border-white/10"
-                  >
-                    {/* Column 1: Waiting Room */}
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs font-bold text-amber-300 flex items-center gap-1.5 uppercase tracking-wider">
-                          <Users className="w-3.5 h-3.5" /> Waiting Lounge (3)
-                        </h4>
-                        <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono">
-                          Avg: 12 min
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="p-2.5 rounded-lg bg-white/5 border border-white/10">
-                          <div className="flex justify-between items-center text-xs font-bold">
-                            <span>A-102 • Tanvir Ahmed</span>
-                            <span className="text-amber-400 font-mono">08m</span>
-                          </div>
-                          <span className="text-[10px] text-white/50 block mt-0.5">
-                            Card: DDC-2026-091 • Scaling
-                          </span>
-                        </div>
-                        <div className="p-2.5 rounded-lg bg-white/5 border border-white/10">
-                          <div className="flex justify-between items-center text-xs font-bold">
-                            <span>A-103 • Nusrat Jahan</span>
-                            <span className="text-amber-400 font-mono">02m</span>
-                          </div>
-                          <span className="text-[10px] text-white/50 block mt-0.5">
-                            Card: DDC-2026-092 • Consultation
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Column 2: In-Chair (Active Surgery) */}
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs font-bold text-blue-400 flex items-center gap-1.5 uppercase tracking-wider">
-                          <Stethoscope className="w-3.5 h-3.5" /> In-Chair (Active)
-                        </h4>
-                        <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-mono">
-                          Chair 1 &amp; 2
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="p-2.5 rounded-lg bg-blue-950/40 border border-blue-500/30">
-                          <div className="flex justify-between items-center text-xs font-bold text-blue-200">
-                            <span>A-101 • Rafiqul Islam</span>
-                            <span className="animate-pulse text-emerald-400">In Surgery</span>
-                          </div>
-                          <span className="text-[10px] text-white/60 block mt-0.5">
-                            Dr. Farhana • Root Canal (Tooth 16)
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Column 3: Billing & Completed */}
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
-                          <CreditCard className="w-3.5 h-3.5" /> Ready for Checkout
-                        </h4>
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono">
-                          Whole-BDT
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30">
-                          <div className="flex justify-between items-center text-xs font-bold text-emerald-200">
-                            <span>A-100 • Shahriar Kabir</span>
-                            <span className="text-white font-mono">৳ 3,500</span>
-                          </div>
-                          <span className="text-[10px] text-white/60 block mt-0.5">
-                            Auto-drafted from Rx • bKash / Cash
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === "billing" && (
-                  <motion.div
-                    key="billing"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.35, ease: "easeOut" }}
-                    className="p-6 bg-[#0F172A] rounded-2xl border border-white/10"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
-                      <div>
-                        <span className="text-xs font-mono text-emerald-400">INVOICE #INV-2026-0841</span>
-                        <h4 className="text-base font-bold text-white">
-                          Whole-Taka Ledger &amp; Multi-Channel Settlement
-                        </h4>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs text-white/50 block">Payable Amount</span>
-                        <span className="text-2xl font-black text-emerald-400 font-mono">৳ 4,500</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Services auto-loaded from Rx */}
-                      <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-                        <h5 className="text-xs font-bold text-white/70 uppercase tracking-wider mb-2">
-                          Auto-Transferred Clinical Services
-                        </h5>
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between">
-                            <span>Consultation &amp; FDI Examination</span>
-                            <span className="font-mono">৳ 500</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Molar Root Canal Therapy (Tooth 16)</span>
-                            <span className="font-mono">৳ 4,000</span>
-                          </div>
-                          <div className="flex justify-between pt-2 border-t border-white/10 font-bold text-emerald-300">
-                            <span>Subtotal (Whole-BDT)</span>
-                            <span className="font-mono">৳ 4,500</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Payment Split */}
-                      <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-                        <h5 className="text-xs font-bold text-white/70 uppercase tracking-wider mb-2">
-                          Payment Reconciliation
-                        </h5>
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between items-center bg-white/5 p-2 rounded">
-                            <span className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-pink-500" /> bKash Digital
-                            </span>
-                            <span className="font-mono font-bold">৳ 2,500 (TrxID: 9X738B)</span>
-                          </div>
-                          <div className="flex justify-between items-center bg-white/5 p-2 rounded">
-                            <span className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" /> Cash Received
-                            </span>
-                            <span className="font-mono font-bold">৳ 2,000</span>
-                          </div>
-                          <div className="flex justify-between pt-1 text-[11px] text-emerald-400 font-bold">
-                            <span>Balance Due: ৳ 0 (Fully Settled)</span>
-                            <span>Money Receipt Printed</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 hover:border-[#2A5CAA] transition">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center mx-auto mb-2">
+                  <Printer className="w-4 h-4" />
+                </div>
+                <h4 className="text-xs font-bold text-gray-900">
+                  {lang === "bn" ? "সহজ প্রিন্ট" : "Easy Printing"}
+                </h4>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {lang === "bn" ? "A4 ও প্যাড প্রিন্ট" : "A4 or pad ready"}
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* YOUTUBE VIDEO PLAYER SECTION (Admin-Configured Demo Tour) */}
-      <section id="video" className="py-20 bg-gradient-to-b from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white relative overflow-hidden">
-        {/* Parallax Ambient Backlight */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[360px] bg-red-600/10 blur-[150px] rounded-full pointer-events-none" />
+      {/* 6. VIDEO DEMO TOUR (Clean Embed, No Internal Admin Notes) */}
+      <section id="video" className="py-14 sm:py-20 bg-gradient-to-b from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 text-red-300 text-xs font-bold mb-3 border border-red-500/30">
+            <YoutubePlayIcon className="w-4 h-4 text-red-400" />
+            <span>{lang === "bn" ? "লাইভ ভিডিও ডেমো" : "Live Video Demo"}</span>
+          </div>
 
-        <div className="max-w-5xl mx-auto px-6 relative z-10 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold mb-4 shadow-xs"
-          >
-            <YoutubeIcon className="w-4 h-4 text-red-400" />
-            <span>Interactive Video Tour &amp; Live Walkthrough</span>
-          </motion.div>
-
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
-            See Oris EMR In Real-World Clinic Action
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
+            {lang === "bn" ? "বাস্তব চেম্বারে Oris EMR কীভাবে কাজ করে দেখুন" : "See Oris EMR In Real-World Clinic Action"}
           </h2>
 
-          <p className="mt-4 text-base sm:text-lg text-white/70 max-w-2xl mx-auto leading-relaxed">
-            Watch our complete clinical workflow demonstration. Experience barcode check-in, 30-second prescription authoring, chairside visit fee presets, live waiting lounge TV calling, and transparent patient financial ledgers.
+          <p className="mt-2 text-sm sm:text-base text-gray-300 max-w-xl mx-auto">
+            {lang === "bn"
+              ? "বারকোড চেক-ইন থেকে ১ মিনিটে প্রেসক্রিপশন, টিভি কলিং এবং দিনশেষের হিসাব — সম্পূর্ণ ডেমো।"
+              : "Watch our complete workflow: barcode check-in, 1-minute prescription authoring, live lounge TV calling, and billing."}
           </p>
 
-          {/* Video Player Cinema Frame */}
-          <div className="mt-10 rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 bg-white/5 border border-white/15 shadow-2xl backdrop-blur-md">
-            <div className="relative aspect-video w-full rounded-xl sm:rounded-2xl overflow-hidden bg-black shadow-inner">
+          {/* Clean Responsive Video Cinema Frame */}
+          <div className="mt-8 rounded-2xl p-2 sm:p-3 bg-white/10 border border-white/15 shadow-2xl backdrop-blur-md">
+            <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black shadow-inner">
               <iframe
                 src={formatYouTubeEmbedUrl(initialVideoUrl)}
                 title="Oris EMR Dental Chamber Software Walkthrough"
@@ -1029,852 +766,563 @@ export default function LandingPageClient({
                 allowFullScreen
               />
             </div>
-
-            {/* Video Highlights Footer */}
-            <div className="mt-4 px-2 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-4 text-xs text-white/70 border-t border-white/10 pt-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="font-semibold text-white">Full Feature Walkthrough</span>
-              </div>
-              <div className="flex items-center gap-4 flex-wrap text-white/60">
-                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Sub-60s Prescription</span>
-                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> FDI Odontogram</span>
-                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> 1-Click Rx Clone</span>
-                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Chairside Visit Fee</span>
-                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Lounge TV Call System</span>
-              </div>
-            </div>
           </div>
 
-          <p className="mt-4 text-xs text-white/40">
-            Note: Platform administrators can update this walkthrough video anytime via the Super Admin Dashboard.
-          </p>
+          {/* Direct CTA under video */}
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => handleWhatsAppClick("video_section")}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-sm shadow-lg transition cursor-pointer"
+            >
+              <WhatsAppIcon className="w-4 h-4 fill-white" />
+              <span>{lang === "bn" ? "ভিডিও ভালো লেগেছে? ফ্রি ডেমো নিন" : "Liked the demo? Get started on WhatsApp"}</span>
+            </button>
+          </div>
         </div>
       </section>
 
-      {/* COMPREHENSIVE FEATURES GRID (GSAP ScrollTrigger Staggered Reveal) */}
-      <section id="features" className="py-20 bg-[#F8FAFC]">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="px-3.5 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
-              Clinical Architecture &amp; Capabilities
+      {/* 7. SOCIAL PROOF & PILOT CHAMBER TRUST */}
+      <section className="py-14 sm:py-20 bg-white border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-xl mx-auto mb-10">
+            <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider border border-emerald-200">
+              {lang === "bn" ? "ডাক্তারদের অভিজ্ঞতা" : "Doctor Feedback"}
             </span>
-            <h2 className="mt-3 text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#1C1C1E] tracking-tight">
-              Engineered Specifically for Modern Dental Clinics
+            <h2 className="text-2xl sm:text-3xl font-black text-[#1C1C1E] mt-2 tracking-tight">
+              {lang === "bn" ? "৫০+ ডেন্টাল চেম্বার ইতিমধ্যে ট্রায়াল দিচ্ছেন" : "50+ Dental Chambers Already on Board"}
             </h2>
-            <p className="mt-4 text-base sm:text-lg text-[#6B7280]">
-              Every module is crafted to eliminate front-desk delays, accelerate doctor diagnostic prescribing,
-              and maintain a transparent financial ledger with zero paisa errors.
+            <p className="mt-1 text-sm text-gray-500">
+              {lang === "bn"
+                ? "বাস্তব ডেন্টাল প্র্যাকটিসে ব্যবহারকারী সম্মানিত চিকিৎসকদের মতামত"
+                : "Honest feedback from practicing dentists in Bangladesh"}
             </p>
           </div>
 
-          <div ref={featuresGridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Feature 1: Sub-60s Prescription */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#E8EEF7] text-[#2A5CAA] flex items-center justify-center mb-5">
-                  <FileText className="w-6 h-6" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-gray-200 flex flex-col justify-between">
+              <p className="text-xs sm:text-sm text-gray-700 italic leading-relaxed">
+                {lang === "bn"
+                  ? "“আগে প্রতি প্রেসক্রিপশন লিখতে ৫-৭ মিনিট লাগত, এখন ১ মিনিটে পুরো প্রেসক্রিপশন প্রিন্ট করে দিই। রোগীরাও স্পষ্ট বাংলা নির্দেশিকা দেখে খুব খুশি।”"
+                  : "“Prescriptions used to take 5-7 minutes each. Now I print a complete Bangla prescription in 1 minute. Patients love the clarity.”"}
+              </p>
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <div className="font-bold text-xs text-[#1C1C1E]">
+                  {lang === "bn" ? "ড. তানভীর হোসেন (বিডিএস, পিজিটি)" : "Dr. Tanvir Hossain (BDS, PGT)"}
                 </div>
-                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
-                  30-Second Prescription Builder
-                </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
-                  Pre-loaded dental drug catalog, one-click Bangla dosage instructions (১+০+১ খাওয়ার পর), duration shortcuts, and active allergy safety warnings.
-                </p>
+                <div className="text-[11px] text-gray-500">
+                  {lang === "bn" ? "ধানমন্ডি ডেন্টাল কেয়ার, ঢাকা" : "Dhanmondi Dental Care, Dhaka"}
+                </div>
               </div>
-              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#2A5CAA]">
-                <span>Bangla dosage native</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </motion.div>
+            </div>
 
-            {/* Feature 2: Interactive FDI Tooth Chart */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#F3E8FF] text-[#9333EA] flex items-center justify-center mb-5">
-                  <Sparkles className="w-6 h-6" />
+            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-gray-200 flex flex-col justify-between">
+              <p className="text-xs sm:text-sm text-gray-700 italic leading-relaxed">
+                {lang === "bn"
+                  ? "“ফলো-আপে আগের প্রেসক্রিপশন ১ ক্লিকে চলে আসে। আর ওয়েটিং রুমের টিভি কলিংয়ের কারণে চেম্বারের পরিবেশ একদম শান্ত ও পরিপাটি থাকে।”"
+                  : "“1-click follow-up reload saves immense time. The waiting lounge TV calling keeps the clinic quiet and professional.”"}
+              </p>
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <div className="font-bold text-xs text-[#1C1C1E]">
+                  {lang === "bn" ? "ড. সাদিয়া আফরিন (বিডিএস)" : "Dr. Sadia Afrin (BDS)"}
                 </div>
-                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
-                  Interactive FDI Dental Odontogram
-                </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
-                  Adult (11–48) and pediatric (51–85) interactive 2-digit FDI tooth chart with 15+ dental conditions (Caries, Missing, RCT, Crown, Fracture, Impacted).
-                </p>
+                <div className="text-[11px] text-gray-500">
+                  {lang === "bn" ? "মিরপুর ডেন্টাল চেম্বার, ঢাকা" : "Mirpur Dental Chamber, Dhaka"}
+                </div>
               </div>
-              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#9333EA]">
-                <span>FDI 2-digit standard</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </motion.div>
+            </div>
 
-            {/* Feature 3: 1-Click Follow-up Rewrite */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#ECFDF5] text-[#059669] flex items-center justify-center mb-5">
-                  <Zap className="w-6 h-6" />
+            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-gray-200 flex flex-col justify-between">
+              <p className="text-xs sm:text-sm text-gray-700 italic leading-relaxed">
+                {lang === "bn"
+                  ? "“বিকাশ আর ক্যাশ কালেকশনের হিসাব মেলাতে প্রতিদিন রাতে খাতা দেখা লাগত। এখন দিন শেষে রিসেপশনিস্টের কালেকশন এক পলকেই সম্পূর্ণ ক্লিয়ার।”"
+                  : "“Reconciling bKash and cash used to take hours of ledger checking every night. Now end-of-day revenue is completely clear in seconds.”"}
+              </p>
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <div className="font-bold text-xs text-[#1C1C1E]">
+                  {lang === "bn" ? "ড. নাজমুল হক (বিডিএস)" : "Dr. Nazmul Haque (BDS)"}
                 </div>
-                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
-                  1-Click Follow-up Rx Rewrite
-                </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
-                  Instantly duplicate and rewrite previous prescriptions without retyping, preserving complete longitudinal clinical records and patient history.
-                </p>
-              </div>
-              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#059669]">
-                <span>Zero hand fatigue</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </motion.div>
-
-            {/* Feature 4: Chairside Visit Fee Presets */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#FFF7EB] text-[#FF9F0A] flex items-center justify-center mb-5">
-                  <CreditCard className="w-6 h-6" />
+                <div className="text-[11px] text-gray-500">
+                  {lang === "bn" ? "উত্তরা ডেন্টাল ক্লিনিক, ঢাকা" : "Uttara Dental Clinic, Dhaka"}
                 </div>
-                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
-                  Chairside Visit Fee Presets
-                </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
-                  Doctor taps consultation fee directly during Rx authoring (৳500, ৳800, ৳1,000, ৳1,500) which flows seamlessly to the receptionist's billing desk.
-                </p>
               </div>
-              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#FF9F0A]">
-                <span>Direct billing sync</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </motion.div>
-
-            {/* Feature 5: Anti-Collision Slots */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#E8F8EE] text-[#30D158] flex items-center justify-center mb-5">
-                  <Calendar className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
-                  Anti-Collision Chair Scheduling
-                </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
-                  Configurable procedure chair durations (15/30/45/60 min) with PostgreSQL GIST database exclusion locks that mathematically prevent double bookings.
-                </p>
-              </div>
-              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#30D158]">
-                <span>Zero double bookings</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </motion.div>
-
-            {/* Feature 6: Queue & TV Lounge */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center mb-5">
-                  <Tv className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
-                  Live Queue &amp; TV Lounge Calling
-                </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
-                  Drag-and-drop reception queue management with dedicated full-screen waiting lounge TV display that rings pleasant audio chimes to call patients into chairs.
-                </p>
-              </div>
-              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#3B82F6]">
-                <span>Pleasant audio chime</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </motion.div>
-
-            {/* Feature 7: Patient Financial Ledger */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#FEF3C7] text-[#D97706] flex items-center justify-center mb-5">
-                  <Scale className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
-                  Patient Financial Ledger &amp; Invoices
-                </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
-                  Transparent per-patient ledger showing past invoice history, amounts billed, payments collected via Cash/bKash/Nagad, and 1-click itemized receipts.
-                </p>
-              </div>
-              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#D97706]">
-                <span>Whole-BDT ledger</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </motion.div>
-
-            {/* Feature 8: Doctor Chamber Privacy */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 14px 30px -10px rgba(0,0,0,0.08)" }}
-              transition={{ duration: 0.25 }}
-              className="feature-card-item bg-white rounded-2xl p-6 border border-[#E4E4E7] shadow-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#FCE7F3] text-[#DB2777] flex items-center justify-center mb-5">
-                  <Lock className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-[#1C1C1E] mb-2">
-                  Doctor Privacy &amp; Data Security
-                </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
-                  Doctor-only private clinical notes hidden from patient prints, strict doctor patient visibility isolation, and encrypted multi-tenant cloud storage.
-                </p>
-              </div>
-              <div className="mt-5 pt-3 border-t border-[#F4F4F5] flex items-center gap-1.5 text-xs font-bold text-[#DB2777]">
-                <span>Doctor privacy isolated</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* WHY ORIS EMR IS BEST - HEAD-TO-HEAD COMPARISON MATRIX */}
-      <section id="comparison" className="py-20 bg-white border-t border-[#E4E4E7]">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="px-3.5 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
-              Head-to-Head Comparison
+      {/* 8. SIMPLE COMPARISON TABLE (4 Rows Only, Paper Khata vs Oris EMR) */}
+      <section id="comparison" className="py-14 sm:py-20 bg-[#F8FAFC]">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-xl mx-auto mb-10">
+            <span className="px-3 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
+              {lang === "bn" ? "সহজ তুলনা" : "Clear Comparison"}
             </span>
-            <h2 className="mt-3 text-3xl sm:text-4xl md:text-5xl font-black text-[#1C1C1E] tracking-tight">
-              Why Oris EMR is the Best Choice for Dental Chambers
+            <h2 className="text-2xl sm:text-3xl font-black text-[#1C1C1E] mt-2 tracking-tight">
+              {lang === "bn" ? "প্রচলিত খাতা বনাম Oris EMR" : "Paper Khata vs Oris EMR"}
             </h2>
-            <p className="mt-4 text-base sm:text-lg text-[#6B7280]">
-              See how Oris EMR replaces error-prone paper khata and clunky general hospital software with a purpose-built operating system.
+            <p className="mt-1 text-sm text-gray-500">
+              {lang === "bn" ? "কেন প্রতিটি আধুনিক ডেন্টাল চেম্বার সফটওয়্যারে শিফট করছে" : "Why modern clinics are making the switch"}
             </p>
           </div>
 
-          {/* Comparison Table Container */}
-          <div className="rounded-3xl border border-[#E4E4E7] shadow-lg overflow-hidden bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E4E4E7] bg-[#F8FAFC]">
-                    <th className="p-4 sm:p-5 font-bold text-[#1C1C1E] w-1/4">Feature &amp; Workflow</th>
-                    <th className="p-4 sm:p-5 font-bold text-[#6B7280] w-1/4 bg-gray-50/70">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-red-400" />
-                        <span>Paper Records &amp; Khata</span>
-                      </div>
-                    </th>
-                    <th className="p-4 sm:p-5 font-bold text-[#6B7280] w-1/4 bg-amber-50/40">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-amber-400" />
-                        <span>Generic Hospital Software</span>
-                      </div>
-                    </th>
-                    <th className="p-4 sm:p-5 font-bold text-[#2A5CAA] w-1/4 bg-[#E8EEF7]/50 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4 text-[#2A5CAA]" />
-                        <span className="font-extrabold text-[#2A5CAA]">Oris Dental EMR</span>
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E4E4E7]">
-                  {/* Row 1: FDI Odontogram */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      Dental Odontogram (FDI Charting)
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Hand-drawn pencil sketches; easily misplaced</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>Missing or clunky generic body anatomical chart</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Interactive Adult (32) &amp; Pedo (20) 2-digit FDI selector with 15+ conditions</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 2: Rx Speed */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      Prescription Authoring Speed
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>3-5 minutes handwriting, causing doctor hand fatigue</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>2-4 minutes searching through 10,000+ generic drugs</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>&lt; 60 seconds with pre-loaded dental catalog &amp; 1-click Bangla dosages (১+০+১)</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 3: Followup Rewrite */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      1-Click Follow-up Rx Rewrite
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Must rewrite entire medication schedule from scratch</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>Opens empty prescription form each visit</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>1-click clone &amp; rewrite previous Rx while preserving complete clinical history</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 4: Visit Fee Presets */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      Chairside Visit Fee Presets
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Verbal instruction to receptionist (frequent fee disputes)</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>Receptionist searches multi-level hospital price lists</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Doctor taps fee button (৳500 / ৳1,000 / Custom) directly on Rx screen</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 5: Anti-Collision Slots */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      Chair Scheduling &amp; Conflict Prevention
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Paper appointment diary prone to overlapping double bookings</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>Basic calendar without physical chair buffer constraints</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>PostgreSQL GIST exclusion locks mathematically eliminate chair collision</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 6: Waiting TV */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      Waiting Lounge TV Calling Display
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Receptionist shouting patient names into crowded room</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>Requires expensive third-party token hardware displays</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Native browser TV display with audio chime; runs on any smart TV</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 7: Patient Financial Ledger */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      Patient Financial Payment Ledger
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Scattered carbon paper receipts and manual balance checks</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>Complex multi-department invoices with confusing tax codes</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Transparent per-patient ledger: all visits, dues, and 1-click printable receipts</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 8: Barcode Cards */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      CR80 Plastic Card &amp; Barcode Gun
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Manual search through paper folders taking 5-10 minutes</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>Typing name manually; prone to duplicate patient records</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>0.2s instant patient profile retrieval via physical 1D USB barcode scanner</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 9: Doctor Privacy */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      Doctor Chamber Privacy &amp; Isolation
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Physical paper charts accessible to anyone entering room</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>All doctors often see each other's full patient registers</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Strict doctor isolation mode ensures doctors only see their assigned patients</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Row 10: Whole-BDT */}
-                  <tr className="hover:bg-blue-50/20 transition">
-                    <td className="p-4 sm:p-5 font-semibold text-[#1C1C1E]">
-                      Bangladeshi Whole-BDT Billing
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-gray-50/40">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-red-500 shrink-0" />
-                        <span>Manual cash counting with unrecorded change discrepancies</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 text-[#6B7280] bg-amber-50/20">
-                      <div className="flex items-center gap-2">
-                        <X className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>Foreign software decimal cents causing paisa round-off errors</span>
-                      </div>
-                    </td>
-                    <td className="p-4 sm:p-5 font-semibold text-[#2A5CAA] bg-[#E8EEF7]/30 border-l border-[#2A5CAA]/20">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Integer Whole-BDT with instant multi-tender split across Cash, bKash &amp; Nagad</span>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="grid grid-cols-12 bg-gray-50 p-3 sm:p-4 border-b border-gray-200 text-xs font-bold text-gray-700">
+              <div className="col-span-4 sm:col-span-4">{lang === "bn" ? "কাজের ধরণ" : "Workflow"}</div>
+              <div className="col-span-4 sm:col-span-4 text-gray-500">{lang === "bn" ? "প্রচলিত খাতা / ডায়েরি" : "Paper Khata"}</div>
+              <div className="col-span-4 sm:col-span-4 text-[#2A5CAA] font-extrabold">{lang === "bn" ? "Oris EMR" : "Oris EMR"}</div>
             </div>
 
-            {/* Comparison Callout Footer */}
-            <div className="p-6 bg-gradient-to-r from-[#2A5CAA] to-[#1C3E75] text-white flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
-                <h4 className="font-extrabold text-base sm:text-lg">Experience the specialized dental difference today</h4>
-                <p className="text-xs sm:text-sm text-white/80">Zero training required. Onboard your clinic in less than 15 minutes.</p>
+            <div className="divide-y divide-gray-100 text-xs sm:text-sm">
+              {/* Row 1: Prescription Time */}
+              <div className="grid grid-cols-12 p-3.5 sm:p-4 items-center">
+                <div className="col-span-4 font-bold text-gray-900">
+                  {lang === "bn" ? "প্রেসক্রিপশন সময়" : "Prescription Time"}
+                </div>
+                <div className="col-span-4 text-red-600 flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{lang === "bn" ? "হাতে লিখতে ৪-৬ মিনিট" : "4-6 mins by hand"}</span>
+                </div>
+                <div className="col-span-4 text-emerald-700 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{lang === "bn" ? "১ মিনিটে বাংলা প্রিসেট" : "1 min with presets"}</span>
+                </div>
               </div>
-              <Link
-                href="/login"
-                className="px-6 py-3 rounded-xl bg-white text-[#2A5CAA] font-bold text-xs sm:text-sm shadow-md hover:bg-[#F8FAFC] transition shrink-0"
-              >
-                Access Chamber Portal
-              </Link>
+
+              {/* Row 2: Follow-up Recall */}
+              <div className="grid grid-cols-12 p-3.5 sm:p-4 items-center bg-gray-50/50">
+                <div className="col-span-4 font-bold text-gray-900">
+                  {lang === "bn" ? "ফলো-আপ ভিজিট" : "Follow-up Recall"}
+                </div>
+                <div className="col-span-4 text-red-600 flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{lang === "bn" ? "পুরোনো প্রেসক্রিপশন খোঁজাখুঁজি" : "Searching old files"}</span>
+                </div>
+                <div className="col-span-4 text-emerald-700 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{lang === "bn" ? "১ ক্লিকে আগের তথ্য লোড" : "1-click instant reload"}</span>
+                </div>
+              </div>
+
+              {/* Row 3: Double Booking */}
+              <div className="grid grid-cols-12 p-3.5 sm:p-4 items-center">
+                <div className="col-span-4 font-bold text-gray-900">
+                  {lang === "bn" ? "অ্যাপয়েন্টমেন্ট" : "Appointments"}
+                </div>
+                <div className="col-span-4 text-red-600 flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{lang === "bn" ? "ডাবল বুকিং ও সিরিয়াল বাগবিতণ্ডা" : "Double bookings & chaos"}</span>
+                </div>
+                <div className="col-span-4 text-emerald-700 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{lang === "bn" ? "সুনির্দিষ্ট চেয়ার স্লট ও বাফার" : "Clean non-overlapping slots"}</span>
+                </div>
+              </div>
+
+              {/* Row 4: Due Tracking */}
+              <div className="grid grid-cols-12 p-3.5 sm:p-4 items-center bg-gray-50/50">
+                <div className="col-span-4 font-bold text-gray-900">
+                  {lang === "bn" ? "বকেয়া ও হিসাব" : "Dues & Ledger"}
+                </div>
+                <div className="col-span-4 text-red-600 flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{lang === "bn" ? "খাতায় গরমিল ও টাকা হারানো" : "Lost records & paisa errors"}</span>
+                </div>
+                <div className="col-span-4 text-emerald-700 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{lang === "bn" ? "প্রতি রোগীর স্বচ্ছ অটো-লেজার" : "Transparent per-patient ledger"}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 5-PHASE CLINICAL WORKFLOW TIMELINE (GSAP Scrubbed Progress Bar) */}
-      <section id="workflow" className="py-20 bg-white border-t border-[#E4E4E7]">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="px-3.5 py-1 rounded-full bg-[#E8F8EE] text-[#30D158] font-bold text-xs uppercase tracking-wider border border-[#30D158]/30">
-              Operational Sequence
+      {/* 9. HOW IT STARTS (3 Simple Steps) */}
+      <section className="py-14 sm:py-20 bg-white border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-xl mx-auto mb-10">
+            <span className="px-3 py-1 rounded-full bg-blue-50 text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-blue-200">
+              {lang === "bn" ? "অনবোর্ডিং" : "How It Starts"}
             </span>
-            <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-[#1C1C1E] tracking-tight">
-              The 5-Phase End-to-End Clinic Workflow
+            <h2 className="text-2xl sm:text-3xl font-black text-[#1C1C1E] mt-2 tracking-tight">
+              {lang === "bn" ? "৩টি সহজ ধাপে চেম্বারে চালু করুন" : "Get Started in 3 Easy Steps"}
             </h2>
-            <p className="mt-3 text-base text-[#6B7280]">
-              From the instant a patient walks through the door to treatment completion and recall scheduling.
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-5 rounded-2xl bg-[#F8FAFC] border border-gray-200 text-center">
+              <div className="w-10 h-10 rounded-full bg-[#25D366] text-white flex items-center justify-center mx-auto mb-3 font-bold text-base shadow-sm">
+                ১
+              </div>
+              <h3 className="font-bold text-sm text-[#1C1C1E]">
+                {lang === "bn" ? "WhatsApp করুন" : "Send WhatsApp"}
+              </h3>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                {lang === "bn"
+                  ? "আমাদের WhatsApp নম্বরে একটি মেসেজ দিন। আমাদের টিম আপনাকে সাথে সাথে সফটওয়্যারের লাইভ ডেমো দেখাবে।"
+                  : "Message us on WhatsApp. Our team will show you a live interactive walkthrough."}
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#F8FAFC] border border-gray-200 text-center">
+              <div className="w-10 h-10 rounded-full bg-[#2A5CAA] text-white flex items-center justify-center mx-auto mb-3 font-bold text-base shadow-sm">
+                ২
+              </div>
+              <h3 className="font-bold text-sm text-[#1C1C1E]">
+                {lang === "bn" ? "১৫ মিনিটে সেটআপ" : "Setup in 15 Mins"}
+              </h3>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                {lang === "bn"
+                  ? "আপনার চেম্বারের নাম, ডাক্তার আইডি এবং প্রেসক্রিপশনের প্যাড তথ্য আমাদের টিম ১৫ মিনিটে সেট করে দেবে।"
+                  : "We configure your clinic name, doctor credentials, and prescription format in 15 minutes."}
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#F8FAFC] border border-gray-200 text-center">
+              <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto mb-3 font-bold text-base shadow-sm">
+                ৩
+              </div>
+              <h3 className="font-bold text-sm text-[#1C1C1E]">
+                {lang === "bn" ? "চেম্বারে শুরু করুন" : "Start Consultations"}
+              </h3>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                {lang === "bn"
+                  ? "প্রথম দিন থেকেই ১ মিনিটে রোগীকে ডিজিটাল বাংলা প্রেসক্রিপশন দিন এবং নিখুঁত হিসাব রাখুন।"
+                  : "Start authoring digital Bangla prescriptions and tracking patient accounts from day one."}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 10. PRICING BOX & SHORT FAQ */}
+      <section id="pricing" className="py-14 sm:py-20 bg-[#F8FAFC]">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-xl mx-auto mb-10">
+            <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider border border-emerald-200">
+              {lang === "bn" ? "স্বচ্ছ মূল্যতালিকা" : "Transparent Pricing"}
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-[#1C1C1E] mt-2 tracking-tight">
+              {lang === "bn" ? "একটি সহজ প্ল্যান, সবকিছু আনলিমিটেড" : "One Simple Plan, Unlimited Access"}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {lang === "bn" ? "কোনো ইনস্টলেশন চার্জ নেই, কোনো হিডেন ফি নেই" : "No installation charges, zero hidden fees"}
             </p>
           </div>
 
-          <div ref={workflowTrackRef} className="relative">
-            {/* GSAP Scrubbed Progress Track Line */}
-            <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-[#E2E8F0] -translate-y-1/2 -z-0">
-              <div
-                ref={progressBarRef}
-                className="h-full bg-gradient-to-r from-[#2A5CAA] via-[#3B82F6] to-[#0D9488] will-change-transform"
-                style={{ transform: "scaleX(0)" }}
-              />
+          {/* Pricing Card */}
+          <div className="max-w-md mx-auto bg-white rounded-3xl border-2 border-[#2A5CAA] p-6 sm:p-8 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-[#2A5CAA] text-white text-[10px] font-black uppercase tracking-wider px-4 py-1 rounded-bl-xl">
+              {lang === "bn" ? "সবচেয়ে জনপ্রিয়" : "Most Popular"}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative z-10">
-              {/* Step 1 */}
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
-              >
-                <span className="text-xs font-mono font-extrabold text-[#2A5CAA] bg-[#E8EEF7] px-2.5 py-1 rounded-md">
-                  Phase 01
-                </span>
-                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Reception &amp; Card Scan</h4>
-                <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Scan pre-printed CR80 card or generate unique patient ID. Instant search by mobile number.
-                </p>
-              </motion.div>
+            <div className="text-center pb-6 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">
+                {lang === "bn" ? "Oris EMR চেম্বার লাইসেন্স" : "Oris EMR Chamber License"}
+              </h3>
+              <div className="mt-4 flex items-baseline justify-center gap-1.5">
+                <span className="text-4xl sm:text-5xl font-black text-[#1C1C1E]">৳ ২,০০০</span>
+                <span className="text-sm font-semibold text-gray-500">/ {lang === "bn" ? "মাস" : "month"}</span>
+              </div>
 
-              {/* Step 2 */}
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
-              >
-                <span className="text-xs font-mono font-extrabold text-[#3B82F6] bg-[#EFF6FF] px-2.5 py-1 rounded-md">
-                  Phase 02
+              {/* Special 4-Month Offer Highlight */}
+              <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs font-semibold text-amber-900">
+                <span className="font-bold text-amber-950 block text-sm">
+                  {lang === "bn" ? "৪ মাসের স্পেশাল অফার: মাত্র ২,০০০ টাকা!" : "4-Month Special Offer: Only BDT 2,000!"}
                 </span>
-                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Queue &amp; Lounge Token</h4>
-                <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Patient enters waiting room. TV screen displays active token number and designated chair with audio chime.
-                </p>
-              </motion.div>
-
-              {/* Step 3 */}
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
-              >
-                <span className="text-xs font-mono font-extrabold text-[#9333EA] bg-[#F3E8FF] px-2.5 py-1 rounded-md">
-                  Phase 03
+                <span>
+                  {lang === "bn"
+                    ? "(৩ মাস ফ্রি + ১ মাস অগ্রিম = প্রথম ৪ মাস দৈনিক মাত্র ~১৬.৬৭ টাকা)"
+                    : "(3 months free + 1 month advance = ~BDT 16.67/day)"}
                 </span>
-                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">FDI Exam &amp; Bangla Rx</h4>
-                <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Dentist marks tooth conditions on FDI chart, taps Bangla dosages, logs visit fee, and prints Rx.
-                </p>
-              </motion.div>
-
-              {/* Step 4 */}
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
-              >
-                <span className="text-xs font-mono font-extrabold text-[#059669] bg-[#ECFDF5] px-2.5 py-1 rounded-md">
-                  Phase 04
+                <span className="block mt-1 text-[11px] text-amber-800">
+                  {lang === "bn" ? "৪ মাস পর নিয়মিত ফি মাসিক ২,০০০ টাকা (দৈনিক ~৬৭ টাকা)।" : "After month 4, BDT 2,000/month (~BDT 67/day)."}
                 </span>
-                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Whole-BDT Billing</h4>
-                <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Doctor fee auto-populates on invoice. Front desk collects via bKash/Cash and prints receipt.
-                </p>
-              </motion.div>
-
-              {/* Step 5 */}
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="workflow-step-card bg-[#F8FAFC] rounded-2xl p-5 border border-[#E2E8F0] relative shadow-xs"
-              >
-                <span className="text-xs font-mono font-extrabold text-[#D97706] bg-[#FEF3C7] px-2.5 py-1 rounded-md">
-                  Phase 05
-                </span>
-                <h4 className="text-sm font-bold text-[#1C1C1E] mt-3 mb-1">Follow-up &amp; Retention</h4>
-                <p className="text-xs text-[#6B7280] leading-relaxed">
-                  Recall date auto-scheduled. Next visit enables 1-click Rx rewrite with complete history preserved.
-                </p>
-              </motion.div>
+              </div>
             </div>
+
+            <div className="py-6 space-y-3 text-xs sm:text-sm text-gray-700">
+              <div className="flex items-center gap-2.5">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{lang === "bn" ? "আনলিমিটেড রোগী ও প্রেসক্রিপশন" : "Unlimited patients & prescriptions"}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{lang === "bn" ? "একাধিক ডক্টর ও রিসেপশন স্টাফ লগইন" : "Multiple doctor & staff logins"}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{lang === "bn" ? "ওয়েটিং রুম লাইভ টিভি কলিং ডিসপ্লে" : "Waiting lounge TV display system"}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{lang === "bn" ? "স্বয়ংক্রিয় রোগী লেজার ও পেমেন্ট হিসাব" : "Patient financial ledger & receipt printing"}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{lang === "bn" ? "প্রতিদিনের ক্লাউড অটোমেটিক ডেটা ব্যাকআপ" : "Daily automatic secure cloud backups"}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{lang === "bn" ? "সরাসরি WhatsApp ও ফোন সাপোর্ট (সকাল ৯টা-রাত ১০টা)" : "Direct WhatsApp & phone support"}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleWhatsAppClick("pricing_box")}
+              className="w-full py-3.5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <WhatsAppIcon className="w-4 h-4 fill-white" />
+              <span>{lang === "bn" ? "অফারটি নিতে WhatsApp করুন" : "Claim Offer on WhatsApp"}</span>
+            </button>
           </div>
-        </div>
-      </section>
 
-      {/* OFFICIAL DOCTOR & CLINIC BROCHURE SHOWCASE SECTION (GSAP Reveal) */}
-      <section id="brochure" className="py-20 bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white">
-        <div className="max-w-6xl mx-auto px-6">
-          <div
-            ref={brochureSectionRef}
-            className="rounded-3xl border border-white/10 bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-purple-900/40 p-8 sm:p-12 relative overflow-hidden will-change-transform"
-          >
-            {/* Ambient Graphic */}
-            <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          {/* Short FAQ Section */}
+          <div className="mt-14 max-w-2xl mx-auto">
+            <h3 className="text-lg font-black text-[#1C1C1E] text-center mb-6">
+              {lang === "bn" ? "সাধারণ জিজ্ঞাসা (FAQ)" : "Frequently Asked Questions"}
+            </h3>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-8">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold mb-4">
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Official Clinic Evaluation Guide</span>
-                </div>
-
-                <h3 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
-                  Handover-Ready Doctor &amp; Clinic Brochure (PDF)
-                </h3>
-
-                <p className="mt-4 text-sm sm:text-base text-white/70 max-w-2xl leading-relaxed">
-                  Download our complete 6-page A4 clinical and operational brochure. Written in clean, non-technical language tailored specifically for busy dentists, clinic directors, and front-desk managers. Includes real screenshots of each module and a transparent financial comparison.
-                </p>
-
-                <div className="mt-6 flex flex-wrap gap-3.5 text-xs text-white/80">
-                  <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> 6-Page High-Res A4 Format
-                  </span>
-                  <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Real Module Screenshots
-                  </span>
-                  <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Sub-60s Prescription Flow
-                  </span>
-                  <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Patient Financial Ledger
-                  </span>
-                </div>
-
-                <div className="mt-8 flex flex-wrap items-center gap-4">
-                  <motion.a
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-                    download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-                    className="px-6 py-3.5 rounded-xl bg-white text-[#0F172A] hover:bg-[#F1F5F9] font-bold text-sm transition-all shadow-lg hover:shadow-xl flex items-center gap-2 cursor-pointer"
+            <div className="space-y-3 text-xs sm:text-sm">
+              {[
+                {
+                  q: lang === "bn" ? "আমার চেম্বারের রোগীর ডেটা কি নিরাপদ থাকবে?" : "Is my clinic and patient data secure?",
+                  a: lang === "bn"
+                    ? "হ্যাঁ, সম্পূর্ণ নিরাপদ। আপনার সব ডেটা নিরাপদ ক্লাউড সার্ভারে এনক্রিপ্টেড থাকে এবং প্রতিদিন একাধিকবার অটোমেটিক ব্যাকআপ হয়।"
+                    : "Yes. All data is encrypted on secure cloud servers with daily automated backups.",
+                },
+                {
+                  q: lang === "bn" ? "সফটওয়্যার চালাতে কি উচ্চগতির ইন্টারনেট লাগবে?" : "Does it require high-speed internet?",
+                  a: lang === "bn"
+                    ? "না। যেকোনো সাধারণ ব্রডব্যান্ড বা মোবাইলের সাধারণ 4G ডাটা / হটস্পট দিয়েই Oris EMR দ্রুতগতিতে চলে।"
+                    : "No. It runs smoothly on standard broadband or simple 4G mobile hotspot.",
+                },
+                {
+                  q: lang === "bn" ? "প্রেসক্রিপশন কীভাবে প্রিন্ট করব?" : "How do I print prescriptions?",
+                  a: lang === "bn"
+                    ? "যেকোনো সাধারণ A4 প্রিন্টার অথবা আপনার চেম্বারের নিজস্ব লেটারহেড প্যাডে খুব সহজেই প্রিন্ট করতে পারবেন।"
+                    : "You can print on any standard A4 laser printer or directly onto your chamber letterhead.",
+                },
+                {
+                  q: lang === "bn" ? "৪ মাস পর কন্টিনিউ না করতে চাইলে আমার ডেটার কী হবে?" : "What happens if I cancel after 4 months?",
+                  a: lang === "bn"
+                    ? "কোনো বাধ্যবাধকতা নেই। আপনি চাইলে ১ ক্লিকেই আপনার সব রোগীর তালিকা ও প্রেসক্রিপশন হিস্ট্রি এক্সপোর্ট করে নিতে পারবেন।"
+                    : "No lock-in contracts. You can export all your patient records and history with a single click anytime.",
+                },
+                {
+                  q: lang === "bn" ? "সাপোর্ট বা কোনো সমস্যা হলে কার সাথে কথা বলব?" : "How do I get technical support?",
+                  a: lang === "bn"
+                    ? "আমাদের ডেডিকেটেড টিম সকাল ৯টা থেকে রাত ১০টা পর্যন্ত সরাসরি WhatsApp ও ফোনে সাপোর্ট প্রদান করে।"
+                    : "Our support team is directly reachable via WhatsApp and phone from 9 AM to 10 PM every day.",
+                },
+              ].map((faq, i) => (
+                <div key={i} className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full p-4 text-left font-bold text-gray-900 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition"
                   >
-                    <Download className="w-4 h-4 text-[#2A5CAA]" />
-                    <span>Download Official Brochure (PDF - 2.9 MB)</span>
-                  </motion.a>
-
-                  <a
-                    href="/oris-doctor-brochure.html"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-5 py-3.5 rounded-xl bg-white/10 border border-white/20 hover:bg-white/15 text-white font-semibold text-sm transition-all flex items-center gap-2"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    <span>View Interactive Web Edition</span>
-                  </a>
+                    <span>{faq.q}</span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-gray-500 transition-transform ${openFaq === i ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {openFaq === i && (
+                    <div className="px-4 pb-4 text-gray-600 leading-relaxed border-t border-gray-100 pt-2 text-xs sm:text-sm">
+                      {faq.a}
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              {/* Graphic Showcase */}
-              <div className="lg:col-span-4 bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-[#2A5CAA] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
-                  <FileText className="w-8 h-8" />
-                </div>
-                <h4 className="text-base font-bold text-white">Official Handover Brochure</h4>
-                <p className="text-xs text-white/60 mt-1">
-                  Ready to print or share via WhatsApp &bull; Executive Summary &bull; 4 Core Modules &bull; ROI &bull; Chamber Security
-                </p>
-                <div className="mt-4 pt-4 border-t border-white/10 text-[11px] text-white/50">
-                  Engineered exclusively for Bangladesh Dental Practices
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* CONTACT SALES & CLINIC ONBOARDING SECTION */}
-      <section id="contact" className="py-16 bg-[#F8FAFC] border-t border-[#E2E8F0]">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="bg-white rounded-3xl p-8 sm:p-12 border border-[#E4E4E7] shadow-xl">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-7">
-                <span className="px-3.5 py-1 rounded-full bg-[#E8EEF7] text-[#2A5CAA] font-bold text-xs uppercase tracking-wider border border-[#2A5CAA]/20">
-                  Chamber Onboarding &amp; Support
+      {/* 11. FINAL CTA & FALLBACK LEAD FORM */}
+      <section id="contact" className="py-14 sm:py-20 bg-white border-t border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="bg-gradient-to-br from-[#1C3E75] via-[#2A5CAA] to-[#1C3E75] rounded-3xl p-6 sm:p-10 text-white shadow-xl">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+              {/* Left Column: Direct Call & WhatsApp */}
+              <div className="md:col-span-7">
+                <span className="px-3 py-1 rounded-full bg-white/20 text-white font-bold text-xs uppercase tracking-wider inline-block mb-3">
+                  {lang === "bn" ? "ফ্রি ডেমো রিকোয়েস্ট" : "Free Demo Request"}
                 </span>
-                <h3 className="mt-3 text-2xl sm:text-3xl md:text-4xl font-black text-[#1C1C1E] tracking-tight">
-                  Ready to Modernize Your Dental Practice?
+                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  {lang === "bn" ? "আপনার চেম্বারকে আজই ডিজিটাল করুন" : "Modernize Your Dental Practice Today"}
                 </h3>
-                <p className="mt-3 text-sm sm:text-base text-[#6B7280] leading-relaxed">
-                  Our specialized clinical onboarding team sets up your clinic slug, doctor credentials, and custom drug catalog in minutes. Contact our direct sales desk for live chamber demonstrations, CR80 card samples, or custom clinic requirements.
+                <p className="mt-2 text-xs sm:text-sm text-white/80 leading-relaxed">
+                  {lang === "bn"
+                    ? "সরাসরি WhatsApp-এ মেসেজ দিন অথবা আপনার ফোন নম্বর দিন, আমাদের টিম আপনাকে ১৫ মিনিটে ফ্রি ডেমো দেখাবে।"
+                    : "Message us on WhatsApp or leave your number below. Our team will reach out in 15 minutes."}
                 </p>
 
-                <div className="mt-6 flex flex-col sm:flex-row gap-4">
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleWhatsAppClick("final_cta")}
+                    className="px-5 py-3 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <WhatsAppIcon className="w-4 h-4 fill-white" />
+                    <span>WhatsApp: +8801920709034</span>
+                  </button>
+
                   <a
                     href="tel:+8801920709034"
-                    className="flex items-center gap-3 p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#2A5CAA] bg-[#F8FAFC] hover:bg-[#E8EEF7]/40 transition group"
+                    className="px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs sm:text-sm text-center transition flex items-center justify-center gap-2"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-[#E8EEF7] text-[#2A5CAA] flex items-center justify-center shrink-0 group-hover:scale-105 transition">
-                      <Phone className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-semibold text-[#6B7280]">Direct Call / Phone</div>
-                      <div className="text-sm font-bold text-[#1C1C1E]">+8801920709034</div>
-                    </div>
+                    <Phone className="w-4 h-4" />
+                    <span>কল করুন: 01920-709034</span>
                   </a>
+                </div>
 
-                  <a
-                    href="mailto:sales@orisemr.com"
-                    className="flex items-center gap-3 p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#2A5CAA] bg-[#F8FAFC] hover:bg-[#E8EEF7]/40 transition group"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-[#E8F8EE] text-[#30D158] flex items-center justify-center shrink-0 group-hover:scale-105 transition">
-                      <Mail className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-semibold text-[#6B7280]">Official Sales Email</div>
-                      <div className="text-sm font-bold text-[#1C1C1E]">sales@orisemr.com</div>
-                    </div>
-                  </a>
+                <div className="mt-4 text-[11px] text-white/60 flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>sales@orisemr.com</span>
                 </div>
               </div>
 
-              <div className="lg:col-span-5 bg-gradient-to-br from-[#2A5CAA] to-[#1C3E75] text-white p-6 sm:p-8 rounded-2xl shadow-lg flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wider text-blue-200">
-                    <MessageSquare className="w-4 h-4" />
-                    <span>Fast-Track Chamber Setup</span>
-                  </div>
-                  <h4 className="text-xl font-extrabold text-white">Get Live In 15 Minutes</h4>
-                  <p className="mt-2 text-xs text-white/80 leading-relaxed">
-                    Our team provides hands-on staff orientation, reception barcode gun setup, and sample pre-printed patient cards across Bangladesh.
-                  </p>
-                </div>
+              {/* Right Column: Lead Form Fallback */}
+              <div className="md:col-span-5 bg-white text-gray-900 p-5 rounded-2xl shadow-lg">
+                <h4 className="font-extrabold text-sm text-[#1C1C1E] mb-1">
+                  {lang === "bn" ? "কল পেতে ফোন নম্বর দিন" : "Request a Callback"}
+                </h4>
+                <p className="text-[11px] text-gray-500 mb-3">
+                  {lang === "bn" ? "আমাদের টিম দ্রুত আপনাকে কল করে ডেমো দেবে।" : "We will call you back to demonstrate."}
+                </p>
 
-                <div className="mt-6 pt-6 border-t border-white/15 flex flex-col sm:flex-row gap-3">
-                  <a
-                    href="https://wa.me/8801920709034"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm text-center shadow-md transition flex items-center justify-center gap-2"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    <span>WhatsApp: +8801920709034</span>
-                  </a>
-                  <Link
-                    href="/login"
-                    className="px-5 py-3 rounded-xl bg-white text-[#2A5CAA] hover:bg-[#F8FAFC] font-bold text-xs sm:text-sm text-center shadow-md transition"
-                  >
-                    Access Portal
-                  </Link>
-                </div>
+                {formSubmitted ? (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center text-xs">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-1.5" />
+                    <div className="font-bold text-emerald-800 text-sm">
+                      {lang === "bn" ? "ধন্যবাদ!" : "Thank you!"}
+                    </div>
+                    <p className="text-gray-600 mt-1">
+                      {lang === "bn" ? "আমাদের টিম দ্রুত আপনার সাথে যোগাযোগ করবে।" : "We will call you shortly."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleWhatsAppClick("form_success_btn")}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] text-white font-bold text-xs"
+                    >
+                      <WhatsAppIcon className="w-3.5 h-3.5 fill-white" />
+                      <span>{lang === "bn" ? "সরাসরি WhatsApp-এ কথা বলুন" : "Chat on WhatsApp now"}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleLeadSubmit} className="space-y-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                        {lang === "bn" ? "ডাক্তার বা চেম্বারের নাম" : "Doctor / Chamber Name"}
+                      </label>
+                      <input
+                        type="text"
+                        value={leadName}
+                        onChange={(e) => setLeadName(e.target.value)}
+                        placeholder={lang === "bn" ? "যেমন: ড. তানভীর" : "e.g. Dr. Tanvir"}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 focus:outline-none focus:border-[#2A5CAA]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                        {lang === "bn" ? "মোবাইল নম্বর *" : "Phone Number *"}
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={leadPhone}
+                        onChange={(e) => setLeadPhone(e.target.value)}
+                        placeholder="01XXXXXXXXX"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 focus:outline-none focus:border-[#2A5CAA]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                        {lang === "bn" ? "এলাকা / জেলা" : "Chamber Location"}
+                      </label>
+                      <input
+                        type="text"
+                        value={leadArea}
+                        onChange={(e) => setLeadArea(e.target.value)}
+                        placeholder={lang === "bn" ? "যেমন: ধানমন্ডি, ঢাকা" : "e.g. Dhanmondi, Dhaka"}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 focus:outline-none focus:border-[#2A5CAA]"
+                      />
+                    </div>
+
+                    {formError && (
+                      <p className="text-[11px] text-red-600 font-semibold">{formError}</p>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="w-full py-2.5 rounded-lg bg-[#2A5CAA] hover:bg-[#224b8c] text-white font-bold text-xs shadow transition cursor-pointer disabled:opacity-50"
+                    >
+                      {isPending
+                        ? (lang === "bn" ? "পাঠানো হচ্ছে..." : "Submitting...")
+                        : (lang === "bn" ? "ফ্রি ডেমোর জন্য কল বুক করুন" : "Book Free Demo Call")}
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="border-t border-[#E4E4E7] bg-white py-12 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+      {/* 12. MINIMAL FOOTER (Superadmin link permanently removed) */}
+      <footer className="border-t border-[#E4E4E7] bg-white py-8 px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <BrandLogo size="sm" />
 
-          <div className="flex items-center gap-6 text-xs text-[#6B7280] flex-wrap justify-center">
-            <a href="#features" className="hover:text-[#1C1C1E] transition">
-              Features
-            </a>
-            <a href="#video" className="hover:text-[#1C1C1E] transition">
-              Video Demo
-            </a>
-            <a href="#comparison" className="hover:text-[#1C1C1E] transition">
-              Why Oris EMR
-            </a>
-            <a href="#workflow" className="hover:text-[#1C1C1E] transition">
-              Workflow
-            </a>
+          <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap justify-center">
             <a
               href="/ORIS_EMR_Doctor_Clinic_Brochure.pdf"
               download="ORIS_EMR_Doctor_Clinic_Brochure.pdf"
-              className="hover:text-[#2A5CAA] font-bold transition text-[#2A5CAA]"
+              className="text-[#2A5CAA] hover:underline font-bold flex items-center gap-1"
             >
-              Doctor Brochure (PDF)
+              <Download className="w-3.5 h-3.5" />
+              <span>{lang === "bn" ? "ডাক্তার ব্রোশিওর (PDF)" : "Doctor Brochure (PDF)"}</span>
             </a>
-            <a href="tel:+8801920709034" className="hover:text-[#1C1C1E] font-medium transition">
+            <span>&bull;</span>
+            <a href="tel:+8801920709034" className="hover:text-gray-900 transition">
               +8801920709034
             </a>
-            <a href="mailto:sales@orisemr.com" className="hover:text-[#1C1C1E] font-medium transition">
+            <span>&bull;</span>
+            <a href="mailto:sales@orisemr.com" className="hover:text-gray-900 transition">
               sales@orisemr.com
             </a>
-            <Link href="/login" className="hover:text-[#1C1C1E] transition">
-              Staff Login
-            </Link>
-            <Link href="/platform" className="hover:text-[#1C1C1E] transition">
-              Superadmin Platform
+            <span>&bull;</span>
+            {/* Small discreet Staff Login link for existing clients */}
+            <Link href="/login" className="text-gray-400 hover:text-gray-700 transition">
+              {lang === "bn" ? "স্টাফ লগইন" : "Staff Login"}
             </Link>
           </div>
 
-          <p className="text-xs text-[#9CA3AF]">
-            &copy; {new Date().getFullYear()} ORIS EMR. All rights reserved.
+          <p className="text-xs text-gray-400">
+            &copy; {new Date().getFullYear()} Oris EMR. All rights reserved.
           </p>
         </div>
       </footer>
+
+      {/* 13. STICKY WHATSAPP FLOATING BUTTON ON MOBILE (Always Visible, Prefilled Msg, Pixel Tracked) */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => handleWhatsAppClick("sticky_floating_button")}
+          className="flex items-center gap-2 px-4 py-3 rounded-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs sm:text-sm shadow-2xl shadow-[#25D366]/40 cursor-pointer border-2 border-white"
+          title="WhatsApp-এ ডেমো দেখতে চাই"
+        >
+          <WhatsAppIcon className="w-5 h-5 fill-white shrink-0" />
+          <span className="hidden xs:inline">{lang === "bn" ? "ফ্রি ডেমো (WhatsApp)" : "Free Demo"}</span>
+        </motion.button>
+      </div>
     </div>
   );
 }
